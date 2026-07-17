@@ -1,0 +1,28 @@
+{
+    "name": "rechly-desktop",
+    "productName": "Rechly",
+    "version": "1.0.0",
+    "description": "Rechly – Rechnungssoftware für Freelancer und kleine Unternehmen (Desktop)",
+    "main": "main.js",
+    "author": "Rechly",
+    "license": "AGPL-3.0-only",
+    "homepage": "https://rechly.de",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/myaxyo/rechly_desktop.git"
+    },
+    "scripts": {
+        "start": "electron .",
+        "pack": "electron-builder --dir",
+        "dist": "electron-builder",
+        "dist:mac": "electron-builder --mac",
+        "dist:win": "electron-builder --win"
+    },
+    "dependencies": {
+        "electron-updater": "^6.3.9"
+    },
+    "devDependencies": {
+        "electron": "^33.2.0",
+        "electron-builder": "^25.1.8"
+    }
+}

@@ -1,0 +1,43 @@
+appId: de.rechly.desktop
+productName: Rechly
+copyright: © Rechly — AGPL-3.0
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - main.js
+  - preload.js
+  - offline.html
+  - package.json
+
+mac:
+  category: public.app-category.finance
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  # Signing/notarization required for distribution:
+  # set CSC_LINK/CSC_KEY_PASSWORD and APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD
+  hardenedRuntime: true
+  gatekeeperAssess: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # Set CSC_LINK/CSC_KEY_PASSWORD with a code-signing certificate
+
+nsis:
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+
+# Auto-updates via GitHub Releases (electron-updater reads this config).
+# Publish with: GH_TOKEN=<token> npm run dist -- --publish always
+publish:
+  provider: github
+  owner: myaxyo
+  repo: rechly_desktop

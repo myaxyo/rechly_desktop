@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="de">
+    <head>
+        <meta charset="utf-8" />
+        <title>Rechly – offline</title>
+        <style>
+            body {
+                margin: 0;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family:
+                    -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+                    sans-serif;
+                background: linear-gradient(180deg, #eef6ff 0%, #ffffff 70%);
+                color: #0f172a;
+            }
+            .card {
+                text-align: center;
+                padding: 48px;
+                max-width: 420px;
+            }
+            h1 {
+                font-size: 24px;
+                margin-bottom: 8px;
+            }
+            p {
+                color: #475569;
+                line-height: 1.6;
+                margin-bottom: 24px;
+            }
+            button {
+                border: 0;
+                border-radius: 10px;
+                padding: 12px 22px;
+                font-size: 15px;
+                font-weight: 600;
+                color: #fff;
+                background: #1d4ed8;
+                cursor: pointer;
+            }
+            button:hover {
+                background: #1e40af;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>Keine Verbindung</h1>
+            <p>
+                Rechly konnte nicht erreicht werden. Bitte prüfen Sie Ihre
+                Internetverbindung und versuchen Sie es erneut.
+            </p>
+            <button onclick="location.href='https://rechly.de'">
+                Erneut versuchen
+            </button>
+        </div>
+    </body>
+</html>
