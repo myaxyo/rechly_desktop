@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rechly Desktop — 100% Offline</title>
+  <style>
+    :root {
+      --bg-main: #f8fafc;
+      --bg-surface: #ffffff;
+      --sidebar-bg: #0f172a;
+      --sidebar-text: #94a3b8;
+      --sidebar-text-active: #ffffff;
+      --sidebar-active-bg: #1e293b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-main);
+      color: var(--text);
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* ─── Mac Frameless Titlebar ─── */
+    .titlebar {
+      height: 44px;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px 0 80px; /* Space for Mac traffic lights */
+      -webkit-app-region: drag;
+    }
+    .titlebar-center {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .offline-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ecfdf5;
+      color: #059669;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 12px;
+      border: 1px solid #a7f3d0;
+    }
+    .ai-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #eff6ff;
+      color: #2563eb;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 12px;
+      border: 1px solid #bfdbfe;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+    .titlebar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+    }
+    .quick-search {
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      width: 180px;
+      outline: none;
+    }
+    .quick-search:focus { border-color: var(--primary); }
+
+    /* ─── Layout ─── */
+    .app-body {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 44px);
+    }
+
+    /* ─── Sidebar ─── */
+    .sidebar {
+      width: 240px;
+      background: var(--sidebar-bg);
+      color: var(--sidebar-text);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 10px;
+      overflow-y: auto;
+    }
+    .sidebar-header {
+      padding: 0 8px 16px 8px;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 12px;
+    }
+    .company-name {
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .company-legal { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+    .nav-group-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #475569;
+      padding: 10px 8px 4px 8px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 6px;
+      color: var(--sidebar-text);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      margin-bottom: 2px;
+    }
+    .nav-item:hover { background: #1e293b; color: #ffffff; }
+    .nav-item.active { background: var(--primary); color: #ffffff; font-weight: 600; }
+    .nav-item .icon { margin-right: 8px; font-size: 14px; }
+    .nav-badge {
+      font-size: 10px;
+      background: #334155;
+      color: #e2e8f0;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    /* ─── Main Content ─── */
+    .content-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px;
+      background: var(--bg-main);
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .page-title { font-size: 20px; font-weight: 700; color: var(--text); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: #fff; border-color: var(--border); color: var(--text); }
+    .btn-secondary:hover { background: #f1f5f9; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+    /* ─── Cards & Tables ─── */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 12px; background: #f8fafc; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:hover td { background: #f8fafc; }
+
+    /* ─── Status Pills ─── */
+    .status-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .status-draft { background: #f1f5f9; color: #475569; }
+    .status-sent { background: #e0f2fe; color: #0284c7; }
+    .status-paid { background: #dcfce7; color: #15803d; }
+
+    /* ─── AI Quick Bar ─── */
+    .ai-bar-card {
+      background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+      border: 1px solid #bfdbfe;
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+    .ai-input-row { display: flex; gap: 8px; margin-top: 8px; }
+    .ai-input-row input {
+      flex: 1;
+      padding: 9px 14px;
+      border: 1px solid #93c5fd;
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+    }
+    .ai-input-row input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+
+    /* ─── Forms ─── */
+    .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+    .form-group input, .form-group select, .form-group textarea {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      outline: none;
+      font-family: inherit;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      border-color: var(--primary);
+    }
+
+    /* ─── Print / PDF Preview Modal ─── */
+    #print-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .print-sheet {
+      background: #fff;
+      width: 750px;
+      max-height: 90vh;
+      overflow-y: auto;
+      border-radius: 8px;
+      padding: 40px;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+    }
+
+    @media print {
+      body * { visibility: hidden; }
+      .print-sheet, .print-sheet * { visibility: visible; }
+      .print-sheet { position: absolute; left: 0; top: 0; width: 100%; padding: 0; box-shadow: none; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Native Titlebar -->
+  <div class="titlebar">
+    <div class="titlebar-center">
+      <span>Rechly Desktop</span>
+      <span class="offline-badge">🔒 100% Offline • Lokaler Tresor (DSGVO)</span>
+      <span class="ai-pill" id="ai-model-indicator" onclick="showView('settings')">
+        🟢 jonprompter/Rechly-DE-3B
+      </span>
+    </div>
+    <div class="titlebar-right">
+      <input type="text" class="quick-search" id="global-search" placeholder="Suchen (⌘F)..." oninput="handleGlobalSearch(this.value)">
+    </div>
+  </div>
+
+  <div class="app-body">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="company-name" id="sidebar-company-name">Meine Firma</div>
+        <div class="company-legal" id="sidebar-company-legal">Einzelunternehmen</div>
+      </div>
+
+      <div class="nav-group-title">Dokumente</div>
+      <div class="nav-item active" onclick="showView('invoices')">
+        <span><span class="icon">📄</span> Rechnungen</span>
+        <span class="nav-badge" id="badge-invoices">0</span>
+      </div>
+      <div class="nav-item" onclick="showView('create-invoice')">
+        <span><span class="icon">➕</span> Neue Rechnung</span>
+      </div>
+      <div class="nav-item" onclick="showView('offers')">
+        <span><span class="icon">📑</span> Angebote</span>
+        <span class="nav-badge" id="badge-offers">0</span>
+      </div>
+
+      <div class="nav-group-title">Stammdaten</div>
+      <div class="nav-item" onclick="showView('clients')">
+        <span><span class="icon">👥</span> Kunden</span>
+        <span class="nav-badge" id="badge-clients">0</span>
+      </div>
+      <div class="nav-item" onclick="showView('products')">
+        <span><span class="icon">📦</span> Produkte & Dienste</span>
+        <span class="nav-badge" id="badge-products">0</span>
+      </div>
+
+      <div class="nav-group-title">Finanzen & Export</div>
+      <div class="nav-item" onclick="showView('expenses')">
+        <span><span class="icon">🧾</span> Ausgaben</span>
+      </div>
+      <div class="nav-item" onclick="showView('datev')">
+        <span><span class="icon">💾</span> DATEV Export</span>
+      </div>
+      <div class="nav-item" onclick="showView('tools')">
+        <span><span class="icon">🧮</span> Offline Rechner</span>
+      </div>
+
+      <div class="nav-group-title">System</div>
+      <div class="nav-item" onclick="showView('settings')">
+        <span><span class="icon">⚙️</span> Einstellungen & KI</span>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="content-area" id="content-container">
+      <!-- Injected Views via JS -->
+    </div>
+  </div>
+
+  <!-- Print Modal -->
+  <div id="print-modal">
+    <div class="print-sheet" id="print-sheet-content"></div>
+  </div>
+
+  <script>
+    // ─── Desktop App State ───
+    let currentStore = { company: {}, invoices: [], clients: [], products: [], offers: [], expenses: [], aiSettings: {} };
+    let currentView = 'invoices';
+
+    async function init() {
+      if (window.rechly) {
+        currentStore = await window.rechly.getStore();
+        updateSidebarCompany();
+        updateBadges();
+        showView('invoices');
+        checkOllamaConnection();
+      }
+    }
+
+    function updateSidebarCompany() {
+      const c = currentStore.company || {};
+      document.getElementById('sidebar-company-name').innerText = c.name || 'Meine Firma';
+      document.getElementById('sidebar-company-legal').innerText = c.legal_form || 'Einzelunternehmen';
+    }
+
+    function updateBadges() {
+      document.getElementById('badge-invoices').innerText = (currentStore.invoices || []).length;
+      document.getElementById('badge-offers').innerText = (currentStore.offers || []).length;
+      document.getElementById('badge-clients').innerText = (currentStore.clients || []).length;
+      document.getElementById('badge-products').innerText = (currentStore.products || []).length;
+    }
+
+    async function checkOllamaConnection() {
+      if (!window.rechly) return;
+      const res = await window.rechly.checkOllama('http://localhost:11434');
+      const pill = document.getElementById('ai-model-indicator');
+      if (res.connected) {
+        pill.innerHTML = `🟢 <b>jonprompter/Rechly-DE-3B</b> (Aktiv)`;
+        pill.style.borderColor = '#86efac';
+        pill.style.background = '#f0fdf4';
+        pill.style.color = '#15803d';
+      } else {
+        pill.innerHTML = `⚪ jonprompter/Rechly-DE-3B (Ollama starten)`;
+        pill.style.borderColor = '#e2e8f0';
+        pill.style.background = '#f8fafc';
+        pill.style.color = '#64748b';
+      }
+    }
+
+    // ─── Navigation ───
+    function showView(viewId) {
+      currentView = viewId;
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      const activeNav = Array.from(document.querySelectorAll('.nav-item')).find(el => el.innerText.toLowerCase().includes(viewId.replace('-', ' ')));
+      if (activeNav) activeNav.classList.add('active');
+
+      const container = document.getElementById('content-container');
+      if (viewId === 'invoices') renderInvoicesView(container);
+      else if (viewId === 'create-invoice') renderCreateInvoiceView(container);
+      else if (viewId === 'clients') renderClientsView(container);
+      else if (viewId === 'products') renderProductsView(container);
+      else if (viewId === 'offers') renderOffersView(container);
+      else if (viewId === 'expenses') renderExpensesView(container);
+      else if (viewId === 'datev') renderDatevView(container);
+      else if (viewId === 'tools') renderToolsView(container);
+      else if (viewId === 'settings') renderSettingsView(container);
+    }
+
+    // ─── View 1: Invoices List ───
+    function renderInvoicesView(container) {
+      const invoices = currentStore.invoices || [];
+      const clients = currentStore.clients || [];
+
+      let rows = invoices.map(inv => {
+        const client = clients.find(c => c.id === inv.client_id) || { name: 'Unbekannter Kunde' };
+        const statusClass = inv.status === 'paid' ? 'status-paid' : inv.status === 'sent' ? 'status-sent' : 'status-draft';
+        const statusText = inv.status === 'paid' ? 'Bezahlt' : inv.status === 'sent' ? 'Offen' : 'Entwurf';
+
+        return `
+          <tr>
+            <td><b>${inv.invoice_number}</b></td>
+            <td>${client.name}</td>
+            <td>${inv.issue_date || '-'}</td>
+            <td>${inv.due_date || '-'}</td>
+            <td><b>${(inv.total_gross || 0).toFixed(2)} €</b></td>
+            <td><span class="status-pill ${statusClass}">${statusText}</span></td>
+            <td>
+              <button class="btn btn-secondary btn-sm" onclick="previewInvoice('${inv.id}')">Drucken / PDF</button>
+              <button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${inv.id}')">XRechnung XML</button>
+              <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteInvoice('${inv.id}')">Löschen</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div class="page-title">Rechnungen (Lokal)</div>
+          <button class="btn btn-primary" onclick="showView('create-invoice')">➕ Neue Rechnung (⌘N)</button>
+        </div>
+        <div class="card">
+          ${invoices.length === 0 ? '<p style="color:#64748b; text-align:center; padding: 20px;">Noch keine Rechnungen vorhanden. Klicken Sie auf "Neue Rechnung".</p>' : `
+            <table>
+              <thead>
+                <tr>
+                  <th>Nr.</th>
+                  <th>Kunde</th>
+                  <th>Datum</th>
+                  <th>Fällig</th>
+                  <th>Betrag</th>
+                  <th>Status</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          `}
+        </div>
+      `;
+    }
+
+    // ─── View 2: Create Invoice with Text-to-Invoice ───
+    function renderCreateInvoiceView(container) {
+      const clients = currentStore.clients || [];
+      const clientOptions = clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div class="page-title">Neue Rechnung erstellen</div>
+          <button class="btn btn-secondary" onclick="showView('invoices')">Zurück</button>
+        </div>
+
+        <!-- AI Text-to-Invoice Bar -->
+        <div class="ai-bar-card">
+          <div style="display:flex; align-items:center; justify-content:space-between">
+            <span style="font-weight:700; font-size:13px; color:#1e40af">
+              ⚡ KI-Schnellerfassung mit <code>jonprompter/Rechly-DE-3B</code> (100% Lokal):
+            </span>
+            <span style="font-size:11px; color:#64748b">Tippen Sie einen Satz auf Deutsch</span>
+          </div>
+          <div class="ai-input-row">
+            <input type="text" id="ai-quick-text" placeholder="z. B. Rechnung an Müller GmbH: 10 Std. Beratung à 120€ und Hosting 250€, zahlbar in 14 Tagen mit 2% Skonto">
+            <button class="btn btn-primary" id="ai-quick-btn" onclick="executeAiQuickFill()">Ausfüllen</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Kunde auswählen</label>
+              <select id="inv-client">${clientOptions || '<option value="">Keine Kunden angelegt</option>'}</select>
+            </div>
+            <div class="form-group">
+              <label>Rechnungsnummer</label>
+              <input type="text" id="inv-num" value="RE-2026-${Math.floor(100 + Math.random() * 900)}">
+            </div>
+            <div class="form-group">
+              <label>Rechnungsdatum</label>
+              <input type="date" id="inv-date" value="${new Date().toISOString().slice(0, 10)}">
+            </div>
+            <div class="form-group">
+              <label>Fälligkeitsdatum</label>
+              <input type="date" id="inv-due" value="${new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}">
+            </div>
+          </div>
+
+          <div style="margin: 20px 0 10px 0; font-weight:700; font-size:14px;">Rechnungspositionen</div>
+          <table id="inv-items-table">
+            <thead>
+              <tr>
+                <th style="width:50%">Beschreibung</th>
+                <th>Menge</th>
+                <th>Einheit</th>
+                <th>Preis (€)</th>
+                <th>MwSt %</th>
+                <th>Aktion</th>
+              </tr>
+            </thead>
+            <tbody id="inv-items-body">
+              <tr>
+                <td><input type="text" class="item-desc" value="Beratung und Konzeption" style="width:100%"></td>
+                <td><input type="number" class="item-qty" value="1" style="width:70px"></td>
+                <td><input type="text" class="item-unit" value="Stunde" style="width:80px"></td>
+                <td><input type="number" class="item-price" value="110" style="width:90px"></td>
+                <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : 19}" style="width:70px"></td>
+                <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <button class="btn btn-secondary btn-sm" style="margin-top:10px;" onclick="addInvoiceItemRow()">+ Position hinzufügen</button>
+
+          <div class="form-group" style="margin-top:20px;">
+            <label>Zahlungsbedingungen</label>
+            <textarea id="inv-terms" rows="2">${currentStore.company.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'}</textarea>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; padding-top:16px; border-top:1px solid var(--border);">
+            <div id="inv-totals-display" style="font-size:14px; color:#475569;">
+              Gesamt Netto: <b>110.00 €</b> | MwSt: <b>20.90 €</b> | Brutto: <b style="color:#0f172a; font-size:16px;">130.90 €</b>
+            </div>
+            <button class="btn btn-primary" onclick="saveNewInvoice()">Rechnung speichern</button>
+          </div>
+        </div>
+      `;
+      calculateTotals();
+    }
+
+    function addInvoiceItemRow(desc = '', qty = 1, unit = 'Stunde', price = 0, vat = 19) {
+      const tbody = document.getElementById('inv-items-body');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="text" class="item-desc" value="${desc}" style="width:100%"></td>
+        <td><input type="number" class="item-qty" value="${qty}" style="width:70px"></td>
+        <td><input type="text" class="item-unit" value="${unit}" style="width:80px"></td>
+        <td><input type="number" class="item-price" value="${price}" style="width:90px"></td>
+        <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : vat}" style="width:70px"></td>
+        <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
+      `;
+      tbody.appendChild(tr);
+      calculateTotals();
+    }
+
+    function calculateTotals() {
+      let subtotal = 0;
+      let totalVat = 0;
+      document.querySelectorAll('#inv-items-body tr').forEach(tr => {
+        const qty = parseFloat(tr.querySelector('.item-qty')?.value) || 0;
+        const price = parseFloat(tr.querySelector('.item-price')?.value) || 0;
+        const vat = parseFloat(tr.querySelector('.item-vat')?.value) || 0;
+        const net = qty * price;
+        subtotal += net;
+        totalVat += net * (vat / 100);
+      });
+      const gross = subtotal + totalVat;
+      const el = document.getElementById('inv-totals-display');
+      if (el) {
+        el.innerHTML = `Gesamt Netto: <b>${subtotal.toFixed(2)} €</b> | MwSt: <b>${totalVat.toFixed(2)} €</b> | Brutto: <b style="color:#0f172a; font-size:16px;">${gross.toFixed(2)} €</b>`;
+      }
+      return { subtotal, totalVat, totalGross: gross };
+    }
+
+    async function executeAiQuickFill() {
+      const input = document.getElementById('ai-quick-text');
+      const text = input?.value?.trim();
+      if (!text) return;
+
+      const btn = document.getElementById('ai-quick-btn');
+      btn.innerText = 'Analysiere...';
+      btn.disabled = true;
+
+      try {
+        const res = await window.rechly.parseInvoiceDraft(text, currentStore.clients || [], currentStore.company.is_small_business);
+        const parsed = res.parsed;
+        if (parsed.client_id) {
+          document.getElementById('inv-client').value = parsed.client_id;
+        }
+        if (parsed.due_days) {
+          const d = new Date(Date.now() + parsed.due_days * 86400000);
+          document.getElementById('inv-due').value = d.toISOString().slice(0, 10);
+        }
+        if (parsed.payment_terms) {
+          document.getElementById('inv-terms').value = parsed.payment_terms;
+        }
+        if (parsed.items && parsed.items.length > 0) {
+          const tbody = document.getElementById('inv-items-body');
+          tbody.innerHTML = '';
+          parsed.items.forEach(it => {
+            addInvoiceItemRow(it.description, it.quantity, it.unit_of_measure, it.price, it.tax_rate_percent);
+          });
+        }
+      } catch (err) {
+        alert('Fehler bei der Schnellerfassung: ' + err.message);
+      } finally {
+        btn.innerText = 'Ausfüllen';
+        btn.disabled = false;
+      }
+    }
+
+    async function saveNewInvoice() {
+      const clientId = document.getElementById('inv-client').value;
+      if (!clientId) return alert('Bitte zuerst einen Kunden auswählen oder anlegen.');
+
+      const items = [];
+      document.querySelectorAll('#inv-items-body tr').forEach(tr => {
+        const desc = tr.querySelector('.item-desc').value.trim();
+        const qty = parseFloat(tr.querySelector('.item-qty').value) || 1;
+        const unit = tr.querySelector('.item-unit').value.trim() || 'Stück';
+        const price = parseFloat(tr.querySelector('.item-price').value) || 0;
+        const vat = parseFloat(tr.querySelector('.item-vat').value) || 0;
+        if (desc) items.push({ description: desc, quantity: qty, unit_of_measure: unit, price, tax_rate_percent: vat });
+      });
+
+      const totals = calculateTotals();
+      const invoiceData = {
+        client_id: clientId,
+        invoice_number: document.getElementById('inv-num').value,
+        issue_date: document.getElementById('inv-date').value,
+        due_date: document.getElementById('inv-due').value,
+        payment_terms: document.getElementById('inv-terms').value,
+        items,
+        subtotal: totals.subtotal,
+        total_vat: totals.totalVat,
+        total_gross: totals.totalGross,
+        status: 'sent',
+      };
+
+      await window.rechly.createInvoice(invoiceData);
+      currentStore = await window.rechly.getStore();
+      updateBadges();
+      showView('invoices');
+    }
+
+    async function deleteInvoice(id) {
+      if (confirm('Rechnung wirklich löschen?')) {
+        await window.rechly.deleteInvoice(id);
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showView('invoices');
+      }
+    }
+
+    // ─── Export Actions ───
+    async function exportXRechnung(id) {
+      const res = await window.rechly.exportXRechnung(id);
+      if (res.success) alert('XRechnung 3.0 XML erfolgreich gespeichert!');
+    }
+
+    function previewInvoice(id) {
+      const inv = currentStore.invoices.find(i => i.id === id);
+      if (!inv) return;
+      const client = currentStore.clients.find(c => c.id === inv.client_id) || { name: 'Kunde' };
+      const comp = currentStore.company;
+
+      const itemsRows = (inv.items || []).map((it, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${it.description}</td>
+          <td>${it.quantity} ${it.unit_of_measure || ''}</td>
+          <td>${it.price.toFixed(2)} €</td>
+          <td>${(it.quantity * it.price).toFixed(2)} €</td>
+        </tr>
+      `).join('');
+
+      const sheet = document.getElementById('print-sheet-content');
+      sheet.innerHTML = `
+        <div class="no-print" style="display:flex; justify-content:space-between; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:16px;">
+          <div>
+            <button class="btn btn-primary" onclick="window.print()">🖨️ Jetzt Drucken</button>
+            <button class="btn btn-secondary" onclick="window.rechly.exportPdf('${inv.id}')">Als PDF speichern</button>
+          </div>
+          <button class="btn btn-secondary" onclick="document.getElementById('print-modal').style.display='none'">Schließen ✕</button>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:40px;">
+          <div>
+            <h1 style="font-size:24px; color:#0f172a; margin-bottom:4px;">${comp.name}</h1>
+            <div style="font-size:12px; color:#64748b;">${comp.address_line1}, ${comp.postal_code} ${comp.city}</div>
+            <div style="font-size:12px; color:#64748b;">USt-IdNr.: ${comp.vat_id || comp.tax_number || '-'}</div>
+          </div>
+          <div style="text-align:right;">
+            <h2 style="font-size:22px; color:#2563eb; margin-bottom:4px;">RECHNUNG</h2>
+            <div style="font-size:13px; font-weight:600;">${inv.invoice_number}</div>
+            <div style="font-size:12px; color:#64748b;">Datum: ${inv.issue_date}</div>
+            <div style="font-size:12px; color:#64748b;">Zahlbar bis: ${inv.due_date}</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:30px; font-size:13px;">
+          <div style="font-size:11px; color:#64748b; text-transform:uppercase; margin-bottom:4px;">Rechnungsempfänger:</div>
+          <b>${client.name}</b><br>
+          ${client.address_line1 || ''}<br>
+          ${client.postal_code || ''} ${client.city || ''}
+        </div>
+
+        <table style="margin-bottom:24px;">
+          <thead>
+            <tr>
+              <th style="width:40px">Pos.</th>
+              <th>Bezeichnung</th>
+              <th>Menge</th>
+              <th>Einzelpreis</th>
+              <th>Gesamt</th>
+            </tr>
+          </thead>
+          <tbody>${itemsRows}</tbody>
+        </table>
+
+        <div style="text-align:right; margin-bottom:30px;">
+          <div style="font-size:13px; color:#475569;">Nettobetrag: <b>${(inv.subtotal || 0).toFixed(2)} €</b></div>
+          <div style="font-size:13px; color:#475569;">MwSt.: <b>${(inv.total_vat || 0).toFixed(2)} €</b></div>
+          <div style="font-size:18px; color:#0f172a; margin-top:6px;">Gesamtbetrag: <b>${(inv.total_gross || 0).toFixed(2)} €</b></div>
+        </div>
+
+        <div style="border-top:1px solid #e2e8f0; padding-top:16px; font-size:12px; color:#64748b;">
+          <b>Zahlungshinweis:</b> ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen.'}<br>
+          <b>Bankverbindung:</b> IBAN: ${comp.bank_iban || '-'} | BIC: ${comp.bank_bic || '-'} (${comp.bank_name || ''})
+        </div>
+      `;
+      document.getElementById('print-modal').style.display = 'flex';
+    }
+
+    // ─── View 3: Clients ───
+    function renderClientsView(container) {
+      const clients = currentStore.clients || [];
+      const rows = clients.map(c => `
+        <tr>
+          <td><b>${c.name}</b></td>
+          <td>${c.contact_person || '-'}</td>
+          <td>${c.city || '-'}</td>
+          <td>${c.email || '-'}</td>
+          <td>${c.leitweg_id || '-'}</td>
+          <td><button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteClient('${c.id}')">Löschen</button></td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div class="page-title">Kundenstamm (Lokal)</div>
+          <button class="btn btn-primary" onclick="showNewClientForm()">+ Neuer Kunde</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Name</th><th>Ansprechpartner</th><th>Ort</th><th>E-Mail</th><th>Leitweg-ID</th><th>Aktion</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6" style="text-align:center">Keine Kunden gespeichert.</td></tr>'}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    async function showNewClientForm() {
+      const name = prompt('Name des Kunden / Unternehmens:');
+      if (!name) return;
+      const email = prompt('E-Mail-Adresse:');
+      const address = prompt('Straße und Hausnummer:');
+      const city = prompt('PLZ und Stadt:');
+      await window.rechly.createClient({ name, email, address_line1: address, city });
+      currentStore = await window.rechly.getStore();
+      updateBadges();
+      renderClientsView(document.getElementById('content-container'));
+    }
+
+    async function deleteClient(id) {
+      if (confirm('Kunde löschen?')) {
+        await window.rechly.deleteClient(id);
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        renderClientsView(document.getElementById('content-container'));
+      }
+    }
+
+    // ─── View 4: Products ───
+    function renderProductsView(container) {
+      const prods = currentStore.products || [];
+      const rows = prods.map(p => `
+        <tr>
+          <td><b>${p.name}</b></td>
+          <td>${p.description || '-'}</td>
+          <td>${p.price.toFixed(2)} €</td>
+          <td>${p.tax_rate_percent}%</td>
+          <td>${p.unit_of_measure}</td>
+          <td><button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteProduct('${p.id}')">Löschen</button></td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div class="page-title">Produkte & Dienstleistungen</div>
+          <button class="btn btn-primary" onclick="showNewProductForm()">+ Neues Produkt</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Bezeichnung</th><th>Beschreibung</th><th>Preis</th><th>MwSt</th><th>Einheit</th><th>Aktion</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6" style="text-align:center">Keine Produkte hinterlegt.</td></tr>'}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    async function showNewProductForm() {
+      const name = prompt('Produktbezeichnung:');
+      if (!name) return;
+      const price = parseFloat(prompt('Preis in €:')) || 0;
+      const unit = prompt('Einheit (Stunde, Stück, Pauschal):', 'Stunde') || 'Stunde';
+      await window.rechly.createProduct({ name, price, unit_of_measure: unit, tax_rate_percent: 19 });
+      currentStore = await window.rechly.getStore();
+      updateBadges();
+      renderProductsView(document.getElementById('content-container'));
+    }
+
+    async function deleteProduct(id) {
+      if (confirm('Produkt löschen?')) {
+        await window.rechly.deleteProduct(id);
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        renderProductsView(document.getElementById('content-container'));
+      }
+    }
+
+    // ─── View 5: Offers ───
+    function renderOffersView(container) {
+      const offers = currentStore.offers || [];
+      const rows = offers.map(o => `
+        <tr>
+          <td><b>${o.id}</b></td>
+          <td>${(o.total_gross || 0).toFixed(2)} €</td>
+          <td><span class="status-pill status-${o.status === 'converted' ? 'paid' : 'draft'}">${o.status}</span></td>
+          <td>
+            ${o.status !== 'converted' ? `<button class="btn btn-primary btn-sm" onclick="convertOffer('${o.id}')">In Rechnung umwandeln</button>` : 'Bereits umgewandelt'}
+          </td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div class="page-title">Angebote & Kostenvoranschläge</div>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Nummer</th><th>Gesamtbetrag</th><th>Status</th><th>Aktion</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="4" style="text-align:center">Keine Angebote vorhanden.</td></tr>'}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    async function convertOffer(id) {
+      await window.rechly.convertOffer(id);
+      currentStore = await window.rechly.getStore();
+      updateBadges();
+      showView('invoices');
+    }
+
+    // ─── View 6: Expenses ───
+    function renderExpensesView(container) {
+      const exps = currentStore.expenses || [];
+      const rows = exps.map(e => `
+        <tr>
+          <td><b>${e.vendor_name || '-'}</b></td>
+          <td>${e.category || '-'}</td>
+          <td>${e.date || '-'}</td>
+          <td>${(e.amount_gross || 0).toFixed(2)} €</td>
+          <td><button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteExpense('${e.id}')">✕</button></td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div class="page-title">Ausgaben & Belege (Lokal)</div>
+          <button class="btn btn-primary" onclick="showNewExpenseForm()">+ Beleg erfassen</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Lieferant</th><th>Kategorie</th><th>Datum</th><th>Betrag</th><th>Aktion</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5" style="text-align:center">Keine Ausgaben erfasst.</td></tr>'}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    async function showNewExpenseForm() {
+      const vendor_name = prompt('Lieferant / Geschäft:');
+      if (!vendor_name) return;
+      const amount_gross = parseFloat(prompt('Bruttobetrag in €:')) || 0;
+      const category = prompt('Kategorie (Büro, Bewirtung, Reise, Software):', 'Büromaterial') || 'Allgemein';
+      await window.rechly.createExpense({ vendor_name, amount_gross, category, date: new Date().toISOString().slice(0, 10) });
+      currentStore = await window.rechly.getStore();
+      renderExpensesView(document.getElementById('content-container'));
+    }
+
+    async function deleteExpense(id) {
+      await window.rechly.deleteExpense(id);
+      currentStore = await window.rechly.getStore();
+      renderExpensesView(document.getElementById('content-container'));
+    }
+
+    // ─── View 7: DATEV Export ───
+    function renderDatevView(container) {
+      container.innerHTML = `
+        <div class="page-header">
+          <div class="page-title">DATEV Export (1-Klick Steuerberater-Export)</div>
+        </div>
+        <div class="card">
+          <p style="margin-bottom:16px; color:#475569; font-size:13px; line-height:1.6;">
+            Exportiert alle gespeicherten Rechnungen im offiziellen <b>DATEV EXTF Format 700 (Buchungsstapel)</b>.
+            Die erzeugte Datei kann direkt in <i>DATEV Rechnungswesen / Kanzlei-Rechnungswesen</i> eingelesen werden.
+          </p>
+          <button class="btn btn-primary" onclick="window.rechly.exportDatev()">📁 DATEV Buchungsstapel exportieren…</button>
+        </div>
+      `;
+    }
+
+    // ─── View 8: Offline Tools & Rechner ───
+    function renderToolsView(container) {
+      container.innerHTML = `
+        <div class="page-header">
+          <div class="page-title">Lokale Offline Rechner</div>
+        </div>
+        <div class="form-grid">
+          <div class="card">
+            <h3 style="font-size:15px; margin-bottom:12px;">MwSt-Rechner (19% / 7%)</h3>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label>Nettobetrag (€)</label>
+              <input type="number" id="calc-net" value="100" oninput="calcVat()">
+            </div>
+            <div id="calc-vat-res" style="font-size:13px; color:#475569;">
+              19% MwSt: <b>19.00 €</b> | Brutto: <b>119.00 €</b>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="font-size:15px; margin-bottom:12px;">Skonto-Rechner</h3>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label>Rechnungsbetrag (€)</label>
+              <input type="number" id="calc-skonto-gross" value="1000" oninput="calcSkonto()">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label>Skontosatz (%)</label>
+              <input type="number" id="calc-skonto-pct" value="2" oninput="calcSkonto()">
+            </div>
+            <div id="calc-skonto-res" style="font-size:13px; color:#475569;">
+              Abzug: <b>20.00 €</b> | Zahlbetrag: <b>980.00 €</b>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function calcVat() {
+      const net = parseFloat(document.getElementById('calc-net').value) || 0;
+      const vat = net * 0.19;
+      document.getElementById('calc-vat-res').innerHTML = `19% MwSt: <b>${vat.toFixed(2)} €</b> | Brutto: <b>${(net + vat).toFixed(2)} €</b>`;
+    }
+
+    function calcSkonto() {
+      const gross = parseFloat(document.getElementById('calc-skonto-gross').value) || 0;
+      const pct = parseFloat(document.getElementById('calc-skonto-pct').value) || 0;
+      const discount = gross * (pct / 100);
+      document.getElementById('calc-skonto-res').innerHTML = `Abzug: <b>${discount.toFixed(2)} €</b> | Zahlbetrag: <b>${(gross - discount).toFixed(2)} €</b>`;
+    }
+
+    // ─── View 9: Settings & AI ───
+    function renderSettingsView(container) {
+      const comp = currentStore.company || {};
+      container.innerHTML = `
+        <div class="page-header">
+          <div class="page-title">Einstellungen & Lokale KI</div>
+          <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
+        </div>
+
+        <!-- Featured AI Model Card: jonprompter/Rechly-DE-3B -->
+        <div class="card" style="border: 2px solid #86efac; background: #f0fdf4;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:18px;">⭐</span>
+                <h3 style="font-size:16px; color:#166534;">Offizielles Rechly-KI-Modell: <code>jonprompter/Rechly-DE-3B</code></h3>
+              </div>
+              <p style="font-size:13px; color:#15803d; margin: 8px 0 12px 0; line-height:1.5;">
+                Speziell trainiert für deutsche Rechnungen, GoBD-Konformität, §19 UStG Kleinunternehmer & Text-zu-Rechnung.
+                Läuft 100% lokal auf Ihrem Rechner via Ollama (vollkommen offline, DSGVO-sicher).
+              </p>
+              <div style="margin-bottom:12px;">
+                <span style="font-size:12px; color:#166534; font-weight:600;">Terminal-Befehl zum Herunterladen & Starten:</span><br>
+                <code style="display:inline-block; margin-top:4px; padding:6px 12px; background:#ffffff; border:1px solid #bbf7d0; border-radius:6px; font-weight:700; color:#14532d;">
+                  ollama run jonprompter/Rechly-DE-3B
+                </code>
+              </div>
+              <div style="display:flex; gap:12px; font-size:12px;">
+                <a href="https://ollama.com/jonprompter/Rechly-DE-3B" target="_blank" style="color:#15803d; font-weight:600;">Ollama Model Library ↗</a>
+                <a href="https://huggingface.co/jonprompter/rechly-de-3b" target="_blank" style="color:#15803d; font-weight:600;">Hugging Face Repository ↗</a>
+              </div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="checkOllamaConnection()">🔄 Status prüfen</button>
+          </div>
+        </div>
+
+        <!-- Company Profile -->
+        <div class="card">
+          <h3 style="font-size:15px; margin-bottom:16px;">Unternehmensdaten & Bankverbindung</h3>
+          <div class="form-grid">
+            <div class="form-group"><label>Firmenname</label><input type="text" id="set-name" value="${comp.name || ''}"></div>
+            <div class="form-group"><label>Rechtsform</label><input type="text" id="set-legal" value="${comp.legal_form || ''}"></div>
+            <div class="form-group"><label>Straße & Hausnummer</label><input type="text" id="set-addr" value="${comp.address_line1 || ''}"></div>
+            <div class="form-group"><label>PLZ</label><input type="text" id="set-plz" value="${comp.postal_code || ''}"></div>
+            <div class="form-group"><label>Stadt</label><input type="text" id="set-city" value="${comp.city || ''}"></div>
+            <div class="form-group"><label>USt-IdNr.</label><input type="text" id="set-vat" value="${comp.vat_id || ''}"></div>
+            <div class="form-group"><label>Steuernummer</label><input type="text" id="set-tax" value="${comp.tax_number || ''}"></div>
+            <div class="form-group"><label>IBAN</label><input type="text" id="set-iban" value="${comp.bank_iban || ''}"></div>
+            <div class="form-group"><label>BIC</label><input type="text" id="set-bic" value="${comp.bank_bic || ''}"></div>
+            <div class="form-group"><label>Bank</label><input type="text" id="set-bank" value="${comp.bank_name || ''}"></div>
+          </div>
+          <div class="form-group" style="margin-top:12px;">
+            <label>
+              <input type="checkbox" id="set-smallbiz" ${comp.is_small_business ? 'checked' : ''}>
+              <b>Kleinunternehmerregelung (§ 19 UStG) aktivieren</b> (Keine Umsatzsteuer auf Rechnungen)
+            </label>
+          </div>
+        </div>
+
+        <!-- Database Backup & Restore -->
+        <div class="card">
+          <h3 style="font-size:15px; margin-bottom:12px;">Offline Tresor sichern & wiederherstellen</h3>
+          <p style="font-size:13px; color:#64748b; margin-bottom:16px;">
+            Alle Ihre Daten liegen ausschließlich auf dieser Festplatte. Sie können Ihren Tresor jederzeit mit einem Klick sichern.
+          </p>
+          <div style="display:flex; gap:12px;">
+            <button class="btn btn-secondary" onclick="window.rechly.exportBackup()">💾 Tresor als Datei sichern…</button>
+            <button class="btn btn-secondary" onclick="importBackup()">📂 Tresor aus Datei wiederherstellen…</button>
+          </div>
+        </div>
+      `;
+    }
+
+    async function saveSettings() {
+      const updated = {
+        ...currentStore.company,
+        name: document.getElementById('set-name').value,
+        legal_form: document.getElementById('set-legal').value,
+        address_line1: document.getElementById('set-addr').value,
+        postal_code: document.getElementById('set-plz').value,
+        city: document.getElementById('set-city').value,
+        vat_id: document.getElementById('set-vat').value,
+        tax_number: document.getElementById('set-tax').value,
+        bank_iban: document.getElementById('set-iban').value,
+        bank_bic: document.getElementById('set-bic').value,
+        bank_name: document.getElementById('set-bank').value,
+        is_small_business: document.getElementById('set-smallbiz').checked,
+      };
+      await window.rechly.saveCompany(updated);
+      currentStore = await window.rechly.getStore();
+      updateSidebarCompany();
+      alert('Einstellungen gespeichert!');
+    }
+
+    async function importBackup() {
+      const res = await window.rechly.importBackup();
+      if (res.success) {
+        currentStore = await window.rechly.getStore();
+        updateSidebarCompany();
+        updateBadges();
+        alert('Backup erfolgreich wiederhergestellt!');
+        showView('invoices');
+      }
+    }
+
+    function handleGlobalSearch(term) {
+      if (!term.trim()) return showView(currentView);
+      const invoices = (currentStore.invoices || []).filter(i =>
+        i.invoice_number.toLowerCase().includes(term.toLowerCase()) ||
+        (i.items || []).some(it => it.description.toLowerCase().includes(term.toLowerCase()))
+      );
+      renderInvoicesView(document.getElementById('content-container'));
+    }
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault();
+        showView('create-invoice');
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        document.getElementById('global-search')?.focus();
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>

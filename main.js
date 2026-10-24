@@ -4,174 +4,69 @@ const {
     Menu,
     dialog,
     shell,
-    session,
+    ipcMain,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
-/**
- * Rechly Desktop — thin shell around the rechly.de web app.
- *
- * Architecture decision (2026-07): wrap the hosted Next.js app instead of
- * bundling a local build. The app is always current, maintenance stays low,
- * and native value comes from the shell: menus, printing, PDF export and
- * auto-updates. Offline support arrives via the web app's local-first work.
- */
-
-const APP_URL = process.env.RECHLY_URL || "https://rechly.de";
-const APP_ORIGIN = new URL(APP_URL).origin;
-
-// Origins the window may navigate to (OAuth needs Appwrite + Google)
-const ALLOWED_ORIGINS = new Set([
-    APP_ORIGIN,
-    "https://fra.cloud.appwrite.io",
-    "https://accounts.google.com",
-]);
-
-const isAllowedUrl = (url) => {
-    try {
-        const { origin, hostname } = new URL(url);
-        if (ALLOWED_ORIGINS.has(origin)) return true;
-        // Google auth hops across several *.google.com hosts
-        return (
-            hostname.endsWith(".google.com") ||
-            hostname.endsWith(".googleusercontent.com")
-        );
-    } catch {
-        return false;
-    }
-};
-
-// ─── Window state persistence ────────────────────────────────────────────────
-
-const stateFile = () => path.join(app.getPath("userData"), "window-state.json");
-
-const loadWindowState = () => {
-    try {
-        return JSON.parse(fs.readFileSync(stateFile(), "utf8"));
-    } catch {
-        return { width: 1280, height: 840 };
-    }
-};
-
-const saveWindowState = (win) => {
-    try {
-        if (win.isMinimized() || win.isFullScreen()) return;
-        const bounds = win.getBounds();
-        fs.writeFileSync(stateFile(), JSON.stringify(bounds));
-    } catch {
-        // Best effort only
-    }
-};
-
-// ─── Main window ─────────────────────────────────────────────────────────────
+const store = require("./store");
+const { generateXRechnungXML, generateDatevExport } = require("./eRechnung");
+const { checkOllama, parseInvoiceDraft } = require("./ai");
 
 let mainWindow = null;
 
 const createWindow = () => {
-    const state = loadWindowState();
-
     mainWindow = new BrowserWindow({
-        ...state,
-        minWidth: 900,
-        minHeight: 600,
+        width: 1320,
+        height: 880,
+        minWidth: 980,
+        minHeight: 650,
+        title: "Rechly Desktop",
+        titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+        trafficLightPosition: { x: 16, y: 16 },
+        backgroundColor: "#f8fafc",
         show: false,
-        backgroundColor: "#ffffff",
-        title: "Rechly",
         webPreferences: {
             preload: path.join(__dirname, "preload.js"),
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: true,
-            spellcheck: true,
+            sandbox: false,
         },
     });
 
-    mainWindow.once("ready-to-show", () => mainWindow.show());
-    mainWindow.on("close", () => saveWindowState(mainWindow));
+    // Load local offline desktop UI
+    mainWindow.loadFile(path.join(__dirname, "ui", "index.html"));
+
+    mainWindow.once("ready-to-show", () => {
+        mainWindow.show();
+    });
+
     mainWindow.on("closed", () => {
         mainWindow = null;
     });
 
-    // Keep the app inside the allowed origins; everything else opens in the
-    // default browser.
-    mainWindow.webContents.on("will-navigate", (event, url) => {
-        if (!isAllowedUrl(url)) {
-            event.preventDefault();
-            shell.openExternal(url);
-        }
-    });
+    // Open external links in user default browser
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-        if (isAllowedUrl(url)) {
-            // OAuth popups must stay inside the app session
-            return { action: "allow" };
-        }
         shell.openExternal(url);
         return { action: "deny" };
     });
-
-    mainWindow.loadURL(APP_URL).catch(() => {
-        // Offline / unreachable: show a minimal local page with retry
-        mainWindow.loadFile(path.join(__dirname, "offline.html"));
-    });
-    mainWindow.webContents.on(
-        "did-fail-load",
-        (_event, errorCode, _desc, validatedURL, isMainFrame) => {
-            // -3 = aborted (e.g. redirects) — not an error
-            if (isMainFrame && errorCode !== -3 && validatedURL === APP_URL) {
-                mainWindow.loadFile(path.join(__dirname, "offline.html"));
-            }
-        }
-    );
 };
 
-// ─── Printing & PDF export ───────────────────────────────────────────────────
-
-const printCurrentPage = () => {
-    mainWindow?.webContents.print({}, (success, reason) => {
-        if (!success && reason !== "cancelled" && reason !== "canceled") {
-            dialog.showErrorBox("Drucken fehlgeschlagen", String(reason));
-        }
-    });
-};
-
-const exportCurrentPageAsPdf = async () => {
-    if (!mainWindow) return;
-    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-        title: "Als PDF speichern",
-        defaultPath: "rechly.pdf",
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
-    });
-    if (canceled || !filePath) return;
-
-    try {
-        const data = await mainWindow.webContents.printToPDF({
-            printBackground: true,
-            pageSize: "A4",
-        });
-        fs.writeFileSync(filePath, data);
-        shell.showItemInFolder(filePath);
-    } catch (error) {
-        dialog.showErrorBox("PDF-Export fehlgeschlagen", String(error));
-    }
-};
-
-// ─── Menu ────────────────────────────────────────────────────────────────────
+// ─── Native Menus ─────────────────────────────────────────────────────────────
 
 const buildMenu = () => {
     const isMac = process.platform === "darwin";
-
     const template = [
         ...(isMac
             ? [
                   {
-                      label: app.name,
+                      label: "Rechly",
                       submenu: [
-                          { role: "about", label: "Über Rechly" },
+                          { role: "about", label: "Über Rechly Desktop" },
                           { type: "separator" },
-                          { role: "hide", label: "Rechly ausblenden" },
-                          { role: "hideOthers" },
-                          { role: "unhide" },
+                          { role: "hide", label: "Ausblenden" },
+                          { role: "hideOthers", label: "Andere ausblenden" },
+                          { role: "unhide", label: "Alle einblenden" },
                           { type: "separator" },
                           { role: "quit", label: "Rechly beenden" },
                       ],
@@ -182,19 +77,26 @@ const buildMenu = () => {
             label: "Datei",
             submenu: [
                 {
-                    label: "Drucken…",
-                    accelerator: "CmdOrCtrl+P",
-                    click: printCurrentPage,
+                    label: "Neue Rechnung",
+                    accelerator: "CmdOrCtrl+N",
+                    click: () => mainWindow?.webContents.send("nav:new-invoice"),
                 },
                 {
-                    label: "Als PDF speichern…",
-                    accelerator: "CmdOrCtrl+Shift+S",
-                    click: exportCurrentPageAsPdf,
+                    label: "Drucken",
+                    accelerator: "CmdOrCtrl+P",
+                    click: () => mainWindow?.webContents.print(),
                 },
                 { type: "separator" },
-                isMac
-                    ? { role: "close", label: "Fenster schließen" }
-                    : { role: "quit", label: "Beenden" },
+                {
+                    label: "DATEV Export erstellen…",
+                    click: async () => exportDatevHandler(),
+                },
+                {
+                    label: "Datenbank sichern (Backup)…",
+                    click: async () => exportBackupHandler(),
+                },
+                { type: "separator" },
+                isMac ? { role: "close", label: "Fenster schließen" } : { role: "quit", label: "Beenden" },
             ],
         },
         {
@@ -214,7 +116,7 @@ const buildMenu = () => {
             submenu: [
                 { role: "reload", label: "Neu laden" },
                 { type: "separator" },
-                { role: "resetZoom", label: "Originalgröße" },
+                { role: "resetZoom", label: "Normalgröße" },
                 { role: "zoomIn", label: "Vergrößern" },
                 { role: "zoomOut", label: "Verkleinern" },
                 { type: "separator" },
@@ -222,26 +124,20 @@ const buildMenu = () => {
             ],
         },
         {
-            label: "Fenster",
-            submenu: [
-                { role: "minimize", label: "Minimieren" },
-                ...(isMac
-                    ? [{ role: "front", label: "Alle nach vorne" }]
-                    : []),
-            ],
-        },
-        {
             label: "Hilfe",
-            role: "help",
             submenu: [
                 {
-                    label: "Rechly im Browser öffnen",
-                    click: () => shell.openExternal(APP_URL),
+                    label: "jonprompter/Rechly-DE-3B auf Ollama",
+                    click: () => shell.openExternal("https://ollama.com/jonprompter/Rechly-DE-3B"),
                 },
                 {
-                    label: "Quellcode auf GitHub",
-                    click: () =>
-                        shell.openExternal("https://github.com/myaxyo"),
+                    label: "jonprompter/rechly-de-3b auf Hugging Face",
+                    click: () => shell.openExternal("https://huggingface.co/jonprompter/rechly-de-3b"),
+                },
+                { type: "separator" },
+                {
+                    label: "Rechly Web Plattform",
+                    click: () => shell.openExternal("https://rechly.de"),
                 },
             ],
         },
@@ -250,54 +146,280 @@ const buildMenu = () => {
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 };
 
-// ─── Auto updates ────────────────────────────────────────────────────────────
+// ─── Export Helpers ──────────────────────────────────────────────────────────
 
-const setupAutoUpdates = () => {
-    // Only meaningful in packaged builds with a configured publish target
-    if (!app.isPackaged) return;
-    try {
-        const { autoUpdater } = require("electron-updater");
-        autoUpdater.checkForUpdatesAndNotify().catch((error) => {
-            console.log("Update check failed:", error?.message);
-        });
-    } catch (error) {
-        console.log("Auto-updater unavailable:", error?.message);
-    }
-};
+async function exportDatevHandler() {
+    if (!mainWindow) return { success: false };
+    const invoices = store.get("invoices") || [];
+    const company = store.get("company") || {};
 
-// ─── App lifecycle ───────────────────────────────────────────────────────────
-
-if (!app.requestSingleInstanceLock()) {
-    app.quit();
-} else {
-    app.on("second-instance", () => {
-        if (mainWindow) {
-            if (mainWindow.isMinimized()) mainWindow.restore();
-            mainWindow.focus();
-        }
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: "DATEV Buchungsstapel exportieren",
+        defaultPath: `EXTF_DATEV_Buchungen_${new Date().toISOString().slice(0, 10)}.csv`,
+        filters: [{ name: "CSV / DATEV", extensions: ["csv", "txt"] }],
     });
 
-    app.whenReady().then(() => {
-        // Belt and braces: strip Electron identifiers is NOT done — the web
-        // app may want to detect the desktop shell via the user agent.
-        session.defaultSession.setPermissionRequestHandler(
-            (_webContents, permission, callback) => {
-                // The invoicing app needs none of the sensitive permissions
-                const allowed = ["clipboard-read", "notifications"];
-                callback(allowed.includes(permission));
-            }
-        );
+    if (canceled || !filePath) return { success: false };
 
-        buildMenu();
-        createWindow();
-        setupAutoUpdates();
-
-        app.on("activate", () => {
-            if (BrowserWindow.getAllWindows().length === 0) createWindow();
-        });
-    });
-
-    app.on("window-all-closed", () => {
-        if (process.platform !== "darwin") app.quit();
-    });
+    const csvContent = generateDatevExport(invoices, company);
+    fs.writeFileSync(filePath, csvContent, "latin1"); // DATEV standard encoding
+    shell.showItemInFolder(filePath);
+    return { success: true, filePath };
 }
+
+async function exportBackupHandler() {
+    if (!mainWindow) return { success: false };
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: "Rechly Offline Tresor sichern",
+        defaultPath: `Rechly_Backup_${new Date().toISOString().slice(0, 10)}.rechly-backup`,
+        filters: [{ name: "Rechly Backup", extensions: ["rechly-backup", "json"] }],
+    });
+
+    if (canceled || !filePath) return { success: false };
+
+    store.exportBackup(filePath);
+    shell.showItemInFolder(filePath);
+    return { success: true, filePath };
+}
+
+// ─── IPC Handlers ────────────────────────────────────────────────────────────
+
+ipcMain.handle("store:get", () => store.getAll());
+ipcMain.handle("company:get", () => store.get("company"));
+ipcMain.handle("company:save", (_e, data) => {
+    store.set("company", data);
+    return true;
+});
+
+// Invoices
+ipcMain.handle("invoices:getAll", () => store.get("invoices") || []);
+ipcMain.handle("invoices:create", (_e, data) => {
+    const invoices = store.get("invoices") || [];
+    const newInvoice = {
+        id: `inv-${Date.now()}`,
+        created_at: Date.now(),
+        ...data,
+    };
+    invoices.unshift(newInvoice);
+    store.set("invoices", invoices);
+    return newInvoice;
+});
+ipcMain.handle("invoices:update", (_e, id, data) => {
+    const invoices = store.get("invoices") || [];
+    const idx = invoices.findIndex((i) => i.id === id);
+    if (idx !== -1) {
+        invoices[idx] = { ...invoices[idx], ...data, updated_at: Date.now() };
+        store.set("invoices", invoices);
+        return invoices[idx];
+    }
+    return null;
+});
+ipcMain.handle("invoices:delete", (_e, id) => {
+    let invoices = store.get("invoices") || [];
+    invoices = invoices.filter((i) => i.id !== id);
+    store.set("invoices", invoices);
+    return true;
+});
+
+// Clients
+ipcMain.handle("clients:getAll", () => store.get("clients") || []);
+ipcMain.handle("clients:create", (_e, data) => {
+    const clients = store.get("clients") || [];
+    const newClient = {
+        id: `client-${Date.now()}`,
+        created_at: Date.now(),
+        ...data,
+    };
+    clients.unshift(newClient);
+    store.set("clients", clients);
+    return newClient;
+});
+ipcMain.handle("clients:update", (_e, id, data) => {
+    const clients = store.get("clients") || [];
+    const idx = clients.findIndex((c) => c.id === id);
+    if (idx !== -1) {
+        clients[idx] = { ...clients[idx], ...data };
+        store.set("clients", clients);
+        return clients[idx];
+    }
+    return null;
+});
+ipcMain.handle("clients:delete", (_e, id) => {
+    let clients = store.get("clients") || [];
+    clients = clients.filter((c) => c.id !== id);
+    store.set("clients", clients);
+    return true;
+});
+
+// Products
+ipcMain.handle("products:getAll", () => store.get("products") || []);
+ipcMain.handle("products:create", (_e, data) => {
+    const products = store.get("products") || [];
+    const newProduct = {
+        id: `prod-${Date.now()}`,
+        ...data,
+    };
+    products.push(newProduct);
+    store.set("products", products);
+    return newProduct;
+});
+ipcMain.handle("products:delete", (_e, id) => {
+    let products = store.get("products") || [];
+    products = products.filter((p) => p.id !== id);
+    store.set("products", products);
+    return true;
+});
+
+// Offers
+ipcMain.handle("offers:getAll", () => store.get("offers") || []);
+ipcMain.handle("offers:create", (_e, data) => {
+    const offers = store.get("offers") || [];
+    const newOffer = { id: `off-${Date.now()}`, created_at: Date.now(), ...data };
+    offers.unshift(newOffer);
+    store.set("offers", offers);
+    return newOffer;
+});
+ipcMain.handle("offers:convert", (_e, id) => {
+    const offers = store.get("offers") || [];
+    const offer = offers.find((o) => o.id === id);
+    if (!offer) return null;
+
+    const invoices = store.get("invoices") || [];
+    const newInvoice = {
+        id: `inv-${Date.now()}`,
+        invoice_number: `RE-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+        client_id: offer.client_id,
+        issue_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        status: "draft",
+        items: offer.items || [],
+        subtotal: offer.subtotal || 0,
+        total_vat: offer.total_vat || 0,
+        total_gross: offer.total_gross || 0,
+        notes: offer.notes || "",
+        payment_terms: offer.payment_terms || "",
+        created_at: Date.now(),
+    };
+    invoices.unshift(newInvoice);
+    store.set("invoices", invoices);
+
+    offer.status = "converted";
+    store.set("offers", offers);
+    return newInvoice;
+});
+
+// Expenses
+ipcMain.handle("expenses:getAll", () => store.get("expenses") || []);
+ipcMain.handle("expenses:create", (_e, data) => {
+    const expenses = store.get("expenses") || [];
+    const newExpense = { id: `exp-${Date.now()}`, ...data };
+    expenses.unshift(newExpense);
+    store.set("expenses", expenses);
+    return newExpense;
+});
+ipcMain.handle("expenses:delete", (_e, id) => {
+    let expenses = store.get("expenses") || [];
+    expenses = expenses.filter((e) => e.id !== id);
+    store.set("expenses", expenses);
+    return true;
+});
+
+// AI & Ollama (jonprompter/Rechly-DE-3B)
+ipcMain.handle("ai:checkOllama", (_e, host) => checkOllama(host));
+ipcMain.handle("ai:parseDraft", (_e, prompt, clients, isSmallBusiness) => {
+    const aiSettings = store.get("aiSettings") || {};
+    return parseInvoiceDraft(
+        prompt,
+        clients,
+        isSmallBusiness,
+        aiSettings.base_url || "http://localhost:11434",
+        aiSettings.model || "jonprompter/Rechly-DE-3B"
+    );
+});
+
+// Native Exports
+ipcMain.handle("export:pdf", async (_e, invoiceId) => {
+    if (!mainWindow) return { success: false };
+    const invoices = store.get("invoices") || [];
+    const inv = invoices.find((i) => i.id === invoiceId);
+    const filename = `${inv?.invoice_number || "Rechnung"}.pdf`;
+
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: "Rechnung als PDF speichern",
+        defaultPath: filename,
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+    if (canceled || !filePath) return { success: false };
+
+    const data = await mainWindow.webContents.printToPDF({
+        printBackground: true,
+        pageSize: "A4",
+    });
+    fs.writeFileSync(filePath, data);
+    shell.showItemInFolder(filePath);
+    return { success: true, filePath };
+});
+
+ipcMain.handle("export:xrechnung", async (_e, invoiceId) => {
+    if (!mainWindow) return { success: false };
+    const invoices = store.get("invoices") || [];
+    const clients = store.get("clients") || [];
+    const company = store.get("company") || {};
+
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (!inv) return { success: false, error: "Rechnung nicht gefunden" };
+    const client = clients.find((c) => c.id === inv.client_id) || { name: "Kunde" };
+
+    const xml = generateXRechnungXML(inv, company, client);
+    const filename = `XRechnung_${inv.invoice_number}.xml`;
+
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: "XRechnung 3.0 XML speichern",
+        defaultPath: filename,
+        filters: [{ name: "XML", extensions: ["xml"] }],
+    });
+    if (canceled || !filePath) return { success: false };
+
+    fs.writeFileSync(filePath, xml, "utf8");
+    shell.showItemInFolder(filePath);
+    return { success: true, filePath };
+});
+
+ipcMain.handle("export:datev", exportDatevHandler);
+ipcMain.handle("backup:export", exportBackupHandler);
+
+ipcMain.handle("backup:import", async () => {
+    if (!mainWindow) return { success: false };
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        title: "Rechly Backup wiederherstellen",
+        filters: [{ name: "Rechly Backup", extensions: ["rechly-backup", "json"] }],
+        properties: ["openFile"],
+    });
+
+    if (canceled || !filePaths[0]) return { success: false };
+
+    try {
+        store.importBackup(filePaths[0]);
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+});
+
+ipcMain.handle("native:print", () => {
+    mainWindow?.webContents.print();
+});
+
+// App Lifecycle
+app.whenReady().then(() => {
+    buildMenu();
+    createWindow();
+
+    app.on("activate", () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+});
+
+app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
+});

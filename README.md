@@ -1,48 +1,58 @@
-# Rechly Desktop
+# Rechly Desktop (100% Offline & On-Device)
 
-Thin Electron shell around [rechly.de](https://rechly.de) for macOS and Windows.
+**Rechly Desktop** is the standalone, fully offline, privacy-first desktop edition of Rechly for macOS, Windows, and Linux.
 
-## Architecture
+---
 
-The desktop app loads the hosted web app — it ships no app code of its own, so
-it is always up to date and maintenance stays minimal. Native value comes from
-the shell:
+## 🌟 Key Desktop Features
 
-- German application menu with **Drucken** (Cmd/Ctrl+P) and **Als PDF
-  speichern** (Cmd/Ctrl+Shift+S)
-- Auto-updates via GitHub Releases (electron-updater)
-- Window-state persistence, single-instance lock
-- Hardened webview: context isolation, sandbox, navigation restricted to
-  rechly.de + OAuth providers; all other links open in the default browser
-- Offline fallback page with retry
+* **100% Offline & On-Device (GoBD & DSGVO compliant):**
+  - All invoices, clients, products, offers, expenses, and company profiles are stored locally in a secure, single-file vault (`rechly_vault.json`).
+  - No internet connection, cloud login, or remote Appwrite server required.
+* **Featured AI Model: [`jonprompter/Rechly-DE-3B`](https://ollama.com/jonprompter/Rechly-DE-3B):**
+  - Pre-configured to connect to local Ollama on `http://localhost:11434`.
+  - Natural Language **"Text-zu-Rechnung"** (type e.g. *"Rechnung an Müller GmbH: 10 Std. Beratung à 120€, zahlbar in 14 Tagen mit 2% Skonto"* and the AI populates the invoice draft in 1 click).
+  - Also available on [Hugging Face](https://huggingface.co/jonprompter/rechly-de-3b).
+  - Terminal 1-liner to run:
+    ```bash
+    ollama run jonprompter/Rechly-DE-3B
+    ```
+* **Official E-Rechnung 2025/2028:**
+  - One-click export of EN 16931 / XRechnung 3.0 CII XML and ZUGFeRD 2.3 XML.
+  - Native file save dialog directly to your preferred folder.
+* **DATEV Buchungsstapel Export:**
+  - Generates standard DATEV EXTF format 700 CSV files for German tax consultants (*Steuerberater*).
+* **Native Desktop Experience:**
+  - macOS frameless window with native traffic-light controls.
+  - Collapsible Linear/Notion-style desktop sidebar.
+  - Keyboard shortcuts (`⌘N` for New Invoice, `⌘F` for Search, `⌘P` for Print/PDF).
+  - 1-Click Vault Backup & Restore.
 
-The web app can detect the shell via `window.rechlyDesktop`.
+---
 
-## Development
+## 🚀 Running the App Locally
 
 ```bash
 cd desktop
 npm install
-npm start                     # loads https://rechly.de
-RECHLY_URL=http://localhost:3000 npm start   # against a local web build
+npm start
 ```
 
-## Building
+---
+
+## 📦 Building Installers (.dmg / .exe)
+
+To produce production installers for your operating system:
 
 ```bash
-npm run pack       # unpacked build into dist/ (smoke test)
-npm run dist:mac   # dmg + zip (arm64 + x64)
-npm run dist:win   # NSIS installer (x64)
+# Package for macOS (.dmg and .zip for Apple Silicon & Intel)
+npm run dist:mac
+
+# Package for Windows (.exe installer)
+npm run dist:win
+
+# Package for all platforms
+npm run dist
 ```
 
-## Release checklist
-
-1. **Code signing** — required for auto-updates and to avoid OS warnings:
-   - macOS: Developer ID certificate + notarization
-     (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`)
-   - Windows: code-signing certificate (`CSC_LINK`, `CSC_KEY_PASSWORD`)
-2. Create the `myaxyo/rechly_desktop` GitHub repository (publish target in
-   `electron-builder.yml`).
-3. Bump `version` in `package.json`.
-4. `GH_TOKEN=<token> npm run dist -- --publish always`
-5. Installed apps pick the release up automatically on next launch.
+Installers will be generated in the `desktop/dist/` directory.
