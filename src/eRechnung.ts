@@ -3,7 +3,9 @@
  * 100% On-Device XML and CSV Generation without any external dependencies.
  */
 
-function escapeXml(unsafe) {
+import type { Client, Company, Invoice } from "./types";
+
+function escapeXml(unsafe: string | number | null | undefined): string {
     if (!unsafe) return "";
     return String(unsafe)
         .replace(/&/g, "&amp;")
@@ -13,7 +15,7 @@ function escapeXml(unsafe) {
         .replace(/'/g, "&apos;");
 }
 
-const UNIT_CODES = {
+const UNIT_CODES: Record<string, string> = {
     stück: "H87", stueck: "H87", stk: "H87", piece: "H87", h87: "H87",
     stunde: "HUR", stunden: "HUR", std: "HUR", h: "HUR", hur: "HUR",
     tag: "DAY", tage: "DAY", day: "DAY",
@@ -22,12 +24,12 @@ const UNIT_CODES = {
     kg: "KGM", liter: "LTR", l: "LTR", "m²": "MTK", m2: "MTK", m: "MTR",
 };
 
-function unitCode(unit) {
+function unitCode(unit: string | undefined): string {
     const key = (unit || "").trim().replace(/\.$/, "").toLowerCase();
     return UNIT_CODES[key] || "C62";
 }
 
-function countryCode(country) {
+function countryCode(country: string | undefined): string {
     const c = (country || "DE").trim();
     if (/^[A-Za-z]{2}$/.test(c)) return c.toUpperCase();
     if (c.toLowerCase() === "deutschland") return "DE";
@@ -39,7 +41,11 @@ function countryCode(country) {
 /**
  * Generates EN 16931 / XRechnung 3.0 valid CII XML
  */
-function generateXRechnungXML(invoice, company, client) {
+export function generateXRechnungXML(
+    invoice: Invoice,
+    company: Company,
+    client: Partial<Client>
+): string {
     const issueDate = (invoice.issue_date || new Date().toISOString())
         .slice(0, 10)
         .replace(/-/g, "");
@@ -205,14 +211,14 @@ function generateXRechnungXML(invoice, company, client) {
 /**
  * Generates DATEV-compliant ASCII / CSV export for German tax advisors
  */
-function generateDatevExport(invoices, company) {
+export function generateDatevExport(invoices: Invoice[], company: Company): string {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
     
     // Header record (DATEV Format EXTF 700)
     const header = [
         `"EXTF"`, 700, 21, `"Buchungsstapel"`, 1,
         `"${today}"`, `""`, `""`, `"RECHLY DESKTOP"`, `""`,
-        `"${company.name.slice(0, 25)}"`, `""`, 10000, 99999,
+        `"${(company.name || "").slice(0, 25)}"`, `""`, 10000, 99999,
         `"${today.slice(0, 4)}0101"`, 4, `"WJ Beginn"`, `""`, 0, 0, `"EUR"`
     ].join(";");
 
@@ -256,8 +262,3 @@ function generateDatevExport(invoices, company) {
 
     return [header, columns, ...rows].join("\r\n");
 }
-
-module.exports = {
-    generateXRechnungXML,
-    generateDatevExport,
-};

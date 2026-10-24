@@ -114,52 +114,6 @@
       -webkit-app-region: no-drag;
     }
 
-    /* ─── Start Menu & Nav Pills ─── */
-    .nav-pill-btn {
-      padding: 5px 10px;
-      font-size: 12px;
-      font-weight: 500;
-      border-radius: 6px;
-      border: 1px solid transparent;
-      background: transparent;
-      color: #64748b;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      white-space: nowrap;
-    }
-    .nav-pill-btn:hover {
-      background: #f1f5f9;
-      color: #0f172a;
-    }
-    .nav-pill-btn.active {
-      background: #eff6ff;
-      border-color: #bfdbfe;
-      color: #2563eb;
-      font-weight: 600;
-    }
-    .start-menu-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 9px 12px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-      color: #1e293b;
-      transition: background 0.15s ease;
-    }
-    .start-menu-item:hover {
-      background: #f1f5f9;
-    }
-    .start-menu-item .icon {
-      font-size: 16px;
-      width: 22px;
-      text-align: center;
-      flex-shrink: 0;
-    }
     .quick-search {
       padding: 5px 12px;
       border: 1px solid var(--border);
@@ -437,6 +391,32 @@
     .status-draft { background: #f1f5f9; color: #475569; }
     .status-sent { background: #e0f2fe; color: #0284c7; }
     .status-paid { background: #dcfce7; color: #15803d; }
+    select.status-select {
+      appearance: none;
+      -webkit-appearance: none;
+      border: 1px solid transparent;
+      padding: 3px 22px 3px 10px;
+      cursor: pointer;
+      font-family: inherit;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%2364748b'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+    }
+    .status-accepted { background: #dcfce7; color: #15803d; }
+    .status-declined { background: #fee2e2; color: #b91c1c; }
+    .status-converted { background: #ede9fe; color: #6d28d9; }
+    .product-picker {
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      background: #ffffff;
+      color: var(--text);
+      cursor: pointer;
+      max-width: 360px;
+    }
+    select.status-select:hover { border-color: #cbd5e1; }
+    select.status-select:focus { outline: none; border-color: var(--border-focus); }
 
     /* ─── Metrics HUD Grid ─── */
     .metrics-grid {
@@ -695,6 +675,104 @@
       margin: 0 auto;
     }
 
+
+    /* ─── First-Run Setup Assistant ─── */
+    #onboarding {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      background: linear-gradient(160deg, #0b0f19 0%, #151d2f 55%, #1e3a8a 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-y: auto;
+      user-select: none;
+    }
+    .onb-drag { height: 46px; width: 100%; flex-shrink: 0; -webkit-app-region: drag; }
+    .onb-shell { width: 100%; max-width: 820px; padding: 0 24px 40px; }
+    .onb-steps { display: flex; gap: 6px; margin-bottom: 18px; }
+    .onb-step {
+      flex: 1;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748b;
+      padding-top: 8px;
+      border-top: 3px solid #334155;
+      letter-spacing: 0.2px;
+    }
+    .onb-step.done { color: #94a3b8; border-color: #38bdf8; }
+    .onb-step.active { color: #ffffff; border-color: #38bdf8; }
+    .onb-card {
+      background: #ffffff;
+      border-radius: var(--radius-lg);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+      overflow: hidden;
+    }
+    .onb-body { padding: 32px 36px 24px; min-height: 420px; }
+    .onb-title { font-size: 24px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+    .onb-lead { font-size: 14px; color: #475569; line-height: 1.55; margin-bottom: 22px; }
+    .onb-footer {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 36px;
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+    }
+    .onb-error { flex: 1; font-size: 12px; color: var(--danger); font-weight: 600; }
+    .onb-features { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .onb-feature { display: flex; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); }
+    .onb-feature .ico { font-size: 22px; line-height: 1; }
+    .onb-feature b { display: block; font-size: 13px; color: var(--text); margin-bottom: 3px; }
+    .onb-feature span { font-size: 12px; color: var(--text-muted); line-height: 1.45; }
+    .onb-section { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
+    .onb-section h4 { font-size: 14px; margin-bottom: 6px; color: var(--text); }
+    .onb-section p { font-size: 12.5px; color: #475569; line-height: 1.55; }
+    .onb-check { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; font-size: 13px; color: var(--text); cursor: pointer; line-height: 1.45; }
+    .onb-check input { margin-top: 3px; width: 15px; height: 15px; flex-shrink: 0; }
+    .onb-path {
+      display: block;
+      margin-top: 8px;
+      padding: 7px 10px;
+      background: #f1f5f9;
+      border-radius: var(--radius-sm);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px;
+      color: #334155;
+      user-select: text;
+      word-break: break-all;
+    }
+    .onb-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .onb-choice {
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .onb-choice b { display: block; font-size: 13px; color: var(--text); margin-bottom: 3px; }
+    .onb-choice.active { border-color: var(--primary); background: var(--primary-light); }
+    .onb-choice.disabled { opacity: 0.45; cursor: not-allowed; }
+    .onb-checklist { list-style: none; }
+    .onb-checklist li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .onb-checklist li:last-child { border-bottom: none; }
+    .onb-checklist .state { width: 22px; text-align: center; font-size: 16px; }
+    .onb-checklist .text { flex: 1; }
+    .onb-checklist .text small { display: block; color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+    .onb-progress { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+    .onb-progress > div { height: 100%; background: var(--primary); width: 0; transition: width 0.2s ease; }
+    .onb-hint { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; }
+    .onb-body .form-group label .req { color: var(--danger); }
+
     /* ─── Toast Notifications ─── */
     #toast {
       position: fixed;
@@ -739,7 +817,7 @@
       }
 
       /* Hide all UI elements, app body, sidebar, titlebar, modals and buttons */
-      .app-body, .titlebar, .sidebar, .modal-backdrop, #toast, .no-print, #start-menu-dropdown {
+      .app-body, .titlebar, .sidebar, .modal-backdrop, #toast, .no-print, #onboarding {
         display: none !important;
       }
 
@@ -795,20 +873,6 @@
 
   <!-- ─── Mac Frameless Titlebar ─── -->
   <div class="titlebar">
-    <div style="display:flex; align-items:center; gap:8px; -webkit-app-region: no-drag;">
-      <button class="btn btn-sm" id="btn-start-menu" onclick="toggleStartMenu()" style="background:#0f172a; color:#ffffff; font-weight:700; border:none; padding:5px 12px; border-radius:6px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
-        <span style="color:#38bdf8; font-size:14px;">⚡</span> Start-Menü
-      </button>
-      <div style="display:flex; align-items:center; gap:3px;">
-        <button class="nav-pill-btn active" id="pill-dashboard" onclick="showView('dashboard')">🏠 Start</button>
-        <button class="nav-pill-btn" id="pill-invoices" onclick="showView('invoices')">📄 Rechnungen</button>
-        <button class="nav-pill-btn" id="pill-offers" onclick="showView('offers')">📝 Angebote</button>
-        <button class="nav-pill-btn" id="pill-clients" onclick="showView('clients')">👥 Kunden</button>
-        <button class="nav-pill-btn" id="pill-expenses" onclick="showView('expenses')">🧾 Ausgaben</button>
-        <button class="nav-pill-btn" id="pill-settings" onclick="showView('settings')">⚙️ KI & Einstellungen</button>
-      </div>
-    </div>
-
     <div class="titlebar-center">
       <span class="badge offline-badge">🔒 100% Offline</span>
       <span id="ai-model-indicator" class="badge ai-pill" onclick="showAiSettingsModal()" title="Klicken für KI-Konfiguration (Ollama, OpenAI, Claude)">
@@ -819,62 +883,6 @@
     <div class="titlebar-right">
       <input type="text" class="quick-search" id="global-search" placeholder="Suchen (⌘F)..." oninput="handleGlobalSearch(this.value)">
       <button class="btn btn-primary btn-sm" onclick="createNewInvoice()">➕ Neue Rechnung (⌘N)</button>
-    </div>
-  </div>
-
-  <!-- ─── Start Menu Flyout Dropdown ─── -->
-  <div id="start-menu-dropdown" style="display:none; position:fixed; top:46px; left:84px; width:330px; background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.18), 0 8px 10px -6px rgba(0,0,0,0.1); z-index:9000; overflow:hidden;">
-    <div style="background:#0f172a; color:#fff; padding:16px; border-bottom:1px solid #1e293b;">
-      <div style="font-size:11px; text-transform:uppercase; color:#94a3b8; font-weight:700; letter-spacing:0.5px;">Rechly Desktop Start-Menü</div>
-      <div style="font-size:16px; font-weight:700; color:#fff; margin-top:2px;" id="start-menu-company">Meine Firma</div>
-      <div style="font-size:11px; color:#38bdf8; margin-top:4px; display:flex; align-items:center; gap:5px;">
-        <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10b981;"></span>
-        GoBD-Tresor aktiv & offline geschützt
-      </div>
-    </div>
-    <div style="padding:8px 6px;">
-      <div class="start-menu-item" onclick="showView('dashboard'); toggleStartMenu();">
-        <span class="icon">🏠</span>
-        <div><b>Übersicht & Kontrollzentrum</b><div style="font-size:11px; color:#64748b;">Finanz-HUD & Startklar-Check</div></div>
-      </div>
-      <div class="start-menu-item" onclick="createNewInvoice(); toggleStartMenu();">
-        <span class="icon">➕</span>
-        <div><b>Neue Rechnung erstellen (⌘N)</b><div style="font-size:11px; color:#64748b;">GoBD-konform mit E-Rechnung XML</div></div>
-      </div>
-      <div class="start-menu-item" onclick="createNewInvoice(); toggleStartMenu();">
-        <span class="icon">🤖</span>
-        <div><b>KI-Schnellerfassung starten</b><div style="font-size:11px; color:#64748b;">Text-zu-Rechnung mit aktiver KI</div></div>
-      </div>
-      <div class="start-menu-item" onclick="showView('offers'); toggleStartMenu();">
-        <span class="icon">📝</span>
-        <div><b>Neues Angebot verfassen</b><div style="font-size:11px; color:#64748b;">1-Klick-Umwandlung in Rechnung</div></div>
-      </div>
-      <div class="start-menu-item" onclick="showNewClientModal(); toggleStartMenu();">
-        <span class="icon">👥</span>
-        <div><b>Neuen Kunden anlegen</b><div style="font-size:11px; color:#64748b;">Stammdaten & Leitweg-ID</div></div>
-      </div>
-      <div class="start-menu-item" onclick="showNewExpenseModal(); toggleStartMenu();">
-        <span class="icon">🧾</span>
-        <div><b>Ausgabe verbuchen</b><div style="font-size:11px; color:#64748b;">Belege für Steuererklärung erfassen</div></div>
-      </div>
-      <div style="height:1px; background:#e2e8f0; margin:6px 8px;"></div>
-      <div class="start-menu-item" onclick="showView('settings'); toggleStartMenu();">
-        <span class="icon">⚙️</span>
-        <div><b>KI & Cloud-Schnittstellen</b><div style="font-size:11px; color:#64748b;">Ollama (Rechly-DE-3B), OpenAI oder Claude</div></div>
-      </div>
-      <div class="start-menu-item" onclick="showView('datev'); toggleStartMenu();">
-        <span class="icon">🏛️</span>
-        <div><b>DATEV Steuerberater-Export</b><div style="font-size:11px; color:#64748b;">Buchungsstapel CSV generieren</div></div>
-      </div>
-      <div class="start-menu-item" onclick="window.rechly.exportBackup(); toggleStartMenu();">
-        <span class="icon">💾</span>
-        <div><b>Datenbank-Backup erstellen</b><div style="font-size:11px; color:#64748b;">Tresor als Datei sichern</div></div>
-      </div>
-      <div style="height:1px; background:#e2e8f0; margin:6px 8px;"></div>
-      <div class="start-menu-item" onclick="openModal('modal-startup-wizard'); toggleStartMenu();">
-        <span class="icon">🚀</span>
-        <div><b>Start-Assistent öffnen</b><div style="font-size:11px; color:#64748b;">Vollbild-Startmenü anzeigen</div></div>
-      </div>
     </div>
   </div>
 
@@ -1094,68 +1102,18 @@
     <div class="print-sheet" id="print-sheet-content"></div>
   </div>
 
-  <!-- Startup Wizard Modal -->
-  <div class="modal-backdrop" id="modal-startup-wizard">
-    <div class="modal-card" style="width: 580px;">
-      <div class="modal-header" style="background:#0f172a; color:#fff; border-bottom:none;">
-        <div>
-          <div style="font-size:11px; text-transform:uppercase; color:#38bdf8; font-weight:700; letter-spacing:0.5px;">Rechly Desktop</div>
-          <div class="modal-title" style="color:#fff; font-size:18px;">⚡ Startmenü & Schnellstart</div>
+  <!-- ─── First-Run Setup Assistant ─── -->
+  <div id="onboarding" style="display:none;">
+    <div class="onb-drag"></div>
+    <div class="onb-shell">
+      <div class="onb-steps" id="onb-steps"></div>
+      <div class="onb-card">
+        <div class="onb-body" id="onb-body"></div>
+        <div class="onb-footer">
+          <button class="btn btn-secondary" id="onb-back" onclick="onbBack()">Zurück</button>
+          <div class="onb-error" id="onb-error"></div>
+          <button class="btn btn-primary" id="onb-next" onclick="onbNext()">Weiter</button>
         </div>
-        <button class="btn btn-secondary btn-sm" style="background:rgba(255,255,255,0.1); color:#fff; border:none;" onclick="closeModal('modal-startup-wizard')">✕</button>
-      </div>
-      <div class="modal-body" style="padding:24px;">
-        <p style="font-size:13px; color:#475569; margin-bottom:20px;">
-          Was möchtest du tun? Wähle eine Aktion aus dem Startmenü:
-        </p>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); createNewInvoice();">
-            <div class="tile-icon tile-blue" style="width:34px; height:34px; font-size:16px;">➕</div>
-            <div>
-              <div class="tile-title" style="font-size:13px;">Rechnung schreiben</div>
-              <div class="tile-desc" style="font-size:11px;">GoBD-konform mit XML</div>
-            </div>
-          </div>
-          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); createNewInvoice();">
-            <div class="tile-icon tile-emerald" style="width:34px; height:34px; font-size:16px;">🤖</div>
-            <div>
-              <div class="tile-title" style="font-size:13px;">KI-Schnellerfassung</div>
-              <div class="tile-desc" style="font-size:11px;">Text-zu-Rechnung mit KI</div>
-            </div>
-          </div>
-          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showView('offers');">
-            <div class="tile-icon tile-amber" style="width:34px; height:34px; font-size:16px;">📝</div>
-            <div>
-              <div class="tile-title" style="font-size:13px;">Angebot erstellen</div>
-              <div class="tile-desc" style="font-size:11px;">Kostenvoranschlag verfassen</div>
-            </div>
-          </div>
-          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showNewClientModal();">
-            <div class="tile-icon tile-purple" style="width:34px; height:34px; font-size:16px;">👥</div>
-            <div>
-              <div class="tile-title" style="font-size:13px;">Neuer Kunde</div>
-              <div class="tile-desc" style="font-size:11px;">Stammdaten & Leitweg-ID</div>
-            </div>
-          </div>
-          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showView('settings');">
-            <div class="tile-icon tile-rose" style="width:34px; height:34px; font-size:16px;">⚙️</div>
-            <div>
-              <div class="tile-title" style="font-size:13px;">KI & Cloud-APIs</div>
-              <div class="tile-desc" style="font-size:11px;">OpenAI, Claude, Ollama</div>
-            </div>
-          </div>
-          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showView('datev');">
-            <div class="tile-icon tile-slate" style="width:34px; height:34px; font-size:16px;">🏛️</div>
-            <div>
-              <div class="tile-title" style="font-size:13px;">DATEV Export</div>
-              <div class="tile-desc" style="font-size:11px;">Steuerberater Buchungsstapel</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer" style="justify-content:space-between;">
-        <span style="font-size:11px; color:#64748b;">🔒 100% Offline • Lokaler GoBD-Tresor</span>
-        <button class="btn btn-primary" onclick="closeModal('modal-startup-wizard'); showView('dashboard');">Zum Dashboard ➔</button>
       </div>
     </div>
   </div>
@@ -1187,6 +1145,8 @@
     };
     let currentView = 'dashboard';
     let editingInvoiceId = null;
+    let editingOfferId = null;
+    let editorDocType = 'invoice';
     let editingClientId = null;
     let editingProductId = null;
     let editingExpenseId = null;
@@ -1201,6 +1161,7 @@
         updateBadges();
         showView('dashboard');
         updateAiStatusPill();
+        if (!currentStore.onboarding) await showOnboarding();
       }
     }
 
@@ -1260,28 +1221,53 @@
       showView('create-invoice');
     }
 
-    function cancelEditInvoice() {
-      editingInvoiceId = null;
-      showView('invoices');
+    // ─── Invoice Status ───
+    const INVOICE_STATUSES = [
+      { value: 'draft', label: 'Entwurf' },
+      { value: 'sent', label: 'Offen' },
+      { value: 'paid', label: 'Bezahlt' },
+    ];
+
+    function normalizeInvoiceStatus(status) {
+      return INVOICE_STATUSES.some(s => s.value === status) ? status : 'draft';
+    }
+
+    function invoiceStatusOptions(status) {
+      const current = normalizeInvoiceStatus(status);
+      return INVOICE_STATUSES.map(s => `<option value="${s.value}" ${s.value === current ? 'selected' : ''}>${s.label}</option>`).join('');
+    }
+
+    function invoiceStatusSelect(inv) {
+      const current = normalizeInvoiceStatus(inv.status);
+      return `<select class="status-pill status-select status-${current}" title="Status ändern" onchange="setInvoiceStatus('${inv.id}', this.value)">${invoiceStatusOptions(current)}</select>`;
+    }
+
+    async function setInvoiceStatus(id, status) {
+      await window.rechly.updateInvoice(id, { status });
+      currentStore = await window.rechly.getStore();
+      const label = INVOICE_STATUSES.find(s => s.value === status)?.label || status;
+      showToast(`Status geändert: ${label}`);
+      showView(currentView);
     }
 
     function showView(viewId) {
       if (viewId !== 'create-invoice') {
         editingInvoiceId = null;
       }
+      if (viewId !== 'create-offer') {
+        editingOfferId = null;
+      }
       currentView = viewId;
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      const activeNav = document.getElementById(`nav-${viewId}`) || Array.from(document.querySelectorAll('.nav-item')).find(el => el.innerText.toLowerCase().includes(viewId.replace('-', ' ')));
+      const navId = viewId === 'create-offer' ? 'offers' : viewId === 'create-invoice' ? 'invoices' : viewId;
+      const activeNav = document.getElementById(`nav-${navId}`) || Array.from(document.querySelectorAll('.nav-item')).find(el => el.innerText.toLowerCase().includes(viewId.replace('-', ' ')));
       if (activeNav) activeNav.classList.add('active');
-
-      document.querySelectorAll('.nav-pill-btn').forEach(b => b.classList.remove('active'));
-      const activePill = document.getElementById(`pill-${viewId}`);
-      if (activePill) activePill.classList.add('active');
 
       const container = document.getElementById('content-container');
       if (viewId === 'dashboard') renderDashboardView(container);
       else if (viewId === 'invoices') renderInvoicesView(container);
-      else if (viewId === 'create-invoice') renderCreateInvoiceView(container);
+      else if (viewId === 'create-invoice') renderCreateInvoiceView(container, 'invoice');
+      else if (viewId === 'create-offer') renderCreateInvoiceView(container, 'offer');
       else if (viewId === 'clients') renderClientsView(container);
       else if (viewId === 'products') renderProductsView(container);
       else if (viewId === 'offers') renderOffersView(container);
@@ -1290,26 +1276,6 @@
       else if (viewId === 'tools') renderToolsView(container);
       else if (viewId === 'settings') renderSettingsView(container);
     }
-
-    function toggleStartMenu() {
-      const dropdown = document.getElementById('start-menu-dropdown');
-      if (!dropdown) return;
-      const isHidden = dropdown.style.display === 'none' || !dropdown.style.display;
-      dropdown.style.display = isHidden ? 'block' : 'none';
-      const c = currentStore.company || {};
-      const el = document.getElementById('start-menu-company');
-      if (el) el.innerText = c.name || 'Meine Firma';
-    }
-
-    document.addEventListener('click', (e) => {
-      const startBtn = document.getElementById('btn-start-menu');
-      const dropdown = document.getElementById('start-menu-dropdown');
-      if (dropdown && dropdown.style.display === 'block') {
-        if (!startBtn.contains(e.target) && !dropdown.contains(e.target)) {
-          dropdown.style.display = 'none';
-        }
-      }
-    });
 
     // ─── View 0: Startup Menu / Home Dashboard ───
     function renderDashboardView(container) {
@@ -1343,15 +1309,13 @@
       const recentInvoices = invoices.slice(0, 5);
       const recentRows = recentInvoices.map(inv => {
         const cl = clients.find(c => c.id === inv.client_id) || { name: 'Kunde' };
-        const statusClass = inv.status === 'paid' ? 'status-paid' : inv.status === 'sent' ? 'status-sent' : 'status-draft';
-        const statusText = inv.status === 'paid' ? 'Bezahlt' : inv.status === 'sent' ? 'Offen' : 'Entwurf';
         return `
           <tr>
             <td><b>${inv.invoice_number}</b></td>
             <td>${cl.name}</td>
             <td>${inv.issue_date || '-'}</td>
             <td><b>${(inv.total_gross || 0).toFixed(2)} €</b></td>
-            <td><span class="status-pill ${statusClass}">${statusText}</span></td>
+            <td>${invoiceStatusSelect(inv)}</td>
             <td>
               <button class="btn btn-secondary btn-sm" onclick="previewInvoice('${inv.id}')">Drucken / PDF</button>
             </td>
@@ -1411,7 +1375,7 @@
             </div>
           </div>
 
-          <div class="action-tile" onclick="showView('offers')">
+          <div class="action-tile" onclick="createNewOffer()">
             <div class="tile-icon tile-amber">📝</div>
             <div>
               <div class="tile-title">Angebot kalkulieren</div>
@@ -1525,8 +1489,6 @@
 
       let rows = invoices.map(inv => {
         const client = clients.find(c => c.id === inv.client_id) || { name: 'Unbekannter Kunde' };
-        const statusClass = inv.status === 'paid' ? 'status-paid' : inv.status === 'sent' ? 'status-sent' : 'status-draft';
-        const statusText = inv.status === 'paid' ? 'Bezahlt' : inv.status === 'sent' ? 'Offen' : 'Entwurf';
 
         return `
           <tr>
@@ -1535,7 +1497,7 @@
             <td>${inv.issue_date || '-'}</td>
             <td>${inv.due_date || '-'}</td>
             <td><b>${(inv.total_gross || 0).toFixed(2)} €</b></td>
-            <td><span class="status-pill ${statusClass}">${statusText}</span></td>
+            <td>${invoiceStatusSelect(inv)}</td>
             <td>
               <button class="btn btn-secondary btn-sm" onclick="editInvoice('${inv.id}')">✏️ Bearbeiten</button>
               <button class="btn btn-secondary btn-sm" onclick="previewInvoice('${inv.id}')">Drucken / PDF</button>
@@ -1581,11 +1543,25 @@
       showView('create-invoice');
     }
 
-    function renderCreateInvoiceView(container) {
-      const isEditing = Boolean(editingInvoiceId);
-      const inv = isEditing ? (currentStore.invoices || []).find(i => i.id === editingInvoiceId) : null;
-      const titleText = isEditing && inv ? `Rechnung ${inv.invoice_number} bearbeiten` : 'Neue Rechnung erstellen';
-      const submitText = isEditing ? '💾 Änderungen speichern' : 'Rechnung speichern';
+    function renderCreateInvoiceView(container, docType = 'invoice') {
+      editorDocType = docType;
+      const isOffer = docType === 'offer';
+      const editingId = isOffer ? editingOfferId : editingInvoiceId;
+      const isEditing = Boolean(editingId);
+      const inv = isEditing ? ((isOffer ? currentStore.offers : currentStore.invoices) || []).find(d => d.id === editingId) : null;
+      const docLabel = isOffer ? 'Angebot' : 'Rechnung';
+      const docNumber = inv ? (isOffer ? inv.offer_number : inv.invoice_number) : '';
+      const backView = isOffer ? 'offers' : 'invoices';
+      const year = new Date().getFullYear();
+      const defaultNumber = `${isOffer ? 'AN' : 'RE'}-${year}-${Math.floor(100 + Math.random() * 900)}`;
+      const dueValue = inv ? (isOffer ? inv.valid_until : inv.due_date) : new Date(Date.now() + (isOffer ? 30 : 14) * 86400000).toISOString().slice(0, 10);
+      const titleText = isEditing && inv ? `${docLabel} ${docNumber || ''} bearbeiten` : `${isOffer ? 'Neues Angebot' : 'Neue Rechnung'} erstellen`;
+      const submitText = isEditing ? '💾 Änderungen speichern' : `${docLabel} speichern`;
+      const subtitleText = isOffer
+        ? (isEditing ? 'Passe Positionen, Gültigkeit und Konditionen des Angebots an.' : 'Kostenvoranschlag erstellen und nach Annahme mit einem Klick in eine Rechnung umwandeln.')
+        : (isEditing ? 'Passe Positionen, Rechnungsdaten und Konditionen der bestehenden Rechnung an.' : 'GoBD-konform mit automatischer Berechnung und E-Rechnung-Unterstützung.');
+      const products = currentStore.products || [];
+      const productOptions = products.map(pr => `<option value="${esc(pr.id)}">${esc(pr.name)} – ${(pr.price || 0).toFixed(2)} € / ${esc(pr.unit_of_measure || 'Stück')}</option>`).join('');
 
       const clients = currentStore.clients || [];
       const clientOptions = clients.map(c => `<option value="${c.id}" ${inv && inv.client_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('');
@@ -1611,7 +1587,7 @@
         `).join('');
       } else {
         initialItemRows = `
-          <tr>
+          <tr data-placeholder="1">
             <td><input type="text" class="item-desc" value="Beratung und Konzeption" style="width:100%"></td>
             <td><input type="number" class="item-qty" value="1" style="width:70px" oninput="calculateTotals()"></td>
             <td><input type="text" class="item-unit" value="Stunde" style="width:80px"></td>
@@ -1626,9 +1602,9 @@
         <div class="page-header">
           <div>
             <div class="page-title">${titleText}</div>
-            <div class="page-subtitle">${isEditing ? 'Passe Positionen, Rechnungsdaten und Konditionen der bestehenden Rechnung an.' : 'GoBD-konform mit automatischer Berechnung und E-Rechnung-Unterstützung.'}</div>
+            <div class="page-subtitle">${subtitleText}</div>
           </div>
-          <button class="btn btn-secondary" onclick="editingInvoiceId=null; showView('invoices');">Zurück zur Übersicht</button>
+          <button class="btn btn-secondary" onclick="showView('${backView}')">Zurück zur Übersicht</button>
         </div>
 
         <!-- AI Text-to-Invoice Bar -->
@@ -1652,20 +1628,24 @@
               <select id="inv-client">${clientOptions || '<option value="">Keine Kunden angelegt</option>'}</select>
             </div>
             <div class="form-group">
-              <label>Rechnungsnummer</label>
-              <input type="text" id="inv-num" value="${inv ? inv.invoice_number : `RE-2026-${Math.floor(100 + Math.random() * 900)}`}">
+              <label>${isOffer ? 'Angebotsnummer' : 'Rechnungsnummer'}</label>
+              <input type="text" id="inv-num" value="${esc(inv ? (docNumber || '') : defaultNumber)}">
             </div>
             <div class="form-group">
-              <label>Rechnungsdatum</label>
-              <input type="date" id="inv-date" value="${inv ? inv.issue_date : new Date().toISOString().slice(0, 10)}">
+              <label>${isOffer ? 'Angebotsdatum' : 'Rechnungsdatum'}</label>
+              <input type="date" id="inv-date" value="${inv ? (inv.issue_date || '') : new Date().toISOString().slice(0, 10)}">
             </div>
             <div class="form-group">
-              <label>Fälligkeitsdatum</label>
-              <input type="date" id="inv-due" value="${inv ? inv.due_date : new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}">
+              <label>${isOffer ? 'Gültig bis' : 'Fälligkeitsdatum'}</label>
+              <input type="date" id="inv-due" value="${dueValue || ''}">
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="inv-status">${isOffer ? offerStatusOptions(inv ? inv.status : 'draft') : invoiceStatusOptions(inv ? inv.status : 'sent')}</select>
             </div>
           </div>
 
-          <div style="margin: 20px 0 10px 0; font-weight:700; font-size:14px;">Rechnungspositionen</div>
+          <div style="margin: 20px 0 10px 0; font-weight:700; font-size:14px;">${isOffer ? 'Angebotspositionen' : 'Rechnungspositionen'}</div>
           <table id="inv-items-table">
             <thead>
               <tr>
@@ -1681,7 +1661,15 @@
               ${initialItemRows}
             </tbody>
           </table>
-          <button class="btn btn-secondary btn-sm" style="margin-top:10px;" onclick="addInvoiceItemRow()">+ Position hinzufügen</button>
+          <div style="display:flex; gap:8px; align-items:center; margin-top:10px;">
+            <button class="btn btn-secondary btn-sm" onclick="addInvoiceItemRow()">+ Freie Position</button>
+            ${products.length > 0 ? `
+            <select id="inv-product-picker" class="product-picker" onchange="addProductItem(this.value); this.value = '';">
+              <option value="">📦 Aus Leistungen & Artikeln hinzufügen…</option>
+              ${productOptions}
+            </select>` : `
+            <span style="font-size:12px; color:#64748b;">Noch keine Leistungen angelegt. <a href="#" onclick="showView('products'); return false;">Leistungen & Artikel anlegen ↗</a></span>`}
+          </div>
 
           <div class="form-group" style="margin-top:20px;">
             <label>Zahlungsbedingungen</label>
@@ -1693,7 +1681,7 @@
               Gesamt Netto: <b>110.00 €</b> | MwSt: <b>20.90 €</b> | Brutto: <b style="color:#0f172a; font-size:16px;">130.90 €</b>
             </div>
             <div style="display:flex; gap:10px;">
-              ${isEditing ? '<button class="btn btn-secondary" onclick="cancelEditInvoice()">Abbrechen</button>' : ''}
+              ${isEditing ? `<button class="btn btn-secondary" onclick="showView('${backView}')">Abbrechen</button>` : ''}
               <button class="btn btn-primary" onclick="saveNewInvoice()">${submitText}</button>
             </div>
           </div>
@@ -1706,15 +1694,30 @@
       const tbody = document.getElementById('inv-items-body');
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><input type="text" class="item-desc" value="${desc}" style="width:100%"></td>
-        <td><input type="number" class="item-qty" value="${qty}" style="width:70px" oninput="calculateTotals()"></td>
-        <td><input type="text" class="item-unit" value="${unit}" style="width:80px"></td>
-        <td><input type="number" class="item-price" value="${price}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
+        <td><input type="text" class="item-desc" value="${esc(desc)}" style="width:100%"></td>
+        <td><input type="number" class="item-qty" value="${esc(qty)}" style="width:70px" oninput="calculateTotals()"></td>
+        <td><input type="text" class="item-unit" value="${esc(unit)}" style="width:80px"></td>
+        <td><input type="number" class="item-price" value="${esc(price)}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
         <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : vat}" style="width:70px" oninput="calculateTotals()"></td>
         <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
       `;
       tbody.appendChild(tr);
       calculateTotals();
+    }
+
+    function addProductItem(productId) {
+      const product = (currentStore.products || []).find(pr => pr.id === productId);
+      if (!product) return;
+      // Replace the untouched example row of a new document instead of adding below it.
+      const placeholder = document.querySelector('#inv-items-body tr[data-placeholder="1"]');
+      if (placeholder && placeholder.querySelector('.item-desc').value === 'Beratung und Konzeption'
+          && placeholder.querySelector('.item-price').value === '110' && placeholder.querySelector('.item-qty').value === '1') {
+        placeholder.remove();
+      }
+      const vat = product.tax_rate_percent !== undefined ? product.tax_rate_percent : 19;
+      addInvoiceItemRow(product.name || product.description || '', 1, product.unit_of_measure || 'Stück', product.price || 0, vat);
+      const lastQty = document.querySelector('#inv-items-body tr:last-child .item-qty');
+      if (lastQty) { lastQty.focus(); lastQty.select(); }
     }
 
     function calculateTotals() {
@@ -1755,7 +1758,7 @@
         if (parsed.client_id) {
           document.getElementById('inv-client').value = parsed.client_id;
         }
-        if (parsed.due_days) {
+        if (parsed.due_days && editorDocType === 'invoice') {
           const d = new Date(Date.now() + parsed.due_days * 86400000);
           document.getElementById('inv-due').value = d.toISOString().slice(0, 10);
         }
@@ -1803,8 +1806,34 @@
         subtotal: totals.subtotal,
         total_vat: totals.totalVat,
         total_gross: totals.totalGross,
-        status: editingInvoiceId ? (currentStore.invoices.find(i => i.id === editingInvoiceId)?.status || 'sent') : 'sent',
+        status: document.getElementById('inv-status').value,
       };
+
+      if (editorDocType === 'offer') {
+        const offerData = {
+          client_id: invoiceData.client_id,
+          offer_number: invoiceData.invoice_number,
+          issue_date: invoiceData.issue_date,
+          valid_until: invoiceData.due_date,
+          payment_terms: invoiceData.payment_terms,
+          items,
+          subtotal: totals.subtotal,
+          total_vat: totals.totalVat,
+          total_gross: totals.totalGross,
+          status: invoiceData.status,
+        };
+        if (editingOfferId) {
+          await window.rechly.updateOffer(editingOfferId, offerData);
+          showToast('Angebot erfolgreich aktualisiert!');
+        } else {
+          await window.rechly.createOffer(offerData);
+          showToast('Angebot erfolgreich gespeichert!');
+        }
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showView('offers');
+        return;
+      }
 
       if (editingInvoiceId) {
         await window.rechly.updateInvoice(editingInvoiceId, invoiceData);
@@ -1837,6 +1866,23 @@
     }
 
     let activePreviewInvoiceId = null;
+    let activePreviewKind = 'invoice';
+
+    const PRINT_LABELS = {
+      invoice: {
+        number: 'Rechnungs-Nr.', date: 'Rechnungsdatum', due: 'Zahlbar bis', dueShort: 'Fälligkeitsdatum', dueCaps: 'FÄLLIGKEIT',
+        title: 'Rechnung', titleCaps: 'RECHNUNG', recipientCaps: 'RECHNUNGSEMPFÄNGER', detailsCaps: 'RECHNUNGSDETAILS',
+        intro: 'Sehr geehrte Damen und Herren, wir bedanken uns für Ihren Auftrag und stellen folgende Positionen in Rechnung:',
+        total: 'Zahlbetrag:', paymentBox: '💳 Zahlungsanweisung & Bankverbindung', showDelivery: true,
+      },
+      offer: {
+        number: 'Angebots-Nr.', date: 'Angebotsdatum', due: 'Gültig bis', dueShort: 'Gültig bis', dueCaps: 'GÜLTIG BIS',
+        title: 'Angebot', titleCaps: 'ANGEBOT', recipientCaps: 'EMPFÄNGER', detailsCaps: 'ANGEBOTSDETAILS',
+        intro: 'Sehr geehrte Damen und Herren, vielen Dank für Ihre Anfrage. Gerne bieten wir Ihnen folgende Leistungen an:',
+        total: 'Angebotssumme:', paymentBox: '💳 Zahlungsbedingungen & Bankverbindung', showDelivery: false,
+      },
+    };
+    let printLabels = PRINT_LABELS.invoice;
 
     function getClassicInvoiceHtml(inv, comp, client, itemsRows) {
       const returnAddress = `${comp.name || 'Meine Firma'} • ${comp.address_line1 || ''} • ${comp.postal_code || ''} ${comp.city || ''}`;
@@ -1867,19 +1913,19 @@
               
               <table style="width: 100%; font-size: 9pt; border-collapse: collapse;">
                 <tr>
-                  <td style="color: #64748b; padding: 2px 0;">Rechnungs-Nr.:</td>
+                  <td style="color: #64748b; padding: 2px 0;">${printLabels.number}:</td>
                   <td style="font-weight: 700; text-align: right; padding: 2px 0;">${inv.invoice_number}</td>
                 </tr>
                 <tr>
-                  <td style="color: #64748b; padding: 2px 0;">Rechnungsdatum:</td>
+                  <td style="color: #64748b; padding: 2px 0;">${printLabels.date}:</td>
                   <td style="text-align: right; padding: 2px 0;">${inv.issue_date || '-'}</td>
                 </tr>
-                <tr>
+                ${printLabels.showDelivery ? `<tr>
                   <td style="color: #64748b; padding: 2px 0;">Liefer-/Leistung:</td>
                   <td style="text-align: right; padding: 2px 0;">${inv.delivery_date || inv.issue_date || '-'}</td>
-                </tr>
+                </tr>` : ''}
                 <tr>
-                  <td style="color: #64748b; padding: 2px 0;">Zahlbar bis:</td>
+                  <td style="color: #64748b; padding: 2px 0;">${printLabels.due}:</td>
                   <td style="font-weight: 600; color: #dc2626; text-align: right; padding: 2px 0;">${inv.due_date || '-'}</td>
                 </tr>
                 ${client.vat_id ? `
@@ -1894,10 +1940,10 @@
           <!-- Document Title -->
           <div style="margin-bottom: 20px;">
             <h1 style="font-size: 16pt; font-weight: 800; color: #0f172a; margin: 0 0 6px 0;">
-              Rechnung ${inv.invoice_number}
+              ${printLabels.title} ${inv.invoice_number}
             </h1>
             <p style="font-size: 9.5pt; color: #475569; margin: 0;">
-              Sehr geehrte Damen und Herren, wir bedanken uns für Ihren Auftrag und stellen folgende Positionen in Rechnung:
+              ${printLabels.intro}
             </p>
           </div>
 
@@ -1933,7 +1979,7 @@
                 <span style="font-weight: 600;">${(inv.total_vat || 0).toFixed(2)} €</span>
               </div>`}
               <div style="display: flex; justify-content: space-between; font-size: 13pt; font-weight: 800; color: #0f172a; border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; padding: 6px 0; margin-top: 6px;">
-                <span>Zahlbetrag:</span>
+                <span>${printLabels.total}</span>
                 <span>${(inv.total_gross || 0).toFixed(2)} €</span>
               </div>
             </div>
@@ -1941,8 +1987,11 @@
 
           <!-- Payment Terms -->
           <div style="margin-bottom: 35px; background: #f8fafc; border-left: 3px solid #2563eb; padding: 12px 14px; font-size: 9pt; color: #334155;">
+            ${printLabels.showDelivery ? `
             <b>Zahlungshinweis:</b> ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'}<br>
-            Bitte überweisen Sie den Gesamtbetrag unter Angabe der Rechnungsnummer <b>${inv.invoice_number}</b> auf das unten genannte Konto.
+            Bitte überweisen Sie den Gesamtbetrag unter Angabe der Rechnungsnummer <b>${inv.invoice_number}</b> auf das unten genannte Konto.` : `
+            <b>Gültigkeit:</b> Dieses Angebot ist gültig bis <b>${inv.due_date || '-'}</b>.<br>
+            <b>Zahlungsbedingungen:</b> ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'}`}
           </div>
 
           <!-- DIN 3-Column GoBD Footer -->
@@ -1983,7 +2032,7 @@
             </div>
             <div style="text-align: right;">
               <div style="display: inline-block; background: #2563eb; color: #ffffff; font-weight: 800; font-size: 11pt; padding: 4px 12px; border-radius: 6px; letter-spacing: 0.5px; margin-bottom: 4px;">
-                RECHNUNG
+                ${printLabels.titleCaps}
               </div>
               <div style="font-size: 12pt; font-weight: 700; color: #0f172a;">${inv.invoice_number}</div>
             </div>
@@ -1992,7 +2041,7 @@
           <!-- Modern Cards Grid: Recipient Card + Meta Card -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px;">
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
-              <div style="font-size: 8pt; text-transform: uppercase; font-weight: 700; color: #2563eb; margin-bottom: 6px; letter-spacing: 0.5px;">👤 RECHNUNGSEMPFÄNGER</div>
+              <div style="font-size: 8pt; text-transform: uppercase; font-weight: 700; color: #2563eb; margin-bottom: 6px; letter-spacing: 0.5px;">👤 ${printLabels.recipientCaps}</div>
               <div style="font-size: 11pt; font-weight: 700; color: #0f172a; margin-bottom: 3px;">${client.name || 'Kunde'}</div>
               <div style="font-size: 9.5pt; color: #475569; line-height: 1.4;">
                 ${client.contact_person ? `${client.contact_person}<br>` : ''}
@@ -2003,20 +2052,20 @@
             </div>
 
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
-              <div style="font-size: 8pt; text-transform: uppercase; font-weight: 700; color: #2563eb; margin-bottom: 6px; letter-spacing: 0.5px;">📄 RECHNUNGSDETAILS</div>
+              <div style="font-size: 8pt; text-transform: uppercase; font-weight: 700; color: #2563eb; margin-bottom: 6px; letter-spacing: 0.5px;">📄 ${printLabels.detailsCaps}</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 9pt;">
                 <div>
-                  <span style="color: #64748b; font-size: 8pt; display: block;">Rechnungsdatum</span>
+                  <span style="color: #64748b; font-size: 8pt; display: block;">${printLabels.date}</span>
                   <b>${inv.issue_date || '-'}</b>
                 </div>
                 <div>
-                  <span style="color: #64748b; font-size: 8pt; display: block;">Fälligkeitsdatum</span>
+                  <span style="color: #64748b; font-size: 8pt; display: block;">${printLabels.dueShort}</span>
                   <b style="color: #dc2626;">${inv.due_date || '-'}</b>
                 </div>
-                <div>
+                ${printLabels.showDelivery ? `<div>
                   <span style="color: #64748b; font-size: 8pt; display: block;">Liefer-/Leistung</span>
                   <b>${inv.delivery_date || inv.issue_date || '-'}</b>
-                </div>
+                </div>` : ''}
                 <div>
                   <span style="color: #64748b; font-size: 8pt; display: block;">Status</span>
                   <b style="color: #10b981;">GoBD-Valide</b>
@@ -2065,7 +2114,7 @@
 
           <!-- Payment & Banking Box -->
           <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px; margin-bottom: 30px; font-size: 9pt; color: #1e3a8a;">
-            <div style="font-weight: 700; margin-bottom: 4px;">💳 Zahlungsanweisung & Bankverbindung</div>
+            <div style="font-weight: 700; margin-bottom: 4px;">${printLabels.paymentBox}</div>
             <div style="margin-bottom: 6px;">${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen.'}</div>
             <div style="display: flex; gap: 20px; font-size: 8.5pt; font-family: monospace;">
               <span>IBAN: <b>${comp.bank_iban || '-'}</b></span>
@@ -2095,7 +2144,7 @@
               <div style="font-size: 9pt; color: #94a3b8; font-weight: 400; margin-top: 2px;">${comp.legal_form || ''}</div>
             </div>
             <div style="text-align: right;">
-              <div style="font-size: 9pt; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; font-weight: 600;">RECHNUNG</div>
+              <div style="font-size: 9pt; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; font-weight: 600;">${printLabels.titleCaps}</div>
               <div style="font-size: 14pt; font-weight: 600; color: #0f172a;">#${inv.invoice_number}</div>
             </div>
           </div>
@@ -2112,13 +2161,13 @@
               <div style="font-weight: 600; color: #0f172a;">${inv.issue_date || '-'}</div>
             </div>
             <div>
-              <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">FÄLLIGKEIT</div>
+              <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">${printLabels.dueCaps}</div>
               <div style="font-weight: 600; color: #0f172a;">${inv.due_date || '-'}</div>
             </div>
-            <div>
+            ${printLabels.showDelivery ? `<div>
               <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">LEISTUNGSZEITRAUM</div>
               <div style="font-weight: 600; color: #0f172a;">${inv.delivery_date || inv.issue_date || '-'}</div>
-            </div>
+            </div>` : '<div></div>'}
           </div>
 
           <!-- Minimalist Table with no vertical borders -->
@@ -2173,8 +2222,25 @@
     }
 
     function previewInvoice(id) {
+      previewDocument('invoice', id);
+    }
+
+    function previewOffer(id) {
+      previewDocument('offer', id);
+    }
+
+    function previewDocument(kind, id) {
       activePreviewInvoiceId = id;
-      const inv = (currentStore.invoices || []).find(i => i.id === id);
+      activePreviewKind = kind;
+      printLabels = PRINT_LABELS[kind];
+      let inv;
+      if (kind === 'offer') {
+        const offer = (currentStore.offers || []).find(o => o.id === id);
+        // Templates read invoice field names; map the offer onto them.
+        inv = offer && { ...offer, invoice_number: offer.offer_number || offer.id, due_date: offer.valid_until, delivery_date: undefined };
+      } else {
+        inv = (currentStore.invoices || []).find(i => i.id === id);
+      }
       if (!inv) return;
       const client = (currentStore.clients || []).find(c => c.id === inv.client_id) || { name: 'Kunde' };
       const comp = currentStore.company || {};
@@ -2247,7 +2313,7 @@
       await window.rechly.saveCompany(currentStore.company);
       showToast(`Vorlage ausgewählt: ${tpl === 'classic' ? 'DIN 5008 Klassisch' : tpl === 'modern' ? 'Modern' : 'Minimal'}`);
       if (activePreviewInvoiceId) {
-        previewInvoice(activePreviewInvoiceId);
+        previewDocument(activePreviewKind, activePreviewInvoiceId);
       }
     }
 
@@ -2452,41 +2518,108 @@
     }
 
     // ─── View 5: Offers ───
+    const OFFER_STATUSES = [
+      { value: 'draft', label: 'Entwurf' },
+      { value: 'sent', label: 'Versendet' },
+      { value: 'accepted', label: 'Angenommen' },
+      { value: 'declined', label: 'Abgelehnt' },
+    ];
+
+    function offerStatusOptions(status) {
+      const current = OFFER_STATUSES.some(s => s.value === status) ? status : 'draft';
+      return OFFER_STATUSES.map(s => `<option value="${s.value}" ${s.value === current ? 'selected' : ''}>${s.label}</option>`).join('');
+    }
+
+    function offerStatusSelect(offer) {
+      if (offer.status === 'converted') return '<span class="status-pill status-converted">In Rechnung umgewandelt</span>';
+      const current = OFFER_STATUSES.some(s => s.value === offer.status) ? offer.status : 'draft';
+      return `<select class="status-pill status-select status-${current}" title="Status ändern" onchange="setOfferStatus('${offer.id}', this.value)">${offerStatusOptions(current)}</select>`;
+    }
+
+    async function setOfferStatus(id, status) {
+      await window.rechly.updateOffer(id, { status });
+      currentStore = await window.rechly.getStore();
+      showToast(`Status geändert: ${OFFER_STATUSES.find(s => s.value === status)?.label || status}`);
+      showView(currentView);
+    }
+
+    function createNewOffer() {
+      editingOfferId = null;
+      showView('create-offer');
+    }
+
+    function editOffer(id) {
+      editingOfferId = id;
+      showView('create-offer');
+    }
+
     function renderOffersView(container) {
       const offers = currentStore.offers || [];
-      const rows = offers.map(o => `
-        <tr>
-          <td><b>${o.id}</b></td>
-          <td>${(o.total_gross || 0).toFixed(2)} €</td>
-          <td><span class="status-pill status-${o.status === 'converted' ? 'paid' : 'draft'}">${o.status}</span></td>
-          <td>
-            ${o.status !== 'converted' ? `<button class="btn btn-primary btn-sm" onclick="convertOffer('${o.id}')">In Rechnung umwandeln</button>` : 'Bereits umgewandelt'}
-          </td>
-        </tr>
-      `).join('');
+      const clients = currentStore.clients || [];
+      const rows = offers.map(o => {
+        const client = clients.find(c => c.id === o.client_id) || { name: 'Unbekannter Kunde' };
+        const converted = o.status === 'converted';
+        const expired = !converted && o.valid_until && o.valid_until < new Date().toISOString().slice(0, 10);
+        return `
+          <tr>
+            <td><b>${esc(o.offer_number || o.id)}</b></td>
+            <td>${esc(client.name)}</td>
+            <td>${esc(o.issue_date || '-')}</td>
+            <td style="${expired ? 'color:#dc2626; font-weight:600;' : ''}" title="${expired ? 'Gültigkeit abgelaufen' : ''}">${esc(o.valid_until || '-')}</td>
+            <td><b>${(o.total_gross || 0).toFixed(2)} €</b></td>
+            <td>${offerStatusSelect(o)}</td>
+            <td>
+              ${converted ? '' : `<button class="btn btn-secondary btn-sm" onclick="editOffer('${o.id}')">✏️ Bearbeiten</button>`}
+              <button class="btn btn-secondary btn-sm" onclick="previewOffer('${o.id}')">Drucken / PDF</button>
+              ${converted ? '' : `<button class="btn btn-primary btn-sm" onclick="convertOffer('${o.id}')">In Rechnung umwandeln</button>`}
+              <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteOffer('${o.id}')">Löschen</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
 
       container.innerHTML = `
         <div class="page-header">
           <div>
             <div class="page-title">Angebote & Kostenvoranschläge</div>
-            <div class="page-subtitle">Wandle angenommene Angebote in 1 Klick in eine GoBD-Rechnung um.</div>
+            <div class="page-subtitle">Angebote erstellen, als PDF versenden und nach Annahme in 1 Klick in eine GoBD-Rechnung umwandeln.</div>
           </div>
+          <button class="btn btn-primary" onclick="createNewOffer()">➕ Neues Angebot</button>
         </div>
         <div class="card">
-          <table>
-            <thead><tr><th>Nummer</th><th>Gesamtbetrag</th><th>Status</th><th>Aktion</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="4" style="text-align:center; padding:24px;">Keine Angebote vorhanden.</td></tr>'}</tbody>
-          </table>
+          ${offers.length === 0 ? `
+            <div style="text-align:center; padding: 36px 20px;">
+              <div style="font-size:32px; margin-bottom:8px;">📝</div>
+              <div style="font-weight:700; font-size:15px; margin-bottom:4px;">Noch keine Angebote</div>
+              <p style="color:#64748b; font-size:13px; margin-bottom:16px;">Erstellen Sie Ihr erstes Angebot mit Positionen aus Ihren Leistungen & Artikeln.</p>
+              <button class="btn btn-primary" onclick="createNewOffer()">➕ Neues Angebot erstellen</button>
+            </div>` : `
+            <table>
+              <thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th>Gültig bis</th><th>Betrag</th><th>Status</th><th>Aktionen</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>`}
         </div>
       `;
     }
 
     async function convertOffer(id) {
-      await window.rechly.convertOffer(id);
+      const offer = (currentStore.offers || []).find(o => o.id === id);
+      if (!confirm(`Angebot ${offer?.offer_number || ''} in eine Rechnung umwandeln?`)) return;
+      const invoice = await window.rechly.convertOffer(id);
       currentStore = await window.rechly.getStore();
       updateBadges();
       showToast('Angebot in Rechnung umgewandelt!');
-      showView('invoices');
+      if (invoice?.id) editInvoice(invoice.id);
+      else showView('invoices');
+    }
+
+    async function deleteOffer(id) {
+      if (!confirm('Angebot wirklich löschen?')) return;
+      await window.rechly.deleteOffer(id);
+      currentStore = await window.rechly.getStore();
+      updateBadges();
+      showToast('Angebot gelöscht');
+      showView('offers');
     }
 
     // ─── View 6: Expenses ───
@@ -2663,7 +2796,10 @@
             <div class="page-title">Einstellungen & KI-Schnittstellen</div>
             <div class="page-subtitle">Firmendaten pflegen und KI-Anbieter (Lokal vs. Cloud) konfigurieren.</div>
           </div>
-          <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-secondary" onclick="showOnboarding()">🚀 Einrichtungsassistent</button>
+            <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
+          </div>
         </div>
 
         <!-- AI Engine Configuration Card -->
@@ -2932,6 +3068,13 @@
         featured_model: 'jonprompter/Rechly-DE-3B',
       };
 
+      const isCloud = selectedAiProvider === 'openai' || selectedAiProvider === 'anthropic';
+      if (isCloud && currentStore.onboarding && currentStore.onboarding.cloud_ai_opt_in === false) {
+        const allow = confirm('Cloud-KI erlauben?\n\nBei der KI-Schnellerfassung werden Ihr eingegebener Text und Ihre Kundennamen an den gewählten Anbieter übertragen. Bisher haben Sie nur lokale KI erlaubt.');
+        if (!allow) return;
+        await window.rechly.setCloudAiOptIn(true);
+      }
+
       await window.rechly.saveCompany(updatedComp);
       await window.rechly.saveAiSettings(updatedAi);
       currentStore = await window.rechly.getStore();
@@ -2991,8 +3134,447 @@
       renderInvoicesView(document.getElementById('content-container'));
     }
 
+    // ─── First-Run Setup Assistant ───
+    const ONB_STEPS = [
+      { id: 'welcome', label: 'Willkommen' },
+      { id: 'privacy', label: 'Datenschutz & Berechtigungen' },
+      { id: 'components', label: 'KI & Komponenten' },
+      { id: 'company', label: 'Firmendaten' },
+      { id: 'done', label: 'Fertig' },
+    ];
+    const SAMPLE_COMPANY_VAT_ID = 'DE123456789';
+    const LEGAL_FORMS = ['Einzelunternehmen', 'Freiberufler', 'GbR', 'UG (haftungsbeschränkt)', 'GmbH', 'OHG', 'KG', 'e.K.', 'AG'];
+
+    let onb = null;
+
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    function formatBytes(n) {
+      if (!n) return '0 MB';
+      return n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : `${(n / 1e6).toFixed(0)} MB`;
+    }
+
+    function isValidIban(value) {
+      const iban = value.replace(/\s+/g, '').toUpperCase();
+      if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(iban)) return false;
+      const rearranged = iban.slice(4) + iban.slice(0, 4);
+      let remainder = 0;
+      for (const ch of rearranged) {
+        const digits = /[A-Z]/.test(ch) ? String(ch.charCodeAt(0) - 55) : ch;
+        for (const d of digits) remainder = (remainder * 10 + Number(d)) % 97;
+      }
+      return remainder === 1;
+    }
+
+    function companyForOnboarding(comp) {
+      // The default vault ships with a sample company; don't pre-fill the form with its fake data.
+      const isSample = comp.vat_id === SAMPLE_COMPANY_VAT_ID;
+      if (!isSample) return { country: 'DE', ...comp };
+      return {
+        name: '', legal_form: '', address_line1: '', postal_code: '', city: '', country: 'DE',
+        email: '', phone: '', vat_id: '', tax_number: '', bank_name: '', bank_iban: '', bank_bic: '',
+        is_small_business: false,
+        payment_terms_default: comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.',
+        invoice_template: comp.invoice_template || 'classic',
+      };
+    }
+
+    async function showOnboarding() {
+      const ai = currentStore.aiSettings || {};
+      const prev = currentStore.onboarding;
+      const info = await window.rechly.getAppInfo();
+      const cloudProvider = ai.active_provider === 'openai' || ai.active_provider === 'anthropic';
+      onb = {
+        step: 0,
+        info,
+        storageConsent: Boolean(prev),
+        cloudOptIn: prev ? Boolean(prev.cloud_ai_opt_in) : false,
+        aiChoice: prev && cloudProvider && prev.cloud_ai_opt_in ? ai.active_provider : 'ollama',
+        cloudKey: { openai: ai.openai_key || '', anthropic: ai.anthropic_key || '' },
+        cloudTest: '',
+        ollama: null,
+        launching: false,
+        pull: null,
+        removeSamples: !prev,
+        company: companyForOnboarding(currentStore.company || {}),
+      };
+      document.getElementById('onboarding').style.display = 'flex';
+      renderOnboarding();
+    }
+
+    function onbStepId() { return ONB_STEPS[onb.step].id; }
+
+    function renderOnboarding() {
+      document.getElementById('onb-steps').innerHTML = ONB_STEPS.map((s, i) =>
+        `<div class="onb-step ${i < onb.step ? 'done' : i === onb.step ? 'active' : ''}">${i + 1}. ${s.label}</div>`
+      ).join('');
+      document.getElementById('onb-error').innerText = '';
+      document.getElementById('onb-back').style.visibility = onb.step === 0 ? 'hidden' : 'visible';
+      const next = document.getElementById('onb-next');
+      next.innerText = onbStepId() === 'welcome' ? 'Einrichtung starten' : onbStepId() === 'done' ? 'Rechly starten 🚀' : 'Weiter';
+      next.disabled = false;
+
+      const body = document.getElementById('onb-body');
+      const renderers = {
+        welcome: renderOnbWelcome,
+        privacy: renderOnbPrivacy,
+        components: renderOnbComponents,
+        company: renderOnbCompany,
+        done: renderOnbDone,
+      };
+      body.innerHTML = renderers[onbStepId()]();
+      document.querySelector('#onboarding').scrollTop = 0;
+    }
+
+    function onbError(message) {
+      document.getElementById('onb-error').innerText = message;
+    }
+
+    function renderOnbWelcome() {
+      const features = [
+        ['📄', 'Rechnungen & Angebote', 'GoBD-konforme Rechnungen erstellen, Angebote mit einem Klick umwandeln, Status verfolgen.'],
+        ['🏛️', 'E-Rechnung & DATEV', 'XRechnung 3.0 / ZUGFeRD XML und DATEV-Buchungsstapel für Ihre Steuerberatung.'],
+        ['🤖', 'KI-Schnellerfassung', 'Rechnung als Satz eintippen, die KI füllt den Entwurf aus. Lokal mit Rechly-DE-3B oder per Cloud.'],
+        ['🔒', '100% Offline', 'Keine Anmeldung, kein Cloud-Server. Alle Daten bleiben in einer Datei auf diesem Gerät.'],
+      ];
+      return `
+        <div class="onb-title">Willkommen bei Rechly 👋</div>
+        <div class="onb-lead">
+          Rechly ist Ihre Rechnungssoftware für Freelancer und kleine Unternehmen, die vollständig auf Ihrem Rechner läuft.
+          In wenigen Schritten richten wir Datenschutz, die lokale KI und Ihre Firmendaten ein. Das dauert etwa 3 Minuten.
+        </div>
+        <div class="onb-features">
+          ${features.map(([ico, title, text]) => `<div class="onb-feature"><div class="ico">${ico}</div><div><b>${title}</b><span>${text}</span></div></div>`).join('')}
+        </div>
+        <div class="onb-section" style="margin-top:20px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+          <p>Sie nutzen Rechly bereits auf einem anderen Gerät? Stellen Sie Ihr Backup wieder her, dann sind Ihre Firmendaten schon ausgefüllt.</p>
+          <button class="btn btn-secondary btn-sm" style="flex-shrink:0;" onclick="onbRestoreBackup()">📂 Backup wiederherstellen…</button>
+        </div>
+      `;
+    }
+
+    async function onbRestoreBackup() {
+      const res = await window.rechly.importBackup();
+      if (!res.success) {
+        if (res.error) onbError(`Backup konnte nicht geladen werden: ${res.error}`);
+        return;
+      }
+      currentStore = await window.rechly.getStore();
+      onb.company = companyForOnboarding(currentStore.company || {});
+      onb.removeSamples = false;
+      showToast('Backup wiederhergestellt');
+      onb.step = 1;
+      renderOnboarding();
+    }
+
+    function renderOnbPrivacy() {
+      return `
+        <div class="onb-title">Datenschutz & Berechtigungen</div>
+        <div class="onb-lead">Rechly braucht keine Systemberechtigungen wie Kamera, Mikrofon, Kontakte oder Standort. Bitte bestätigen Sie, wie Ihre Daten behandelt werden.</div>
+
+        <div class="onb-section">
+          <h4>💾 Lokale Speicherung <span style="color:var(--danger)">*</span></h4>
+          <p>Alle Rechnungen, Kunden und Einstellungen werden ausschließlich in dieser Datei auf Ihrem Gerät gespeichert:</p>
+          <span class="onb-path">${esc(onb.info?.vaultPath || 'rechly_vault.json')}</span>
+          <label class="onb-check">
+            <input type="checkbox" id="onb-consent" ${onb.storageConsent ? 'checked' : ''} onchange="onb.storageConsent = this.checked">
+            <span>Ich habe verstanden, dass meine Daten nur auf diesem Gerät liegen und ich selbst für regelmäßige Backups verantwortlich bin (Aufbewahrungspflicht nach GoBD: 10 Jahre).</span>
+          </label>
+        </div>
+
+        <div class="onb-section">
+          <h4>🌐 Internetzugriff</h4>
+          <p>Rechly funktioniert ohne Internet. Eine Verbindung wird nur für Folgendes genutzt: die lokale KI über <code>localhost</code>, den einmaligen Download des KI-Modells und – falls Sie es unten erlauben – Cloud-KI-Anbieter.</p>
+          <label class="onb-check">
+            <input type="checkbox" id="onb-cloud" ${onb.cloudOptIn ? 'checked' : ''} onchange="onb.cloudOptIn = this.checked; if (!this.checked && onb.aiChoice !== 'ollama') onb.aiChoice = 'ollama';">
+            <span><b>Cloud-KI erlauben (optional).</b> Bei der KI-Schnellerfassung werden Ihr eingegebener Text und Ihre Kundennamen an OpenAI bzw. Anthropic übertragen. Ohne diese Erlaubnis nutzt Rechly nur lokale KI.</span>
+          </label>
+        </div>
+
+        <div class="onb-section">
+          <h4>📁 Dateizugriff</h4>
+          <p>PDFs, XRechnungen, DATEV-Exporte und Backups werden nur dort gespeichert, wo Sie es im Speichern-Dialog auswählen. Rechly liest oder schreibt keine anderen Dateien.</p>
+        </div>
+      `;
+    }
+
+    async function onbRefreshOllama() {
+      const host = currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
+      const [install, status] = await Promise.all([window.rechly.detectOllama(), window.rechly.checkOllama(host)]);
+      onb.ollama = {
+        // A reachable server counts as installed even if we didn't find the app (e.g. custom install path).
+        installed: install.installed || status.connected,
+        connected: Boolean(status.connected),
+        hasModel: Boolean(status.hasFeaturedModel),
+        error: status.error,
+      };
+      if (onbStepId() === 'components') renderOnboarding();
+    }
+
+    async function onbLaunchOllama() {
+      onb.launching = true;
+      renderOnboarding();
+      const res = await window.rechly.launchOllama();
+      if (!res.success) {
+        onb.launching = false;
+        renderOnboarding();
+        return onbError(`Ollama konnte nicht gestartet werden: ${res.error}`);
+      }
+      const host = currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        const status = await window.rechly.checkOllama(host);
+        if (status.connected) break;
+      }
+      onb.launching = false;
+      await onbRefreshOllama();
+    }
+
+    async function onbPullModel() {
+      const ai = currentStore.aiSettings || {};
+      onb.pull = { status: 'Starte Download…', completed: 0, total: 0 };
+      renderOnboarding();
+      const unsubscribe = window.rechly.onPullProgress(p => {
+        onb.pull = { ...onb.pull, ...p };
+        const bar = document.getElementById('onb-pull-bar');
+        const label = document.getElementById('onb-pull-label');
+        if (bar && p.total) bar.style.width = `${Math.round((p.completed || 0) / p.total * 100)}%`;
+        if (label) label.innerText = p.total ? `${p.status} – ${formatBytes(p.completed)} / ${formatBytes(p.total)}` : p.status;
+      });
+      const res = await window.rechly.pullModel(ai.ollama_host || 'http://localhost:11434', ai.ollama_model || 'jonprompter/Rechly-DE-3B');
+      unsubscribe();
+      onb.pull = null;
+      if (res.success) showToast('KI-Modell installiert');
+      await onbRefreshOllama();
+      if (!res.success) onbError(`Download fehlgeschlagen: ${res.error}`);
+    }
+
+    function onbSelectAi(choice) {
+      if ((choice === 'openai' || choice === 'anthropic') && !onb.cloudOptIn) {
+        return onbError('Cloud-KI ist nicht erlaubt. Aktivieren Sie sie im Schritt „Datenschutz & Berechtigungen“.');
+      }
+      onb.aiChoice = choice;
+      onb.cloudTest = '';
+      renderOnboarding();
+    }
+
+    async function onbTestCloud() {
+      const key = onb.cloudKey[onb.aiChoice];
+      onb.cloudTest = '⏳ Prüfe Verbindung…';
+      renderOnboarding();
+      const res = onb.aiChoice === 'openai' ? await window.rechly.testOpenAi(key) : await window.rechly.testAnthropic(key);
+      onb.cloudTest = res.success ? '✅ Verbindung erfolgreich' : `❌ ${res.error}`;
+      renderOnboarding();
+    }
+
+    function renderOnbComponents() {
+      if (!onb.ollama) {
+        onbRefreshOllama();
+      }
+      const o = onb.ollama;
+      const cloudDisabled = !onb.cloudOptIn;
+      const choices = [
+        ['ollama', '🖥️ Lokale KI', 'Empfohlen. Rechly-DE-3B läuft über Ollama auf Ihrem Gerät. Kostenlos, kein Datenabfluss.'],
+        ['openai', '⚡ OpenAI', 'Cloud. Benötigt einen API-Key.'],
+        ['anthropic', '🧠 Anthropic Claude', 'Cloud. Benötigt einen API-Key.'],
+      ];
+
+      let detail = '';
+      if (onb.aiChoice === 'ollama') {
+        const row = (state, title, sub, action = '') =>
+          `<li><span class="state">${state}</span><div class="text">${title}<small>${sub}</small></div>${action}</li>`;
+        if (!o) {
+          detail = `<p class="onb-hint">⏳ Prüfe installierte Komponenten…</p>`;
+        } else {
+          const installRow = o.installed
+            ? row('✅', '<b>Ollama installiert</b>', 'Laufzeitumgebung für lokale KI-Modelle.')
+            : row('⬜', '<b>Ollama installieren</b>', 'Kostenlos für macOS, Windows und Linux. Nach der Installation hier auf „Erneut prüfen“ klicken.',
+                `<a class="btn btn-primary btn-sm" href="https://ollama.com/download" target="_blank">Herunterladen ↗</a>`);
+          const runRow = o.connected
+            ? row('✅', '<b>Ollama läuft</b>', esc(currentStore.aiSettings?.ollama_host || 'http://localhost:11434'))
+            : row(o.installed ? '⬜' : '·', '<b>Ollama starten</b>', o.installed ? 'Der lokale KI-Dienst ist installiert, aber nicht gestartet.' : 'Verfügbar nach der Installation.',
+                o.installed ? `<button class="btn btn-primary btn-sm" ${onb.launching ? 'disabled' : ''} onclick="onbLaunchOllama()">${onb.launching ? '⏳ Starte…' : 'Starten'}</button>` : '');
+          let modelRow;
+          if (o.hasModel) {
+            modelRow = row('✅', '<b>KI-Modell Rechly-DE-3B</b>', 'Installiert und einsatzbereit.');
+          } else if (onb.pull) {
+            const pct = onb.pull.total ? Math.round(onb.pull.completed / onb.pull.total * 100) : 0;
+            modelRow = `<li><span class="state">⏳</span><div class="text"><b>KI-Modell wird heruntergeladen…</b>
+              <small id="onb-pull-label">${esc(onb.pull.status)}</small>
+              <div class="onb-progress"><div id="onb-pull-bar" style="width:${pct}%"></div></div></div></li>`;
+          } else {
+            modelRow = row(o.connected ? '⬜' : '·', '<b>KI-Modell Rechly-DE-3B laden</b>', 'Einmaliger Download von mehreren GB über Ollama.',
+              o.connected ? `<button class="btn btn-primary btn-sm" onclick="onbPullModel()">Herunterladen</button>` : '');
+          }
+          detail = `
+            <ul class="onb-checklist">${installRow}${runRow}${modelRow}</ul>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+              <span class="onb-hint">Ohne KI-Modell funktioniert die Schnellerfassung mit dem eingebauten Regel-Parser. Sie können die KI jederzeit unter „Einstellungen & KI“ nachrüsten.</span>
+              <button class="btn btn-secondary btn-sm" style="flex-shrink:0; margin-left:12px;" onclick="onb.ollama = null; renderOnboarding();">🔄 Erneut prüfen</button>
+            </div>`;
+        }
+      } else {
+        const label = onb.aiChoice === 'openai' ? 'OpenAI API-Key (sk-…)' : 'Anthropic API-Key (sk-ant-…)';
+        detail = `
+          <div class="form-group">
+            <label>${label}</label>
+            <div style="display:flex; gap:8px;">
+              <input type="password" id="onb-cloud-key" style="flex:1;" value="${esc(onb.cloudKey[onb.aiChoice])}" oninput="onb.cloudKey[onb.aiChoice] = this.value.trim()">
+              <button class="btn btn-secondary btn-sm" onclick="onbTestCloud()">Verbindung testen</button>
+            </div>
+            <div class="onb-hint">${esc(onb.cloudTest) || 'Der Key wird nur in Ihrem lokalen Tresor gespeichert.'}</div>
+          </div>`;
+      }
+
+      return `
+        <div class="onb-title">KI & benötigte Komponenten</div>
+        <div class="onb-lead">Für die KI-Schnellerfassung (Text-zu-Rechnung) brauchen Sie eine KI. Alles andere in Rechly funktioniert auch ohne.</div>
+        <div class="onb-choices">
+          ${choices.map(([id, title, text]) => {
+            const disabled = id !== 'ollama' && cloudDisabled;
+            return `<div class="onb-choice ${onb.aiChoice === id ? 'active' : ''} ${disabled ? 'disabled' : ''}" onclick="onbSelectAi('${id}')"><b>${title}</b>${disabled ? 'Erfordert Cloud-Erlaubnis (Schritt 2).' : text}</div>`;
+          }).join('')}
+        </div>
+        ${detail}
+      `;
+    }
+
+    function renderOnbCompany() {
+      const c = onb.company;
+      const field = (id, key, label, opts = {}) => `
+        <div class="form-group" ${opts.span ? 'style="grid-column: span 2;"' : ''}>
+          <label>${label}${opts.required ? ' <span class="req">*</span>' : ''}</label>
+          <input type="${opts.type || 'text'}" id="onb-${id}" data-key="${key}" value="${esc(c[key])}" placeholder="${esc(opts.placeholder || '')}" ${opts.list ? `list="${opts.list}"` : ''}>
+        </div>`;
+      return `
+        <div class="onb-title">Ihre Firmendaten</div>
+        <div class="onb-lead">Diese Angaben erscheinen auf jeder Rechnung. Pflichtfelder nach § 14 UStG sind mit <span style="color:var(--danger)">*</span> markiert. Sie können alles später in den Einstellungen ändern.</div>
+        <datalist id="onb-legal-forms">${LEGAL_FORMS.map(f => `<option value="${f}">`).join('')}</datalist>
+        <div class="form-grid">
+          ${field('name', 'name', 'Firmenname / Ihr Name', { required: true, placeholder: 'z. B. Müller Design' })}
+          ${field('legal', 'legal_form', 'Rechtsform', { list: 'onb-legal-forms', placeholder: 'z. B. Einzelunternehmen' })}
+          ${field('addr', 'address_line1', 'Straße & Hausnummer', { required: true })}
+          ${field('plz', 'postal_code', 'PLZ', { required: true })}
+          ${field('city', 'city', 'Stadt', { required: true })}
+          ${field('country', 'country', 'Land (ISO-Code)', { placeholder: 'DE' })}
+          ${field('email', 'email', 'E-Mail', { type: 'email' })}
+          ${field('phone', 'phone', 'Telefon', { type: 'tel' })}
+          ${field('tax', 'tax_number', 'Steuernummer', { placeholder: 'z. B. 21/123/45678' })}
+          ${field('vat', 'vat_id', 'USt-IdNr.', { placeholder: 'z. B. DE123456789' })}
+        </div>
+        <div class="onb-hint" style="margin:-4px 0 14px;">Steuernummer <b>oder</b> USt-IdNr. ist Pflicht.</div>
+        <div class="form-grid">
+          ${field('iban', 'bank_iban', 'IBAN', { placeholder: 'DE00 0000 0000 0000 0000 00' })}
+          ${field('bic', 'bank_bic', 'BIC')}
+          ${field('bank', 'bank_name', 'Bankname', { span: true })}
+        </div>
+        <label class="onb-check" style="margin-top:4px;">
+          <input type="checkbox" id="onb-smallbiz" ${c.is_small_business ? 'checked' : ''}>
+          <span><b>Kleinunternehmerregelung (§ 19 UStG)</b> – Rechnungen ohne Umsatzsteuer ausstellen.</span>
+        </label>
+        <div class="form-group" style="margin-top:14px;">
+          <label>Standard-Zahlungsbedingungen</label>
+          <textarea id="onb-terms" rows="2">${esc(c.payment_terms_default)}</textarea>
+        </div>
+      `;
+    }
+
+    function onbCollectCompany() {
+      document.querySelectorAll('#onb-body input[data-key]').forEach(el => { onb.company[el.dataset.key] = el.value.trim(); });
+      onb.company.country = (onb.company.country || 'DE').toUpperCase();
+      onb.company.is_small_business = document.getElementById('onb-smallbiz').checked;
+      onb.company.payment_terms_default = document.getElementById('onb-terms').value.trim();
+    }
+
+    function onbValidateCompany() {
+      const c = onb.company;
+      const missing = [['name', 'Firmenname'], ['address_line1', 'Straße'], ['postal_code', 'PLZ'], ['city', 'Stadt']]
+        .filter(([k]) => !c[k]).map(([, label]) => label);
+      if (missing.length) return `Bitte ausfüllen: ${missing.join(', ')}`;
+      if (!c.tax_number && !c.vat_id) return 'Bitte Steuernummer oder USt-IdNr. angeben.';
+      if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) return 'Die E-Mail-Adresse ist ungültig.';
+      if (c.bank_iban && !isValidIban(c.bank_iban)) return 'Die IBAN ist ungültig (Prüfsumme stimmt nicht).';
+      if (c.country && !/^[A-Z]{2}$/.test(c.country)) return 'Land bitte als 2-stelligen ISO-Code angeben (z. B. DE).';
+      return '';
+    }
+
+    function renderOnbDone() {
+      const o = onb.ollama;
+      const aiText = onb.aiChoice === 'ollama'
+        ? (o?.hasModel ? 'Lokale KI Rechly-DE-3B ist einsatzbereit.' : 'Lokale KI noch nicht vollständig eingerichtet – der Regel-Parser springt ein.')
+        : `${onb.aiChoice === 'openai' ? 'OpenAI' : 'Anthropic Claude'} (Cloud) ist ausgewählt.`;
+      const hasSamples = (currentStore.invoices || []).some(i => i.id === 'inv-sample-1') || (currentStore.clients || []).some(c => c.id === 'client-sample-1');
+      return `
+        <div class="onb-title">Alles bereit! 🎉</div>
+        <div class="onb-lead">Rechly ist eingerichtet. Hier ist eine Zusammenfassung:</div>
+        <ul class="onb-checklist">
+          <li><span class="state">✅</span><div class="text"><b>Lokaler Tresor</b><small>${esc(onb.info?.vaultPath || '')}</small></div></li>
+          <li><span class="state">${onb.cloudOptIn ? '🌐' : '🔒'}</span><div class="text"><b>Cloud-KI ${onb.cloudOptIn ? 'erlaubt' : 'nicht erlaubt'}</b><small>${onb.cloudOptIn ? 'Änderbar unter „Einstellungen & KI“.' : 'Es verlassen keine Rechnungsdaten Ihr Gerät.'}</small></div></li>
+          <li><span class="state">${onb.aiChoice !== 'ollama' || o?.hasModel ? '✅' : '⚠️'}</span><div class="text"><b>KI-Schnellerfassung</b><small>${aiText}</small></div></li>
+          <li><span class="state">✅</span><div class="text"><b>${esc(onb.company.name)}</b><small>${esc(onb.company.address_line1)}, ${esc(onb.company.postal_code)} ${esc(onb.company.city)}</small></div></li>
+        </ul>
+        ${hasSamples ? `
+        <label class="onb-check" style="margin-top:18px;">
+          <input type="checkbox" ${onb.removeSamples ? 'checked' : ''} onchange="onb.removeSamples = this.checked">
+          <span><b>Beispieldaten entfernen</b> – Musterrechnung, Musterkunde und Beispielausgabe löschen. Die Vorlagen unter „Leistungen & Artikel“ bleiben erhalten.</span>
+        </label>` : ''}
+        <div class="onb-hint" style="margin-top:16px;">Den Assistenten können Sie jederzeit unter „Einstellungen & KI“ erneut starten.</div>
+      `;
+    }
+
+    async function onbSaveAiChoice() {
+      const update = { active_provider: onb.aiChoice };
+      if (onb.aiChoice === 'openai') update.openai_key = onb.cloudKey.openai;
+      if (onb.aiChoice === 'anthropic') update.anthropic_key = onb.cloudKey.anthropic;
+      currentStore.aiSettings = await window.rechly.saveAiSettings(update);
+    }
+
+    async function onbNext() {
+      const step = onbStepId();
+      const next = document.getElementById('onb-next');
+
+      if (step === 'privacy') {
+        if (!onb.storageConsent) return onbError('Bitte bestätigen Sie die lokale Speicherung, um fortzufahren.');
+        if (!onb.cloudOptIn && onb.aiChoice !== 'ollama') onb.aiChoice = 'ollama';
+      }
+      if (step === 'components') {
+        if (onb.aiChoice !== 'ollama' && !onb.cloudKey[onb.aiChoice]) return onbError('Bitte API-Key eingeben oder „Lokale KI“ wählen.');
+        await onbSaveAiChoice();
+      }
+      if (step === 'company') {
+        onbCollectCompany();
+        const error = onbValidateCompany();
+        if (error) return onbError(error);
+        await window.rechly.saveCompany({ ...currentStore.company, ...onb.company });
+      }
+      if (step === 'done') {
+        next.disabled = true;
+        await window.rechly.completeOnboarding({ cloud_ai_opt_in: onb.cloudOptIn, remove_sample_data: onb.removeSamples });
+        currentStore = await window.rechly.getStore();
+        document.getElementById('onboarding').style.display = 'none';
+        onb = null;
+        updateSidebarCompany();
+        updateBadges();
+        updateAiStatusPill();
+        showView('dashboard');
+        showToast('Willkommen bei Rechly!');
+        return;
+      }
+      onb.step += 1;
+      renderOnboarding();
+    }
+
+    function onbBack() {
+      if (onbStepId() === 'company') onbCollectCompany();
+      if (onb.step > 0) onb.step -= 1;
+      renderOnboarding();
+    }
+
     // Keyboard shortcuts
     window.addEventListener('keydown', (e) => {
+      if (onb) return;
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault();
         createNewInvoice();

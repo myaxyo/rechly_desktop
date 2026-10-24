@@ -37,6 +37,7 @@ cd desktop
 npm install
 npm start
 ```
+The main process is written in TypeScript (`src/`) and compiled to `out/` by `npm run build`; `npm start` and the `dist` scripts build automatically. Use `npm run typecheck` for a type check without emitting files.
 
 ---
 

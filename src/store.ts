@@ -1,6 +1,7 @@
-const { app } = require("electron");
-const path = require("path");
-const fs = require("fs");
+import { app } from "electron";
+import * as path from "node:path";
+import * as fs from "node:fs";
+import type { AiSettings, StoreData } from "./types";
 
 /**
  * Rechly Desktop Offline Store
@@ -10,7 +11,7 @@ const fs = require("fs");
  * - Linux:   ~/.config/Rechly/rechly_vault.json
  */
 
-const getStorePath = () => {
+const getStorePath = (): string => {
     const userDataPath = app.getPath("userData");
     if (!fs.existsSync(userDataPath)) {
         fs.mkdirSync(userDataPath, { recursive: true });
@@ -18,11 +19,11 @@ const getStorePath = () => {
     return path.join(userDataPath, "rechly_vault.json");
 };
 
-const getBackupPath = () => {
+const getBackupPath = (): string => {
     return path.join(app.getPath("userData"), "rechly_vault.backup.json");
 };
 
-const getDefaultStore = () => ({
+const getDefaultStore = (): StoreData => ({
     version: 1,
     initialized_at: new Date().toISOString(),
     company: {
@@ -151,17 +152,18 @@ const getDefaultStore = () => ({
 });
 
 class OfflineStore {
+    private data: StoreData | null = null;
+
     constructor() {
-        this.data = null;
         this.load();
     }
 
-    load() {
+    load(): void {
         const filePath = getStorePath();
         try {
             if (fs.existsSync(filePath)) {
                 const raw = fs.readFileSync(filePath, "utf8");
-                this.data = JSON.parse(raw);
+                this.data = JSON.parse(raw) as StoreData;
             } else {
                 this.data = getDefaultStore();
                 this.save();
@@ -170,14 +172,14 @@ class OfflineStore {
             console.error("Failed to load store, loading backup:", err);
             const backup = getBackupPath();
             if (fs.existsSync(backup)) {
-                this.data = JSON.parse(fs.readFileSync(backup, "utf8"));
+                this.data = JSON.parse(fs.readFileSync(backup, "utf8")) as StoreData;
             } else {
                 this.data = getDefaultStore();
             }
         }
     }
 
-    save() {
+    save(): boolean {
         const filePath = getStorePath();
         const backup = getBackupPath();
         try {
@@ -194,17 +196,21 @@ class OfflineStore {
         }
     }
 
-    get(key) {
+    getVaultPath(): string {
+        return getStorePath();
+    }
+
+    get<K extends keyof StoreData>(key: K): StoreData[K] | null {
         return this.data ? this.data[key] : null;
     }
 
-    set(key, value) {
+    set<K extends keyof StoreData>(key: K, value: StoreData[K]): boolean {
         if (!this.data) this.data = getDefaultStore();
         this.data[key] = value;
         return this.save();
     }
 
-    getAll() {
+    getAll(): StoreData {
         if (!this.data) this.data = getDefaultStore();
         if (!this.data.aiSettings) {
             this.data.aiSettings = getDefaultStore().aiSettings;
@@ -212,7 +218,7 @@ class OfflineStore {
         return this.data;
     }
 
-    getAiSettings() {
+    getAiSettings(): AiSettings {
         if (!this.data) this.data = getDefaultStore();
         if (!this.data.aiSettings) {
             this.data.aiSettings = getDefaultStore().aiSettings;
@@ -220,7 +226,7 @@ class OfflineStore {
         return this.data.aiSettings;
     }
 
-    saveAiSettings(settings) {
+    saveAiSettings(settings: Partial<AiSettings>): AiSettings {
         if (!this.data) this.data = getDefaultStore();
         this.data.aiSettings = { ...this.getAiSettings(), ...settings };
         this.save();
@@ -228,22 +234,23 @@ class OfflineStore {
     }
 
     // Backup & Restore
-    exportBackup(targetPath) {
+    exportBackup(targetPath: string): boolean {
         const raw = JSON.stringify(this.data, null, 2);
         fs.writeFileSync(targetPath, raw, "utf8");
         return true;
     }
 
-    importBackup(sourcePath) {
+    importBackup(sourcePath: string): boolean {
         const raw = fs.readFileSync(sourcePath, "utf8");
-        const parsed = JSON.parse(raw);
+        const parsed = JSON.parse(raw) as Partial<StoreData>;
         if (!parsed.company || !Array.isArray(parsed.invoices)) {
             throw new Error("Ungültiges Rechly-Backup-Format");
         }
-        this.data = parsed;
+        this.data = parsed as StoreData;
         this.save();
         return true;
     }
 }
 
-module.exports = new OfflineStore();
+const store = new OfflineStore();
+export default store;

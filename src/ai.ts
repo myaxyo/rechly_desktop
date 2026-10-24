@@ -7,21 +7,88 @@
  * 4. Deterministic German Regex / Rule-Based Heuristic Fallback
  */
 
-const http = require("http");
-const https = require("https");
-const { URL } = require("url");
+import * as http from "node:http";
+import * as https from "node:https";
+import type { AiSettings, Client, OllamaPullProgress } from "./types";
+
+type ClientRef = Pick<Client, "id" | "name">;
+
+export interface DraftItem {
+    description: string;
+    quantity: number;
+    unit_of_measure: string;
+    price: number;
+    tax_rate_percent: number;
+    total?: number;
+}
+
+export interface ParsedDraft {
+    client_id: string | null;
+    client_name: string | null;
+    due_days: number;
+    payment_terms: string;
+    items: DraftItem[];
+}
+
+export interface DraftResult {
+    parsed: ParsedDraft;
+    source: string;
+    model: string;
+}
+
+/** Shape the LLMs are asked to return; any field may be missing or null. */
+type LlmDraft = Partial<{ [K in keyof ParsedDraft]: ParsedDraft[K] | null }>;
+
+interface LlmResult {
+    parsed: LlmDraft;
+    source: string;
+    model: string;
+}
+
+interface HttpResponse {
+    status: number | undefined;
+    body: string;
+}
+
+interface RequestOptions {
+    method?: string;
+    headers?: Record<string, string>;
+}
+
+export interface OllamaStatus {
+    connected: boolean;
+    models?: string[];
+    hasFeaturedModel?: boolean;
+    featuredModelName?: string;
+    ollamaUrl?: string;
+    hfUrl?: string;
+    error?: string;
+}
+
+export interface ConnectionTestResult {
+    success: boolean;
+    message?: string;
+    error?: string;
+}
+
+const errorMessage = (err: unknown): string =>
+    err instanceof Error ? err.message : String(err);
 
 const DEFAULT_OLLAMA_HOST = "http://localhost:11434";
-const FEATURED_MODEL = "jonprompter/Rechly-DE-3B";
-const OLLAMA_URL = "https://ollama.com/jonprompter/Rechly-DE-3B";
-const HF_URL = "https://huggingface.co/jonprompter/rechly-de-3b";
+export const FEATURED_MODEL = "jonprompter/Rechly-DE-3B";
+export const OLLAMA_URL = "https://ollama.com/jonprompter/Rechly-DE-3B";
+export const HF_URL = "https://huggingface.co/jonprompter/rechly-de-3b";
 
-function makeHttpRequest(urlString, options = {}, postData = null) {
+function makeHttpRequest(
+    urlString: string,
+    options: RequestOptions = {},
+    postData: string | object | null = null
+): Promise<HttpResponse> {
     return new Promise((resolve, reject) => {
         try {
             const parsed = new URL(urlString);
             const client = parsed.protocol === "https:" ? https : http;
-            const reqOptions = {
+            const reqOptions: http.RequestOptions = {
                 hostname: parsed.hostname,
                 port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
                 path: parsed.pathname + parsed.search,
@@ -58,11 +125,11 @@ function makeHttpRequest(urlString, options = {}, postData = null) {
 
 // ─── 1. Ollama (Local) ────────────────────────────────────────────────────────
 
-async function checkOllama(host = DEFAULT_OLLAMA_HOST) {
+export async function checkOllama(host: string = DEFAULT_OLLAMA_HOST): Promise<OllamaStatus> {
     try {
         const res = await makeHttpRequest(`${host}/api/tags`);
         if (res.status === 200) {
-            const data = JSON.parse(res.body);
+            const data = JSON.parse(res.body) as { models?: { name: string }[] };
             const models = (data.models || []).map((m) => m.name);
             const hasFeatured = models.some(
                 (m) =>
@@ -82,7 +149,7 @@ async function checkOllama(host = DEFAULT_OLLAMA_HOST) {
     } catch (err) {
         return {
             connected: false,
-            error: err.message,
+            error: errorMessage(err),
             featuredModelName: FEATURED_MODEL,
             ollamaUrl: OLLAMA_URL,
             hfUrl: HF_URL,
@@ -90,7 +157,13 @@ async function checkOllama(host = DEFAULT_OLLAMA_HOST) {
     }
 }
 
-async function parseWithOllama(promptText, clients, isSmallBusiness, host, model) {
+async function parseWithOllama(
+    promptText: string,
+    clients: ClientRef[],
+    isSmallBusiness: boolean,
+    host: string,
+    model: string
+): Promise<LlmResult> {
     const targetModel = model || FEATURED_MODEL;
     const clientList = clients
         .slice(0, 25)
@@ -135,16 +208,98 @@ Antworte AUSSCHLIESSLICH mit einem validen JSON-Objekt ohne Erklärungen oder Ma
     );
 
     if (res.status === 200) {
-        const data = JSON.parse(res.body);
-        const parsed = JSON.parse(data.response);
+        const data = JSON.parse(res.body) as { response: string };
+        const parsed = JSON.parse(data.response) as LlmDraft;
         return { parsed, source: "ollama", model: targetModel };
     }
     throw new Error(`Ollama antwortete mit Status ${res.status}`);
 }
 
+/**
+ * Downloads a model through Ollama's /api/pull endpoint, reporting progress
+ * from the streamed NDJSON response. Aborts if no data arrives for 2 minutes.
+ */
+export function pullOllamaModel(
+    host: string = DEFAULT_OLLAMA_HOST,
+    model: string = FEATURED_MODEL,
+    onProgress: (progress: OllamaPullProgress) => void = () => undefined
+): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = (result: { success: boolean; error?: string }) => {
+            if (!settled) {
+                settled = true;
+                resolve(result);
+            }
+        };
+
+        let parsed: URL;
+        try {
+            parsed = new URL(`${host}/api/pull`);
+        } catch (err) {
+            return finish({ success: false, error: errorMessage(err) });
+        }
+        const client = parsed.protocol === "https:" ? https : http;
+        const body = JSON.stringify({ model, stream: true });
+
+        const req = client.request(
+            {
+                hostname: parsed.hostname,
+                port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
+                path: parsed.pathname,
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
+                timeout: 120000,
+            },
+            (res) => {
+                if (res.statusCode !== 200) {
+                    let errBody = "";
+                    res.on("data", (c) => (errBody += c));
+                    res.on("end", () => finish({ success: false, error: `Ollama HTTP ${res.statusCode}: ${errBody}` }));
+                    return;
+                }
+                let buffer = "";
+                let lastStatus = "";
+                res.setEncoding("utf8");
+                res.on("data", (chunk: string) => {
+                    buffer += chunk;
+                    let newline: number;
+                    while ((newline = buffer.indexOf("\n")) >= 0) {
+                        const line = buffer.slice(0, newline).trim();
+                        buffer = buffer.slice(newline + 1);
+                        if (!line) continue;
+                        try {
+                            const msg = JSON.parse(line) as OllamaPullProgress & { error?: string };
+                            if (msg.error) return finish({ success: false, error: msg.error });
+                            lastStatus = msg.status;
+                            onProgress({ status: msg.status, completed: msg.completed, total: msg.total });
+                        } catch {
+                            // ignore malformed progress lines
+                        }
+                    }
+                });
+                res.on("end", () =>
+                    finish(lastStatus === "success" ? { success: true } : { success: false, error: "Download abgebrochen" })
+                );
+            }
+        );
+
+        req.on("timeout", () => {
+            req.destroy();
+            finish({ success: false, error: "Keine Antwort von Ollama (Timeout)" });
+        });
+        req.on("error", (err) => finish({ success: false, error: err.message }));
+        req.write(body);
+        req.end();
+    });
+}
+
 // ─── 2. OpenAI Cloud API ──────────────────────────────────────────────────────
 
-async function testOpenAi(apiKey, model = "gpt-4o-mini") {
+export async function testOpenAi(
+    apiKey: string,
+    model = "gpt-4o-mini"
+): Promise<ConnectionTestResult> {
     if (!apiKey || !apiKey.trim()) {
         return { success: false, error: "Kein API-Key angegeben" };
     }
@@ -162,11 +317,17 @@ async function testOpenAi(apiKey, model = "gpt-4o-mini") {
         }
         return { success: false, error: `OpenAI Status: ${res.status}` };
     } catch (err) {
-        return { success: false, error: err.message };
+        return { success: false, error: errorMessage(err) };
     }
 }
 
-async function parseWithOpenAi(promptText, clients, isSmallBusiness, apiKey, model = "gpt-4o-mini") {
+async function parseWithOpenAi(
+    promptText: string,
+    clients: ClientRef[],
+    isSmallBusiness: boolean,
+    apiKey: string,
+    model = "gpt-4o-mini"
+): Promise<LlmResult> {
     if (!apiKey) throw new Error("OpenAI API-Key fehlt");
     const clientList = clients
         .slice(0, 30)
@@ -215,9 +376,9 @@ Antworte AUSSCHLIESSLICH im validen JSON-Format:
     );
 
     if (res.status === 200) {
-        const data = JSON.parse(res.body);
+        const data = JSON.parse(res.body) as { choices: { message: { content: string } }[] };
         const text = data.choices[0].message.content;
-        const parsed = JSON.parse(text);
+        const parsed = JSON.parse(text) as LlmDraft;
         return { parsed, source: "openai", model: model || "gpt-4o-mini" };
     }
     throw new Error(`OpenAI API Fehler: HTTP ${res.status} - ${res.body}`);
@@ -225,7 +386,10 @@ Antworte AUSSCHLIESSLICH im validen JSON-Format:
 
 // ─── 3. Anthropic Claude Cloud API ────────────────────────────────────────────
 
-async function testAnthropic(apiKey, model = "claude-3-5-sonnet-20241022") {
+export async function testAnthropic(
+    apiKey: string,
+    model = "claude-3-5-sonnet-20241022"
+): Promise<ConnectionTestResult> {
     if (!apiKey || !apiKey.trim()) {
         return { success: false, error: "Kein API-Key angegeben" };
     }
@@ -253,17 +417,17 @@ async function testAnthropic(apiKey, model = "claude-3-5-sonnet-20241022") {
         }
         return { success: false, error: `Anthropic Status: ${res.status}` };
     } catch (err) {
-        return { success: false, error: err.message };
+        return { success: false, error: errorMessage(err) };
     }
 }
 
 async function parseWithAnthropic(
-    promptText,
-    clients,
-    isSmallBusiness,
-    apiKey,
+    promptText: string,
+    clients: ClientRef[],
+    isSmallBusiness: boolean,
+    apiKey: string,
     model = "claude-3-5-sonnet-20241022"
-) {
+): Promise<LlmResult> {
     if (!apiKey) throw new Error("Anthropic API-Key fehlt");
     const clientList = clients
         .slice(0, 30)
@@ -311,10 +475,10 @@ Antworte AUSSCHLIESSLICH im validen JSON-Format ohne Markdown-Backticks:
     );
 
     if (res.status === 200) {
-        const data = JSON.parse(res.body);
+        const data = JSON.parse(res.body) as { content?: { text?: string }[] };
         let text = data.content?.[0]?.text || "{}";
         text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-        const parsed = JSON.parse(text);
+        const parsed = JSON.parse(text) as LlmDraft;
         return { parsed, source: "anthropic", model: model || "claude-3-5-sonnet" };
     }
     throw new Error(`Anthropic API Fehler: HTTP ${res.status} - ${res.body}`);
@@ -322,10 +486,14 @@ Antworte AUSSCHLIESSLICH im validen JSON-Format ohne Markdown-Backticks:
 
 // ─── 4. Deterministic German Regex Fallback ───────────────────────────────────
 
-function parseInvoiceDraftHeuristic(promptText, clients = [], isSmallBusiness = false) {
+function parseInvoiceDraftHeuristic(
+    promptText: string,
+    clients: ClientRef[] = [],
+    isSmallBusiness = false
+): ParsedDraft {
     const text = promptText.trim();
-    let matchedClientId = null;
-    let matchedClientName = null;
+    let matchedClientId: string | null = null;
+    let matchedClientName: string | null = null;
 
     for (const c of clients) {
         if (c.name && text.toLowerCase().includes(c.name.toLowerCase())) {
@@ -368,7 +536,7 @@ function parseInvoiceDraftHeuristic(promptText, clients = [], isSmallBusiness = 
         .map((s) => s.trim())
         .filter(Boolean);
 
-    const items = [];
+    const items: DraftItem[] = [];
     const defaultTaxRate = isSmallBusiness ? 0 : 19;
 
     for (const seg of segments) {
@@ -432,17 +600,17 @@ function parseInvoiceDraftHeuristic(promptText, clients = [], isSmallBusiness = 
 
 // ─── 5. Unified Dispatcher ────────────────────────────────────────────────────
 
-async function parseInvoiceDraft(
-    promptText,
-    clients = [],
+export async function parseInvoiceDraft(
+    promptText: string,
+    clients: ClientRef[] = [],
     isSmallBusiness = false,
-    aiSettings = {}
-) {
+    aiSettings: Partial<AiSettings> = {}
+): Promise<DraftResult> {
     const heuristic = parseInvoiceDraftHeuristic(promptText, clients, isSmallBusiness);
     const provider = aiSettings.active_provider || "ollama";
 
     try {
-        let result = null;
+        let result: LlmResult | null = null;
         if (provider === "openai" && aiSettings.openai_key) {
             result = await parseWithOpenAi(
                 promptText,
@@ -487,7 +655,7 @@ async function parseInvoiceDraft(
             };
         }
     } catch (err) {
-        console.warn(`KI-Parsing mit ${provider} fehlgeschlagen, nutze Heuristik:`, err.message);
+        console.warn(`KI-Parsing mit ${provider} fehlgeschlagen, nutze Heuristik:`, errorMessage(err));
     }
 
     return {
@@ -496,13 +664,3 @@ async function parseInvoiceDraft(
         model: "Rechly Heuristic Rule Engine",
     };
 }
-
-module.exports = {
-    checkOllama,
-    testOpenAi,
-    testAnthropic,
-    parseInvoiceDraft,
-    FEATURED_MODEL,
-    OLLAMA_URL,
-    HF_URL,
-};

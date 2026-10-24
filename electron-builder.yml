@@ -7,11 +7,7 @@ directories:
   buildResources: build
 
 files:
-  - main.js
-  - preload.js
-  - store.js
-  - eRechnung.js
-  - ai.js
+  - out/**/*.js
   - ui/**/*
   - package.json
 

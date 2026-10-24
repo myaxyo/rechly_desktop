@@ -1,24 +1,42 @@
-const {
+import {
     app,
     BrowserWindow,
     Menu,
     dialog,
     shell,
     ipcMain,
-} = require("electron");
-const path = require("path");
-const fs = require("fs");
+    type MenuItemConstructorOptions,
+} from "electron";
+import * as path from "node:path";
+import * as fs from "node:fs";
 
-const store = require("./store");
-const { generateXRechnungXML, generateDatevExport } = require("./eRechnung");
-const {
-    checkOllama,
-    testOpenAi,
-    testAnthropic,
-    parseInvoiceDraft,
-} = require("./ai");
+import store from "./store";
+import { generateXRechnungXML, generateDatevExport } from "./eRechnung";
+import { checkOllama, testOpenAi, testAnthropic, parseInvoiceDraft, pullOllamaModel } from "./ai";
+import { detectOllama, launchOllama } from "./setup";
+import type {
+    AiSettings,
+    AppInfo,
+    Client,
+    Company,
+    CompleteOnboardingRequest,
+    Draft,
+    Expense,
+    ExportResult,
+    Invoice,
+    OnboardingState,
+    Offer,
+    Product,
+} from "./types";
 
-let mainWindow = null;
+/** Records created by the default vault so first-time users can try the app. */
+const SAMPLE_IDS = {
+    invoices: ["inv-sample-1"],
+    clients: ["client-sample-1"],
+    expenses: ["exp-1"],
+};
+
+let mainWindow: BrowserWindow | null = null;
 
 const createWindow = () => {
     mainWindow = new BrowserWindow({
@@ -39,11 +57,11 @@ const createWindow = () => {
         },
     });
 
-    // Load local offline desktop UI
-    mainWindow.loadFile(path.join(__dirname, "ui", "index.html"));
+    // Load local offline desktop UI (compiled code lives in out/, UI in ui/)
+    mainWindow.loadFile(path.join(__dirname, "..", "ui", "index.html"));
 
     mainWindow.once("ready-to-show", () => {
-        mainWindow.show();
+        mainWindow?.show();
     });
 
     mainWindow.on("closed", () => {
@@ -61,23 +79,24 @@ const createWindow = () => {
 
 const buildMenu = () => {
     const isMac = process.platform === "darwin";
-    const template = [
-        ...(isMac
-            ? [
-                  {
-                      label: "Rechly",
-                      submenu: [
-                          { role: "about", label: "Über Rechly Desktop" },
-                          { type: "separator" },
-                          { role: "hide", label: "Ausblenden" },
-                          { role: "hideOthers", label: "Andere ausblenden" },
-                          { role: "unhide", label: "Alle einblenden" },
-                          { type: "separator" },
-                          { role: "quit", label: "Rechly beenden" },
-                      ],
-                  },
-              ]
-            : []),
+    const macAppMenu: MenuItemConstructorOptions[] = isMac
+        ? [
+              {
+                  label: "Rechly",
+                  submenu: [
+                      { role: "about", label: "Über Rechly Desktop" },
+                      { type: "separator" },
+                      { role: "hide", label: "Ausblenden" },
+                      { role: "hideOthers", label: "Andere ausblenden" },
+                      { role: "unhide", label: "Alle einblenden" },
+                      { type: "separator" },
+                      { role: "quit", label: "Rechly beenden" },
+                  ],
+              },
+          ]
+        : [];
+    const template: MenuItemConstructorOptions[] = [
+        ...macAppMenu,
         {
             label: "Datei",
             submenu: [
@@ -155,10 +174,10 @@ const buildMenu = () => {
 
 // ─── Export Helpers ──────────────────────────────────────────────────────────
 
-async function exportDatevHandler() {
+async function exportDatevHandler(): Promise<ExportResult> {
     if (!mainWindow) return { success: false };
     const invoices = store.get("invoices") || [];
-    const company = store.get("company") || {};
+    const company: Company = store.get("company") || {};
 
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
         title: "DATEV Buchungsstapel exportieren",
@@ -174,7 +193,7 @@ async function exportDatevHandler() {
     return { success: true, filePath };
 }
 
-async function exportBackupHandler() {
+async function exportBackupHandler(): Promise<ExportResult> {
     if (!mainWindow) return { success: false };
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
         title: "Rechly Offline Tresor sichern",
@@ -193,16 +212,16 @@ async function exportBackupHandler() {
 
 ipcMain.handle("store:get", () => store.getAll());
 ipcMain.handle("company:get", () => store.get("company"));
-ipcMain.handle("company:save", (_e, data) => {
+ipcMain.handle("company:save", (_e, data: Company) => {
     store.set("company", data);
     return true;
 });
 
 // Invoices
 ipcMain.handle("invoices:getAll", () => store.get("invoices") || []);
-ipcMain.handle("invoices:create", (_e, data) => {
+ipcMain.handle("invoices:create", (_e, data: Draft<Invoice>) => {
     const invoices = store.get("invoices") || [];
-    const newInvoice = {
+    const newInvoice: Invoice = {
         id: `inv-${Date.now()}`,
         created_at: Date.now(),
         ...data,
@@ -211,7 +230,7 @@ ipcMain.handle("invoices:create", (_e, data) => {
     store.set("invoices", invoices);
     return newInvoice;
 });
-ipcMain.handle("invoices:update", (_e, id, data) => {
+ipcMain.handle("invoices:update", (_e, id: string, data: Draft<Invoice>) => {
     const invoices = store.get("invoices") || [];
     const idx = invoices.findIndex((i) => i.id === id);
     if (idx !== -1) {
@@ -221,7 +240,7 @@ ipcMain.handle("invoices:update", (_e, id, data) => {
     }
     return null;
 });
-ipcMain.handle("invoices:delete", (_e, id) => {
+ipcMain.handle("invoices:delete", (_e, id: string) => {
     let invoices = store.get("invoices") || [];
     invoices = invoices.filter((i) => i.id !== id);
     store.set("invoices", invoices);
@@ -230,9 +249,9 @@ ipcMain.handle("invoices:delete", (_e, id) => {
 
 // Clients
 ipcMain.handle("clients:getAll", () => store.get("clients") || []);
-ipcMain.handle("clients:create", (_e, data) => {
+ipcMain.handle("clients:create", (_e, data: Draft<Client>) => {
     const clients = store.get("clients") || [];
-    const newClient = {
+    const newClient: Client = {
         id: `client-${Date.now()}`,
         created_at: Date.now(),
         ...data,
@@ -241,7 +260,7 @@ ipcMain.handle("clients:create", (_e, data) => {
     store.set("clients", clients);
     return newClient;
 });
-ipcMain.handle("clients:update", (_e, id, data) => {
+ipcMain.handle("clients:update", (_e, id: string, data: Draft<Client>) => {
     const clients = store.get("clients") || [];
     const idx = clients.findIndex((c) => c.id === id);
     if (idx !== -1) {
@@ -251,7 +270,7 @@ ipcMain.handle("clients:update", (_e, id, data) => {
     }
     return null;
 });
-ipcMain.handle("clients:delete", (_e, id) => {
+ipcMain.handle("clients:delete", (_e, id: string) => {
     let clients = store.get("clients") || [];
     clients = clients.filter((c) => c.id !== id);
     store.set("clients", clients);
@@ -260,9 +279,9 @@ ipcMain.handle("clients:delete", (_e, id) => {
 
 // Products
 ipcMain.handle("products:getAll", () => store.get("products") || []);
-ipcMain.handle("products:create", (_e, data) => {
+ipcMain.handle("products:create", (_e, data: Draft<Product>) => {
     const products = store.get("products") || [];
-    const newProduct = {
+    const newProduct: Product = {
         id: `prod-${Date.now()}`,
         ...data,
     };
@@ -270,7 +289,7 @@ ipcMain.handle("products:create", (_e, data) => {
     store.set("products", products);
     return newProduct;
 });
-ipcMain.handle("products:update", (_e, id, data) => {
+ipcMain.handle("products:update", (_e, id: string, data: Draft<Product>) => {
     const products = store.get("products") || [];
     const idx = products.findIndex((p) => p.id === id);
     if (idx !== -1) {
@@ -280,7 +299,7 @@ ipcMain.handle("products:update", (_e, id, data) => {
     }
     return null;
 });
-ipcMain.handle("products:delete", (_e, id) => {
+ipcMain.handle("products:delete", (_e, id: string) => {
     let products = store.get("products") || [];
     products = products.filter((p) => p.id !== id);
     store.set("products", products);
@@ -289,14 +308,14 @@ ipcMain.handle("products:delete", (_e, id) => {
 
 // Offers
 ipcMain.handle("offers:getAll", () => store.get("offers") || []);
-ipcMain.handle("offers:create", (_e, data) => {
+ipcMain.handle("offers:create", (_e, data: Draft<Offer>) => {
     const offers = store.get("offers") || [];
-    const newOffer = { id: `off-${Date.now()}`, created_at: Date.now(), ...data };
+    const newOffer: Offer = { id: `off-${Date.now()}`, created_at: Date.now(), ...data };
     offers.unshift(newOffer);
     store.set("offers", offers);
     return newOffer;
 });
-ipcMain.handle("offers:update", (_e, id, data) => {
+ipcMain.handle("offers:update", (_e, id: string, data: Draft<Offer>) => {
     const offers = store.get("offers") || [];
     const idx = offers.findIndex((o) => o.id === id);
     if (idx !== -1) {
@@ -306,13 +325,17 @@ ipcMain.handle("offers:update", (_e, id, data) => {
     }
     return null;
 });
-ipcMain.handle("offers:convert", (_e, id) => {
+ipcMain.handle("offers:delete", (_e, id: string) => {
+    store.set("offers", (store.get("offers") || []).filter((o) => o.id !== id));
+    return true;
+});
+ipcMain.handle("offers:convert", (_e, id: string) => {
     const offers = store.get("offers") || [];
     const offer = offers.find((o) => o.id === id);
     if (!offer) return null;
 
     const invoices = store.get("invoices") || [];
-    const newInvoice = {
+    const newInvoice: Invoice = {
         id: `inv-${Date.now()}`,
         invoice_number: `RE-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
         client_id: offer.client_id,
@@ -337,14 +360,14 @@ ipcMain.handle("offers:convert", (_e, id) => {
 
 // Expenses
 ipcMain.handle("expenses:getAll", () => store.get("expenses") || []);
-ipcMain.handle("expenses:create", (_e, data) => {
+ipcMain.handle("expenses:create", (_e, data: Draft<Expense>) => {
     const expenses = store.get("expenses") || [];
-    const newExpense = { id: `exp-${Date.now()}`, ...data };
+    const newExpense: Expense = { id: `exp-${Date.now()}`, ...data };
     expenses.unshift(newExpense);
     store.set("expenses", expenses);
     return newExpense;
 });
-ipcMain.handle("expenses:update", (_e, id, data) => {
+ipcMain.handle("expenses:update", (_e, id: string, data: Draft<Expense>) => {
     const expenses = store.get("expenses") || [];
     const idx = expenses.findIndex((e) => e.id === id);
     if (idx !== -1) {
@@ -354,7 +377,7 @@ ipcMain.handle("expenses:update", (_e, id, data) => {
     }
     return null;
 });
-ipcMain.handle("expenses:delete", (_e, id) => {
+ipcMain.handle("expenses:delete", (_e, id: string) => {
     let expenses = store.get("expenses") || [];
     expenses = expenses.filter((e) => e.id !== id);
     store.set("expenses", expenses);
@@ -363,24 +386,68 @@ ipcMain.handle("expenses:delete", (_e, id) => {
 
 // AI & Cloud Integration (Local Ollama & Cloud OpenAI / Anthropic Claude)
 ipcMain.handle("ai:getSettings", () => store.getAiSettings());
-ipcMain.handle("ai:saveSettings", (_e, settings) => store.saveAiSettings(settings));
-ipcMain.handle("ai:checkOllama", (_e, host) => checkOllama(host));
-ipcMain.handle("ai:testOpenAi", (_e, key, model) => testOpenAi(key, model));
-ipcMain.handle("ai:testAnthropic", (_e, key, model) => testAnthropic(key, model));
-ipcMain.handle("ai:parseDraft", (_e, prompt, clients, isSmallBusiness) => {
-    const aiSettings = store.getAiSettings();
-    return parseInvoiceDraft(prompt, clients, isSmallBusiness, aiSettings);
+ipcMain.handle("ai:saveSettings", (_e, settings: Partial<AiSettings>) => store.saveAiSettings(settings));
+ipcMain.handle("ai:checkOllama", (_e, host?: string) => checkOllama(host));
+ipcMain.handle("ai:testOpenAi", (_e, key: string, model?: string) => testOpenAi(key, model));
+ipcMain.handle("ai:testAnthropic", (_e, key: string, model?: string) => testAnthropic(key, model));
+ipcMain.handle(
+    "ai:parseDraft",
+    (_e, prompt: string, clients: Pick<Client, "id" | "name">[], isSmallBusiness: boolean) => {
+        const aiSettings = { ...store.getAiSettings() };
+        // Cloud providers receive invoice text and client names; only use them after an explicit opt-in.
+        const cloudBlocked = store.get("onboarding")?.cloud_ai_opt_in === false;
+        if (cloudBlocked && aiSettings.active_provider !== "ollama") {
+            aiSettings.active_provider = "ollama";
+        }
+        return parseInvoiceDraft(prompt, clients, isSmallBusiness, aiSettings);
+    }
+);
+
+// First-run setup assistant
+ipcMain.handle("app:getInfo", (): AppInfo => ({
+    version: app.getVersion(),
+    platform: process.platform,
+    vaultPath: store.getVaultPath(),
+}));
+ipcMain.handle("setup:detectOllama", () => detectOllama());
+ipcMain.handle("setup:launchOllama", () => launchOllama());
+ipcMain.handle("ai:pullModel", (event, host?: string, model?: string) =>
+    pullOllamaModel(host, model, (progress) => {
+        if (!event.sender.isDestroyed()) event.sender.send("ai:pullProgress", progress);
+    })
+);
+ipcMain.handle("onboarding:setCloudOptIn", (_e, allowed: boolean) => {
+    const current = store.get("onboarding");
+    if (current) store.set("onboarding", { ...current, cloud_ai_opt_in: Boolean(allowed) });
+    return store.get("onboarding");
+});
+ipcMain.handle("onboarding:complete", (_e, req: CompleteOnboardingRequest): OnboardingState => {
+    if (req.remove_sample_data) {
+        store.set("invoices", (store.get("invoices") || []).filter((i) => !SAMPLE_IDS.invoices.includes(i.id)));
+        store.set("clients", (store.get("clients") || []).filter((c) => !SAMPLE_IDS.clients.includes(c.id)));
+        store.set("expenses", (store.get("expenses") || []).filter((e) => !SAMPLE_IDS.expenses.includes(e.id)));
+    }
+    const now = new Date().toISOString();
+    const state: OnboardingState = {
+        completed_at: now,
+        storage_consent_at: now,
+        cloud_ai_opt_in: Boolean(req.cloud_ai_opt_in),
+    };
+    store.set("onboarding", state);
+    return state;
 });
 
 // Native Exports
-ipcMain.handle("export:pdf", async (_e, invoiceId) => {
+ipcMain.handle("export:pdf", async (_e, invoiceId: string): Promise<ExportResult> => {
     if (!mainWindow) return { success: false };
-    const invoices = store.get("invoices") || [];
-    const inv = invoices.find((i) => i.id === invoiceId);
-    const filename = `${inv?.invoice_number || "Rechnung"}.pdf`;
+    const inv = (store.get("invoices") || []).find((i) => i.id === invoiceId);
+    const offer = inv ? undefined : (store.get("offers") || []).find((o) => o.id === invoiceId);
+    const filename = offer
+        ? `Angebot_${offer.offer_number || offer.id}.pdf`
+        : `${inv?.invoice_number || "Rechnung"}.pdf`;
 
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-        title: "Rechnung als PDF speichern",
+        title: offer ? "Angebot als PDF speichern" : "Rechnung als PDF speichern",
         defaultPath: filename,
         filters: [{ name: "PDF", extensions: ["pdf"] }],
     });
@@ -395,15 +462,15 @@ ipcMain.handle("export:pdf", async (_e, invoiceId) => {
     return { success: true, filePath };
 });
 
-ipcMain.handle("export:xrechnung", async (_e, invoiceId) => {
+ipcMain.handle("export:xrechnung", async (_e, invoiceId: string): Promise<ExportResult> => {
     if (!mainWindow) return { success: false };
     const invoices = store.get("invoices") || [];
     const clients = store.get("clients") || [];
-    const company = store.get("company") || {};
+    const company: Company = store.get("company") || {};
 
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, error: "Rechnung nicht gefunden" };
-    const client = clients.find((c) => c.id === inv.client_id) || { name: "Kunde" };
+    const client: Partial<Client> = clients.find((c) => c.id === inv.client_id) || { name: "Kunde" };
 
     const xml = generateXRechnungXML(inv, company, client);
     const filename = `XRechnung_${inv.invoice_number}.xml`;
@@ -423,7 +490,7 @@ ipcMain.handle("export:xrechnung", async (_e, invoiceId) => {
 ipcMain.handle("export:datev", exportDatevHandler);
 ipcMain.handle("backup:export", exportBackupHandler);
 
-ipcMain.handle("backup:import", async () => {
+ipcMain.handle("backup:import", async (): Promise<ExportResult> => {
     if (!mainWindow) return { success: false };
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
         title: "Rechly Backup wiederherstellen",
@@ -437,7 +504,7 @@ ipcMain.handle("backup:import", async () => {
         store.importBackup(filePaths[0]);
         return { success: true };
     } catch (err) {
-        return { success: false, error: err.message };
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
 });
 
