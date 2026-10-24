@@ -119,7 +119,9 @@ const buildMenu = () => {
         {
             label: "Ansicht",
             submenu: [
-                { role: "reload", label: "Neu laden" },
+                { role: "reload", label: "Neu laden", accelerator: "CmdOrCtrl+R" },
+                { role: "forceReload", label: "Neu laden erzwingen", accelerator: "CmdOrCtrl+Shift+R" },
+                { role: "toggleDevTools", label: "Entwicklertools (DevTools)", accelerator: "CmdOrCtrl+Alt+I" },
                 { type: "separator" },
                 { role: "resetZoom", label: "Normalgröße" },
                 { role: "zoomIn", label: "Vergrößern" },

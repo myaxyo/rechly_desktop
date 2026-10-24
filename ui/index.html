@@ -113,6 +113,53 @@
       gap: 10px;
       -webkit-app-region: no-drag;
     }
+
+    /* ─── Start Menu & Nav Pills ─── */
+    .nav-pill-btn {
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+    .nav-pill-btn:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .nav-pill-btn.active {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      color: #2563eb;
+      font-weight: 600;
+    }
+    .start-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #1e293b;
+      transition: background 0.15s ease;
+    }
+    .start-menu-item:hover {
+      background: #f1f5f9;
+    }
+    .start-menu-item .icon {
+      font-size: 16px;
+      width: 22px;
+      text-align: center;
+      flex-shrink: 0;
+    }
     .quick-search {
       padding: 5px 12px;
       border: 1px solid var(--border);
@@ -684,16 +731,86 @@
 
   <!-- ─── Mac Frameless Titlebar ─── -->
   <div class="titlebar">
+    <div style="display:flex; align-items:center; gap:8px; -webkit-app-region: no-drag;">
+      <button class="btn btn-sm" id="btn-start-menu" onclick="toggleStartMenu()" style="background:#0f172a; color:#ffffff; font-weight:700; border:none; padding:5px 12px; border-radius:6px; display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+        <span style="color:#38bdf8; font-size:14px;">⚡</span> Start-Menü
+      </button>
+      <div style="display:flex; align-items:center; gap:3px;">
+        <button class="nav-pill-btn active" id="pill-dashboard" onclick="showView('dashboard')">🏠 Start</button>
+        <button class="nav-pill-btn" id="pill-invoices" onclick="showView('invoices')">📄 Rechnungen</button>
+        <button class="nav-pill-btn" id="pill-offers" onclick="showView('offers')">📝 Angebote</button>
+        <button class="nav-pill-btn" id="pill-clients" onclick="showView('clients')">👥 Kunden</button>
+        <button class="nav-pill-btn" id="pill-expenses" onclick="showView('expenses')">🧾 Ausgaben</button>
+        <button class="nav-pill-btn" id="pill-settings" onclick="showView('settings')">⚙️ KI & Einstellungen</button>
+      </div>
+    </div>
+
     <div class="titlebar-center">
-      <span style="font-weight:700; color:#0f172a; font-size:13px;">Rechly Desktop</span>
-      <span class="badge offline-badge">🔒 100% Offline • Lokaler Tresor</span>
+      <span class="badge offline-badge">🔒 100% Offline</span>
       <span id="ai-model-indicator" class="badge ai-pill" onclick="showAiSettingsModal()" title="Klicken für KI-Konfiguration (Ollama, OpenAI, Claude)">
         ⚪ Lade KI...
       </span>
     </div>
+
     <div class="titlebar-right">
       <input type="text" class="quick-search" id="global-search" placeholder="Suchen (⌘F)..." oninput="handleGlobalSearch(this.value)">
       <button class="btn btn-primary btn-sm" onclick="showView('create-invoice')">➕ Neue Rechnung (⌘N)</button>
+    </div>
+  </div>
+
+  <!-- ─── Start Menu Flyout Dropdown ─── -->
+  <div id="start-menu-dropdown" style="display:none; position:fixed; top:46px; left:84px; width:330px; background:#ffffff; border:1px solid #cbd5e1; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.18), 0 8px 10px -6px rgba(0,0,0,0.1); z-index:9000; overflow:hidden;">
+    <div style="background:#0f172a; color:#fff; padding:16px; border-bottom:1px solid #1e293b;">
+      <div style="font-size:11px; text-transform:uppercase; color:#94a3b8; font-weight:700; letter-spacing:0.5px;">Rechly Desktop Start-Menü</div>
+      <div style="font-size:16px; font-weight:700; color:#fff; margin-top:2px;" id="start-menu-company">Meine Firma</div>
+      <div style="font-size:11px; color:#38bdf8; margin-top:4px; display:flex; align-items:center; gap:5px;">
+        <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10b981;"></span>
+        GoBD-Tresor aktiv & offline geschützt
+      </div>
+    </div>
+    <div style="padding:8px 6px;">
+      <div class="start-menu-item" onclick="showView('dashboard'); toggleStartMenu();">
+        <span class="icon">🏠</span>
+        <div><b>Übersicht & Kontrollzentrum</b><div style="font-size:11px; color:#64748b;">Finanz-HUD & Startklar-Check</div></div>
+      </div>
+      <div class="start-menu-item" onclick="showView('create-invoice'); toggleStartMenu();">
+        <span class="icon">➕</span>
+        <div><b>Neue Rechnung erstellen (⌘N)</b><div style="font-size:11px; color:#64748b;">GoBD-konform mit E-Rechnung XML</div></div>
+      </div>
+      <div class="start-menu-item" onclick="showView('create-invoice'); toggleStartMenu();">
+        <span class="icon">🤖</span>
+        <div><b>KI-Schnellerfassung starten</b><div style="font-size:11px; color:#64748b;">Text-zu-Rechnung mit aktiver KI</div></div>
+      </div>
+      <div class="start-menu-item" onclick="showView('offers'); toggleStartMenu();">
+        <span class="icon">📝</span>
+        <div><b>Neues Angebot verfassen</b><div style="font-size:11px; color:#64748b;">1-Klick-Umwandlung in Rechnung</div></div>
+      </div>
+      <div class="start-menu-item" onclick="openModal('modal-client'); toggleStartMenu();">
+        <span class="icon">👥</span>
+        <div><b>Neuen Kunden anlegen</b><div style="font-size:11px; color:#64748b;">Stammdaten & Leitweg-ID</div></div>
+      </div>
+      <div class="start-menu-item" onclick="openModal('modal-expense'); toggleStartMenu();">
+        <span class="icon">🧾</span>
+        <div><b>Ausgabe verbuchen</b><div style="font-size:11px; color:#64748b;">Belege für Steuererklärung erfassen</div></div>
+      </div>
+      <div style="height:1px; background:#e2e8f0; margin:6px 8px;"></div>
+      <div class="start-menu-item" onclick="showView('settings'); toggleStartMenu();">
+        <span class="icon">⚙️</span>
+        <div><b>KI & Cloud-Schnittstellen</b><div style="font-size:11px; color:#64748b;">Ollama (Rechly-DE-3B), OpenAI oder Claude</div></div>
+      </div>
+      <div class="start-menu-item" onclick="showView('datev'); toggleStartMenu();">
+        <span class="icon">🏛️</span>
+        <div><b>DATEV Steuerberater-Export</b><div style="font-size:11px; color:#64748b;">Buchungsstapel CSV generieren</div></div>
+      </div>
+      <div class="start-menu-item" onclick="window.rechly.exportBackup(); toggleStartMenu();">
+        <span class="icon">💾</span>
+        <div><b>Datenbank-Backup erstellen</b><div style="font-size:11px; color:#64748b;">Tresor als Datei sichern</div></div>
+      </div>
+      <div style="height:1px; background:#e2e8f0; margin:6px 8px;"></div>
+      <div class="start-menu-item" onclick="openModal('modal-startup-wizard'); toggleStartMenu();">
+        <span class="icon">🚀</span>
+        <div><b>Start-Assistent öffnen</b><div style="font-size:11px; color:#64748b;">Vollbild-Startmenü anzeigen</div></div>
+      </div>
     </div>
   </div>
 
@@ -708,7 +825,7 @@
 
       <div class="nav-group-title">Hauptmenü</div>
       <div class="nav-item active" id="nav-dashboard" onclick="showView('dashboard')">
-        <div class="nav-left"><span class="icon">🏠</span> Übersicht / Startup</div>
+        <div class="nav-left"><span class="icon">🏠</span> Startmenü & Übersicht</div>
       </div>
       <div class="nav-item" id="nav-invoices" onclick="showView('invoices')">
         <div class="nav-left"><span class="icon">📄</span> Rechnungen</div>
@@ -913,6 +1030,72 @@
     <div class="print-sheet" id="print-sheet-content"></div>
   </div>
 
+  <!-- Startup Wizard Modal -->
+  <div class="modal-backdrop" id="modal-startup-wizard">
+    <div class="modal-card" style="width: 580px;">
+      <div class="modal-header" style="background:#0f172a; color:#fff; border-bottom:none;">
+        <div>
+          <div style="font-size:11px; text-transform:uppercase; color:#38bdf8; font-weight:700; letter-spacing:0.5px;">Rechly Desktop</div>
+          <div class="modal-title" style="color:#fff; font-size:18px;">⚡ Startmenü & Schnellstart</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" style="background:rgba(255,255,255,0.1); color:#fff; border:none;" onclick="closeModal('modal-startup-wizard')">✕</button>
+      </div>
+      <div class="modal-body" style="padding:24px;">
+        <p style="font-size:13px; color:#475569; margin-bottom:20px;">
+          Was möchtest du tun? Wähle eine Aktion aus dem Startmenü:
+        </p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showView('create-invoice');">
+            <div class="tile-icon tile-blue" style="width:34px; height:34px; font-size:16px;">➕</div>
+            <div>
+              <div class="tile-title" style="font-size:13px;">Rechnung schreiben</div>
+              <div class="tile-desc" style="font-size:11px;">GoBD-konform mit XML</div>
+            </div>
+          </div>
+          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showView('create-invoice');">
+            <div class="tile-icon tile-emerald" style="width:34px; height:34px; font-size:16px;">🤖</div>
+            <div>
+              <div class="tile-title" style="font-size:13px;">KI-Schnellerfassung</div>
+              <div class="tile-desc" style="font-size:11px;">Text-zu-Rechnung mit KI</div>
+            </div>
+          </div>
+          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showView('offers');">
+            <div class="tile-icon tile-amber" style="width:34px; height:34px; font-size:16px;">📝</div>
+            <div>
+              <div class="tile-title" style="font-size:13px;">Angebot erstellen</div>
+              <div class="tile-desc" style="font-size:11px;">Kostenvoranschlag verfassen</div>
+            </div>
+          </div>
+          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); openModal('modal-client');">
+            <div class="tile-icon tile-purple" style="width:34px; height:34px; font-size:16px;">👥</div>
+            <div>
+              <div class="tile-title" style="font-size:13px;">Neuer Kunde</div>
+              <div class="tile-desc" style="font-size:11px;">Stammdaten & Leitweg-ID</div>
+            </div>
+          </div>
+          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showView('settings');">
+            <div class="tile-icon tile-rose" style="width:34px; height:34px; font-size:16px;">⚙️</div>
+            <div>
+              <div class="tile-title" style="font-size:13px;">KI & Cloud-APIs</div>
+              <div class="tile-desc" style="font-size:11px;">OpenAI, Claude, Ollama</div>
+            </div>
+          </div>
+          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showView('datev');">
+            <div class="tile-icon tile-slate" style="width:34px; height:34px; font-size:16px;">🏛️</div>
+            <div>
+              <div class="tile-title" style="font-size:13px;">DATEV Export</div>
+              <div class="tile-desc" style="font-size:11px;">Steuerberater Buchungsstapel</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content:space-between;">
+        <span style="font-size:11px; color:#64748b;">🔒 100% Offline • Lokaler GoBD-Tresor</span>
+        <button class="btn btn-primary" onclick="closeModal('modal-startup-wizard'); showView('dashboard');">Zum Dashboard ➔</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toast">✅ Vorgang abgeschlossen</div>
 
@@ -1010,6 +1193,10 @@
       const activeNav = document.getElementById(`nav-${viewId}`) || Array.from(document.querySelectorAll('.nav-item')).find(el => el.innerText.toLowerCase().includes(viewId.replace('-', ' ')));
       if (activeNav) activeNav.classList.add('active');
 
+      document.querySelectorAll('.nav-pill-btn').forEach(b => b.classList.remove('active'));
+      const activePill = document.getElementById(`pill-${viewId}`);
+      if (activePill) activePill.classList.add('active');
+
       const container = document.getElementById('content-container');
       if (viewId === 'dashboard') renderDashboardView(container);
       else if (viewId === 'invoices') renderInvoicesView(container);
@@ -1022,6 +1209,26 @@
       else if (viewId === 'tools') renderToolsView(container);
       else if (viewId === 'settings') renderSettingsView(container);
     }
+
+    function toggleStartMenu() {
+      const dropdown = document.getElementById('start-menu-dropdown');
+      if (!dropdown) return;
+      const isHidden = dropdown.style.display === 'none' || !dropdown.style.display;
+      dropdown.style.display = isHidden ? 'block' : 'none';
+      const c = currentStore.company || {};
+      const el = document.getElementById('start-menu-company');
+      if (el) el.innerText = c.name || 'Meine Firma';
+    }
+
+    document.addEventListener('click', (e) => {
+      const startBtn = document.getElementById('btn-start-menu');
+      const dropdown = document.getElementById('start-menu-dropdown');
+      if (dropdown && dropdown.style.display === 'block') {
+        if (!startBtn.contains(e.target) && !dropdown.contains(e.target)) {
+          dropdown.style.display = 'none';
+        }
+      }
+    });
 
     // ─── View 0: Startup Menu / Home Dashboard ───
     function renderDashboardView(container) {
