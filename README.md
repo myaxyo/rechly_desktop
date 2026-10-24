@@ -1,6 +1,25 @@
 # Rechly Desktop (100% Offline & On-Device)
 
-**Rechly Desktop** is the standalone, fully offline, privacy-first desktop edition of Rechly for macOS, Windows, and Linux.
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/myaxyo/rechly_desktop)](https://github.com/myaxyo/rechly_desktop/releases/latest)
+
+**Rechly Desktop** is the standalone, fully offline, privacy-first desktop edition of [Rechly](https://rechly.de) for macOS and Windows. It is free and open source under the AGPL-3.0.
+
+---
+
+## ⬇️ Download
+
+| Platform | Download |
+| --- | --- |
+| Windows 10/11 (64-bit) | [Rechly-Desktop-Setup-win-x64.exe](https://github.com/myaxyo/rechly_desktop/releases/latest/download/Rechly-Desktop-Setup-win-x64.exe) |
+| macOS Apple Silicon (M1 and newer) | [Rechly-Desktop-mac-arm64.dmg](https://github.com/myaxyo/rechly_desktop/releases/latest/download/Rechly-Desktop-mac-arm64.dmg) |
+| macOS Intel | [Rechly-Desktop-mac-x64.dmg](https://github.com/myaxyo/rechly_desktop/releases/latest/download/Rechly-Desktop-mac-x64.dmg) |
+
+All versions: [Releases](https://github.com/myaxyo/rechly_desktop/releases).
+
+> **Windows:** The installer is not code-signed yet. If SmartScreen shows "Windows protected your PC", click **More info → Run anyway**.
+>
+> **macOS:** If macOS says the app can't be verified, right-click the app in *Applications*, choose **Open**, and confirm.
 
 ---
 
@@ -32,8 +51,11 @@
 
 ## 🚀 Running the App Locally
 
+Requires [Node.js](https://nodejs.org) 20 or newer.
+
 ```bash
-cd desktop
+git clone https://github.com/myaxyo/rechly_desktop.git
+cd rechly_desktop
 npm install
 npm start
 ```
@@ -56,4 +78,20 @@ npm run dist:win
 npm run dist
 ```
 
-Installers will be generated in the `desktop/dist/` directory.
+Installers will be generated in the `dist/` directory.
+
+---
+
+## 🤝 Contributing
+
+Bug reports, feature ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
+
+## 📄 License
+
+Copyright © 2026 Rechly
+
+Rechly Desktop is free software: you can redistribute it and/or modify it under the terms of the [GNU Affero General Public License v3.0](LICENSE) as published by the Free Software Foundation (version 3 only).
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the [LICENSE](LICENSE) for details.

@@ -21,6 +21,12 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
 
+# Stable, version-less names so that
+# https://github.com/myaxyo/rechly_desktop/releases/latest/download/<name>
+# always points to the newest release (used by rechly.de download links).
+dmg:
+  artifactName: Rechly-Desktop-mac-${arch}.${ext}
+
 win:
   target:
     - target: nsis
@@ -30,3 +36,4 @@ nsis:
   oneClick: true
   perMachine: false
   deleteAppDataOnUninstall: false
+  artifactName: Rechly-Desktop-Setup-win-${arch}.${ext}
