@@ -41,6 +41,7 @@ const getDefaultStore = () => ({
         bank_bic: "BELADEB1XXX",
         payment_terms_default: "Zahlbar innerhalb von 14 Tagen ohne Abzug.",
         is_small_business: false,
+        invoice_template: "classic",
     },
     invoices: [
         {

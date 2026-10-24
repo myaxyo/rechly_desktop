@@ -674,23 +674,25 @@
     #print-modal {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.65);
-      backdrop-filter: blur(4px);
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(6px);
       display: none;
-      align-items: center;
+      align-items: flex-start;
       justify-content: center;
       z-index: 2000;
       overflow-y: auto;
-      padding: 20px;
+      padding: 30px 20px;
     }
     .print-sheet {
-      width: 780px;
+      width: 840px;
+      max-width: 100%;
       background: #ffffff;
-      padding: 48px;
+      padding: 40px;
       border-radius: 8px;
-      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35);
       color: #0f172a;
       user-select: text;
+      margin: 0 auto;
     }
 
     /* ─── Toast Notifications ─── */
@@ -718,12 +720,74 @@
       opacity: 1;
     }
 
+    @page {
+      size: A4 portrait;
+      margin: 15mm 15mm 20mm 15mm;
+    }
+
     @media print {
-      body * { visibility: hidden; }
-      #print-modal, #print-sheet-content, #print-sheet-content * { visibility: visible; }
-      #print-modal { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: white; padding: 0; }
-      .print-sheet { box-shadow: none; width: 100%; max-width: 100%; padding: 0; margin: 0; border: none; }
-      .no-print { display: none !important; }
+      html, body {
+        width: 100% !important;
+        height: auto !important;
+        min-height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        overflow: visible !important;
+        display: block !important;
+      }
+
+      /* Hide all UI elements, app body, sidebar, titlebar, modals and buttons */
+      .app-body, .titlebar, .sidebar, .modal-backdrop, #toast, .no-print, #start-menu-dropdown {
+        display: none !important;
+      }
+
+      /* Modal container flows naturally from the top of the printed page */
+      #print-modal {
+        position: static !important;
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        backdrop-filter: none !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+      }
+
+      /* Document sheet spreads across 100% width of the page */
+      .print-sheet {
+        position: static !important;
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: transparent !important;
+        color: #000000 !important;
+      }
+
+      table {
+        page-break-inside: auto;
+        width: 100% !important;
+      }
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+      thead {
+        display: table-header-group;
+      }
+      tfoot {
+        display: table-footer-group;
+      }
+      .print-footer-section {
+        page-break-inside: avoid;
+      }
     }
   </style>
 </head>
@@ -754,7 +818,7 @@
 
     <div class="titlebar-right">
       <input type="text" class="quick-search" id="global-search" placeholder="Suchen (⌘F)..." oninput="handleGlobalSearch(this.value)">
-      <button class="btn btn-primary btn-sm" onclick="showView('create-invoice')">➕ Neue Rechnung (⌘N)</button>
+      <button class="btn btn-primary btn-sm" onclick="createNewInvoice()">➕ Neue Rechnung (⌘N)</button>
     </div>
   </div>
 
@@ -773,11 +837,11 @@
         <span class="icon">🏠</span>
         <div><b>Übersicht & Kontrollzentrum</b><div style="font-size:11px; color:#64748b;">Finanz-HUD & Startklar-Check</div></div>
       </div>
-      <div class="start-menu-item" onclick="showView('create-invoice'); toggleStartMenu();">
+      <div class="start-menu-item" onclick="createNewInvoice(); toggleStartMenu();">
         <span class="icon">➕</span>
         <div><b>Neue Rechnung erstellen (⌘N)</b><div style="font-size:11px; color:#64748b;">GoBD-konform mit E-Rechnung XML</div></div>
       </div>
-      <div class="start-menu-item" onclick="showView('create-invoice'); toggleStartMenu();">
+      <div class="start-menu-item" onclick="createNewInvoice(); toggleStartMenu();">
         <span class="icon">🤖</span>
         <div><b>KI-Schnellerfassung starten</b><div style="font-size:11px; color:#64748b;">Text-zu-Rechnung mit aktiver KI</div></div>
       </div>
@@ -785,11 +849,11 @@
         <span class="icon">📝</span>
         <div><b>Neues Angebot verfassen</b><div style="font-size:11px; color:#64748b;">1-Klick-Umwandlung in Rechnung</div></div>
       </div>
-      <div class="start-menu-item" onclick="openModal('modal-client'); toggleStartMenu();">
+      <div class="start-menu-item" onclick="showNewClientModal(); toggleStartMenu();">
         <span class="icon">👥</span>
         <div><b>Neuen Kunden anlegen</b><div style="font-size:11px; color:#64748b;">Stammdaten & Leitweg-ID</div></div>
       </div>
-      <div class="start-menu-item" onclick="openModal('modal-expense'); toggleStartMenu();">
+      <div class="start-menu-item" onclick="showNewExpenseModal(); toggleStartMenu();">
         <span class="icon">🧾</span>
         <div><b>Ausgabe verbuchen</b><div style="font-size:11px; color:#64748b;">Belege für Steuererklärung erfassen</div></div>
       </div>
@@ -882,7 +946,7 @@
   <div class="modal-backdrop" id="modal-client">
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">Neuen Kunden anlegen</div>
+        <div class="modal-title" id="modal-client-title">Neuen Kunden anlegen</div>
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-client')">✕</button>
       </div>
       <div class="modal-body">
@@ -932,7 +996,7 @@
   <div class="modal-backdrop" id="modal-product">
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">Neues Produkt / Dienstleistung</div>
+        <div class="modal-title" id="modal-product-title">Neues Produkt / Dienstleistung</div>
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-product')">✕</button>
       </div>
       <div class="modal-body">
@@ -980,7 +1044,7 @@
   <div class="modal-backdrop" id="modal-expense">
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">Ausgabe / Beleg erfassen</div>
+        <div class="modal-title" id="modal-expense-title">Ausgabe / Beleg erfassen</div>
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-expense')">✕</button>
       </div>
       <div class="modal-body">
@@ -1045,14 +1109,14 @@
           Was möchtest du tun? Wähle eine Aktion aus dem Startmenü:
         </p>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showView('create-invoice');">
+          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); createNewInvoice();">
             <div class="tile-icon tile-blue" style="width:34px; height:34px; font-size:16px;">➕</div>
             <div>
               <div class="tile-title" style="font-size:13px;">Rechnung schreiben</div>
               <div class="tile-desc" style="font-size:11px;">GoBD-konform mit XML</div>
             </div>
           </div>
-          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showView('create-invoice');">
+          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); createNewInvoice();">
             <div class="tile-icon tile-emerald" style="width:34px; height:34px; font-size:16px;">🤖</div>
             <div>
               <div class="tile-title" style="font-size:13px;">KI-Schnellerfassung</div>
@@ -1066,7 +1130,7 @@
               <div class="tile-desc" style="font-size:11px;">Kostenvoranschlag verfassen</div>
             </div>
           </div>
-          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); openModal('modal-client');">
+          <div class="action-tile" style="padding:14px;" onclick="closeModal('modal-startup-wizard'); showNewClientModal();">
             <div class="tile-icon tile-purple" style="width:34px; height:34px; font-size:16px;">👥</div>
             <div>
               <div class="tile-title" style="font-size:13px;">Neuer Kunde</div>
@@ -1122,6 +1186,10 @@
       }
     };
     let currentView = 'dashboard';
+    let editingInvoiceId = null;
+    let editingClientId = null;
+    let editingProductId = null;
+    let editingExpenseId = null;
 
     async function init() {
       if (window.rechly) {
@@ -1187,7 +1255,20 @@
     }
 
     // ─── Navigation ───
+    function createNewInvoice() {
+      editingInvoiceId = null;
+      showView('create-invoice');
+    }
+
+    function cancelEditInvoice() {
+      editingInvoiceId = null;
+      showView('invoices');
+    }
+
     function showView(viewId) {
+      if (viewId !== 'create-invoice') {
+        editingInvoiceId = null;
+      }
       currentView = viewId;
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
       const activeNav = document.getElementById(`nav-${viewId}`) || Array.from(document.querySelectorAll('.nav-item')).find(el => el.innerText.toLowerCase().includes(viewId.replace('-', ' ')));
@@ -1314,7 +1395,7 @@
           ⚡ Schnellstart & Aktionen
         </div>
         <div class="quick-actions-grid">
-          <div class="action-tile" onclick="showView('create-invoice')">
+          <div class="action-tile" onclick="createNewInvoice()">
             <div class="tile-icon tile-blue">➕</div>
             <div>
               <div class="tile-title">Neue Rechnung schreiben <span style="font-size:11px; color:#2563eb;">(⌘N)</span></div>
@@ -1322,7 +1403,7 @@
             </div>
           </div>
 
-          <div class="action-tile" onclick="showView('create-invoice')">
+          <div class="action-tile" onclick="createNewInvoice()">
             <div class="tile-icon tile-emerald">🤖</div>
             <div>
               <div class="tile-title">KI-Schnellerfassung</div>
@@ -1338,7 +1419,7 @@
             </div>
           </div>
 
-          <div class="action-tile" onclick="openModal('modal-client')">
+          <div class="action-tile" onclick="showNewClientModal()">
             <div class="tile-icon tile-purple">👥</div>
             <div>
               <div class="tile-title">Neuen Kunden anlegen</div>
@@ -1346,7 +1427,7 @@
             </div>
           </div>
 
-          <div class="action-tile" onclick="openModal('modal-expense')">
+          <div class="action-tile" onclick="showNewExpenseModal()">
             <div class="tile-icon tile-rose">🧾</div>
             <div>
               <div class="tile-title">Ausgabe verbuchen</div>
@@ -1456,6 +1537,7 @@
             <td><b>${(inv.total_gross || 0).toFixed(2)} €</b></td>
             <td><span class="status-pill ${statusClass}">${statusText}</span></td>
             <td>
+              <button class="btn btn-secondary btn-sm" onclick="editInvoice('${inv.id}')">✏️ Bearbeiten</button>
               <button class="btn btn-secondary btn-sm" onclick="previewInvoice('${inv.id}')">Drucken / PDF</button>
               <button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${inv.id}')">XRechnung XML</button>
               <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteInvoice('${inv.id}')">Löschen</button>
@@ -1470,7 +1552,7 @@
             <div class="page-title">Rechnungen (Lokal)</div>
             <div class="page-subtitle">Alle Rechnungen liegen sicher im lokalen Tresor.</div>
           </div>
-          <button class="btn btn-primary" onclick="showView('create-invoice')">➕ Neue Rechnung (⌘N)</button>
+          <button class="btn btn-primary" onclick="createNewInvoice()">➕ Neue Rechnung (⌘N)</button>
         </div>
         <div class="card">
           ${invoices.length === 0 ? '<p style="color:#64748b; text-align:center; padding: 30px;">Noch keine Rechnungen vorhanden. Klicken Sie auf "Neue Rechnung".</p>' : `
@@ -1493,10 +1575,20 @@
       `;
     }
 
-    // ─── View 2: Create Invoice with Text-to-Invoice ───
+    // ─── View 2: Create & Edit Invoice with Text-to-Invoice ───
+    function editInvoice(id) {
+      editingInvoiceId = id;
+      showView('create-invoice');
+    }
+
     function renderCreateInvoiceView(container) {
+      const isEditing = Boolean(editingInvoiceId);
+      const inv = isEditing ? (currentStore.invoices || []).find(i => i.id === editingInvoiceId) : null;
+      const titleText = isEditing && inv ? `Rechnung ${inv.invoice_number} bearbeiten` : 'Neue Rechnung erstellen';
+      const submitText = isEditing ? '💾 Änderungen speichern' : 'Rechnung speichern';
+
       const clients = currentStore.clients || [];
-      const clientOptions = clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      const clientOptions = clients.map(c => `<option value="${c.id}" ${inv && inv.client_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('');
       const aiSettings = currentStore.aiSettings || {};
       const activeProvider = aiSettings.active_provider || 'ollama';
       const aiLabel = activeProvider === 'openai'
@@ -1505,13 +1597,38 @@
         ? `Claude (${aiSettings.anthropic_model?.includes('haiku') ? 'Haiku' : 'Sonnet'})`
         : `jonprompter/Rechly-DE-3B (100% Lokal)`;
 
+      let initialItemRows = '';
+      if (inv && Array.isArray(inv.items) && inv.items.length > 0) {
+        initialItemRows = inv.items.map(it => `
+          <tr>
+            <td><input type="text" class="item-desc" value="${it.description || ''}" style="width:100%"></td>
+            <td><input type="number" class="item-qty" value="${it.quantity || 1}" style="width:70px" oninput="calculateTotals()"></td>
+            <td><input type="text" class="item-unit" value="${it.unit_of_measure || 'Stunde'}" style="width:80px"></td>
+            <td><input type="number" class="item-price" value="${it.price || 0}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
+            <td><input type="number" class="item-vat" value="${it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company.is_small_business ? 0 : 19)}" style="width:70px" oninput="calculateTotals()"></td>
+            <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
+          </tr>
+        `).join('');
+      } else {
+        initialItemRows = `
+          <tr>
+            <td><input type="text" class="item-desc" value="Beratung und Konzeption" style="width:100%"></td>
+            <td><input type="number" class="item-qty" value="1" style="width:70px" oninput="calculateTotals()"></td>
+            <td><input type="text" class="item-unit" value="Stunde" style="width:80px"></td>
+            <td><input type="number" class="item-price" value="110" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
+            <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : 19}" style="width:70px" oninput="calculateTotals()"></td>
+            <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
+          </tr>
+        `;
+      }
+
       container.innerHTML = `
         <div class="page-header">
           <div>
-            <div class="page-title">Neue Rechnung erstellen</div>
-            <div class="page-subtitle">GoBD-konform mit automatischer Berechnung und E-Rechnung-Unterstützung.</div>
+            <div class="page-title">${titleText}</div>
+            <div class="page-subtitle">${isEditing ? 'Passe Positionen, Rechnungsdaten und Konditionen der bestehenden Rechnung an.' : 'GoBD-konform mit automatischer Berechnung und E-Rechnung-Unterstützung.'}</div>
           </div>
-          <button class="btn btn-secondary" onclick="showView('invoices')">Zurück zur Übersicht</button>
+          <button class="btn btn-secondary" onclick="editingInvoiceId=null; showView('invoices');">Zurück zur Übersicht</button>
         </div>
 
         <!-- AI Text-to-Invoice Bar -->
@@ -1531,20 +1648,20 @@
         <div class="card">
           <div class="form-grid">
             <div class="form-group">
-              <label>Kunde auswählen <button class="btn btn-secondary btn-sm" style="padding:1px 6px; font-size:11px;" onclick="openModal('modal-client')">+ Neu</button></label>
+              <label>Kunde auswählen <button class="btn btn-secondary btn-sm" style="padding:1px 6px; font-size:11px;" onclick="showNewClientModal()">+ Neu</button></label>
               <select id="inv-client">${clientOptions || '<option value="">Keine Kunden angelegt</option>'}</select>
             </div>
             <div class="form-group">
               <label>Rechnungsnummer</label>
-              <input type="text" id="inv-num" value="RE-2026-${Math.floor(100 + Math.random() * 900)}">
+              <input type="text" id="inv-num" value="${inv ? inv.invoice_number : `RE-2026-${Math.floor(100 + Math.random() * 900)}`}">
             </div>
             <div class="form-group">
               <label>Rechnungsdatum</label>
-              <input type="date" id="inv-date" value="${new Date().toISOString().slice(0, 10)}">
+              <input type="date" id="inv-date" value="${inv ? inv.issue_date : new Date().toISOString().slice(0, 10)}">
             </div>
             <div class="form-group">
               <label>Fälligkeitsdatum</label>
-              <input type="date" id="inv-due" value="${new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}">
+              <input type="date" id="inv-due" value="${inv ? inv.due_date : new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10)}">
             </div>
           </div>
 
@@ -1561,28 +1678,24 @@
               </tr>
             </thead>
             <tbody id="inv-items-body">
-              <tr>
-                <td><input type="text" class="item-desc" value="Beratung und Konzeption" style="width:100%"></td>
-                <td><input type="number" class="item-qty" value="1" style="width:70px" oninput="calculateTotals()"></td>
-                <td><input type="text" class="item-unit" value="Stunde" style="width:80px"></td>
-                <td><input type="number" class="item-price" value="110" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
-                <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : 19}" style="width:70px" oninput="calculateTotals()"></td>
-                <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
-              </tr>
+              ${initialItemRows}
             </tbody>
           </table>
           <button class="btn btn-secondary btn-sm" style="margin-top:10px;" onclick="addInvoiceItemRow()">+ Position hinzufügen</button>
 
           <div class="form-group" style="margin-top:20px;">
             <label>Zahlungsbedingungen</label>
-            <textarea id="inv-terms" rows="2">${currentStore.company.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'}</textarea>
+            <textarea id="inv-terms" rows="2">${inv ? (inv.payment_terms || '') : (currentStore.company.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.')}</textarea>
           </div>
 
           <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; padding-top:16px; border-top:1px solid var(--border);">
             <div id="inv-totals-display" style="font-size:14px; color:#475569;">
               Gesamt Netto: <b>110.00 €</b> | MwSt: <b>20.90 €</b> | Brutto: <b style="color:#0f172a; font-size:16px;">130.90 €</b>
             </div>
-            <button class="btn btn-primary" onclick="saveNewInvoice()">Rechnung speichern</button>
+            <div style="display:flex; gap:10px;">
+              ${isEditing ? '<button class="btn btn-secondary" onclick="cancelEditInvoice()">Abbrechen</button>' : ''}
+              <button class="btn btn-primary" onclick="saveNewInvoice()">${submitText}</button>
+            </div>
           </div>
         </div>
       `;
@@ -1690,13 +1803,20 @@
         subtotal: totals.subtotal,
         total_vat: totals.totalVat,
         total_gross: totals.totalGross,
-        status: 'sent',
+        status: editingInvoiceId ? (currentStore.invoices.find(i => i.id === editingInvoiceId)?.status || 'sent') : 'sent',
       };
 
-      await window.rechly.createInvoice(invoiceData);
+      if (editingInvoiceId) {
+        await window.rechly.updateInvoice(editingInvoiceId, invoiceData);
+        showToast('Rechnung erfolgreich aktualisiert!');
+        editingInvoiceId = null;
+      } else {
+        await window.rechly.createInvoice(invoiceData);
+        showToast('Rechnung erfolgreich gespeichert!');
+      }
+
       currentStore = await window.rechly.getStore();
       updateBadges();
-      showToast('Rechnung erfolgreich gespeichert!');
       showView('invoices');
     }
 
@@ -1716,78 +1836,423 @@
       if (res.success) showToast('XRechnung 3.0 XML erfolgreich gespeichert!');
     }
 
-    function previewInvoice(id) {
-      const inv = currentStore.invoices.find(i => i.id === id);
-      if (!inv) return;
-      const client = currentStore.clients.find(c => c.id === inv.client_id) || { name: 'Kunde' };
-      const comp = currentStore.company || {};
+    let activePreviewInvoiceId = null;
 
-      const itemsRows = (inv.items || []).map((it, idx) => `
-        <tr>
-          <td>${idx + 1}</td>
-          <td>${it.description}</td>
-          <td>${it.quantity} ${it.unit_of_measure || ''}</td>
-          <td>${it.price.toFixed(2)} €</td>
-          <td>${(it.quantity * it.price).toFixed(2)} €</td>
-        </tr>
-      `).join('');
+    function getClassicInvoiceHtml(inv, comp, client, itemsRows) {
+      const returnAddress = `${comp.name || 'Meine Firma'} • ${comp.address_line1 || ''} • ${comp.postal_code || ''} ${comp.city || ''}`;
+      return `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; font-size: 10pt; line-height: 1.45;">
+          
+          <!-- DIN 5008 Header: Left Address Window & Right Meta Block -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 35px;">
+            
+            <!-- Left: Absenderzeile + Anschriftfeld DIN 5008 (45mm) -->
+            <div style="width: 58%; min-height: 48mm; padding-top: 8px;">
+              <div style="font-size: 8pt; color: #64748b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-bottom: 10px; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ${returnAddress}
+              </div>
+              <div style="font-size: 11pt; color: #0f172a; line-height: 1.4;">
+                <b>${client.name || 'Kunde'}</b><br>
+                ${client.contact_person ? `${client.contact_person}<br>` : ''}
+                ${client.address_line1 || ''}<br>
+                ${client.postal_code || ''} ${client.city || ''}
+                ${client.leitweg_id ? `<br><span style="font-size:8.5pt; color:#64748b;">Leitweg-ID: ${client.leitweg_id}</span>` : ''}
+              </div>
+            </div>
+
+            <!-- Right: DIN Meta Information Block -->
+            <div style="width: 38%; text-align: left; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 16px;">
+              <div style="font-size: 15pt; font-weight: 800; color: #0f172a; margin-bottom: 2px;">${comp.name || 'Meine Firma'}</div>
+              <div style="font-size: 8.5pt; color: #64748b; margin-bottom: 12px;">${comp.legal_form || 'Unternehmen'}</div>
+              
+              <table style="width: 100%; font-size: 9pt; border-collapse: collapse;">
+                <tr>
+                  <td style="color: #64748b; padding: 2px 0;">Rechnungs-Nr.:</td>
+                  <td style="font-weight: 700; text-align: right; padding: 2px 0;">${inv.invoice_number}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b; padding: 2px 0;">Rechnungsdatum:</td>
+                  <td style="text-align: right; padding: 2px 0;">${inv.issue_date || '-'}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b; padding: 2px 0;">Liefer-/Leistung:</td>
+                  <td style="text-align: right; padding: 2px 0;">${inv.delivery_date || inv.issue_date || '-'}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b; padding: 2px 0;">Zahlbar bis:</td>
+                  <td style="font-weight: 600; color: #dc2626; text-align: right; padding: 2px 0;">${inv.due_date || '-'}</td>
+                </tr>
+                ${client.vat_id ? `
+                <tr>
+                  <td style="color: #64748b; padding: 2px 0;">USt-IdNr. Kunde:</td>
+                  <td style="text-align: right; padding: 2px 0; font-size: 8pt;">${client.vat_id}</td>
+                </tr>` : ''}
+              </table>
+            </div>
+          </div>
+
+          <!-- Document Title -->
+          <div style="margin-bottom: 20px;">
+            <h1 style="font-size: 16pt; font-weight: 800; color: #0f172a; margin: 0 0 6px 0;">
+              Rechnung ${inv.invoice_number}
+            </h1>
+            <p style="font-size: 9.5pt; color: #475569; margin: 0;">
+              Sehr geehrte Damen und Herren, wir bedanken uns für Ihren Auftrag und stellen folgende Positionen in Rechnung:
+            </p>
+          </div>
+
+          <!-- DIN Positions Table -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+            <thead>
+              <tr style="border-top: 1.5px solid #0f172a; border-bottom: 1.5px solid #0f172a; background: #f8fafc; font-size: 9pt;">
+                <th style="padding: 8px 6px; text-align: center; width: 35px;">Pos.</th>
+                <th style="padding: 8px 6px; text-align: left;">Bezeichnung / Beschreibung</th>
+                <th style="padding: 8px 6px; text-align: right; width: 85px;">Menge</th>
+                <th style="padding: 8px 6px; text-align: right; width: 105px;">Einzelpreis</th>
+                <th style="padding: 8px 6px; text-align: right; width: 105px;">Gesamt Netto</th>
+              </tr>
+            </thead>
+            <tbody style="font-size: 9.5pt;">
+              ${itemsRows}
+            </tbody>
+          </table>
+
+          <!-- Totals Block -->
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 30px;">
+            <div style="width: 290px; border-top: 1px solid #cbd5e1; padding-top: 10px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; color: #475569; margin-bottom: 4px;">
+                <span>Gesamtbetrag (Netto):</span>
+                <span style="font-weight: 600;">${(inv.subtotal || 0).toFixed(2)} €</span>
+              </div>
+              ${comp.is_small_business ? `
+              <div style="font-size: 8.5pt; color: #64748b; margin-bottom: 6px; font-style: italic;">
+                Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
+              </div>` : `
+              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; color: #475569; margin-bottom: 6px;">
+                <span>Umsatzsteuer (19%):</span>
+                <span style="font-weight: 600;">${(inv.total_vat || 0).toFixed(2)} €</span>
+              </div>`}
+              <div style="display: flex; justify-content: space-between; font-size: 13pt; font-weight: 800; color: #0f172a; border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; padding: 6px 0; margin-top: 6px;">
+                <span>Zahlbetrag:</span>
+                <span>${(inv.total_gross || 0).toFixed(2)} €</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment Terms -->
+          <div style="margin-bottom: 35px; background: #f8fafc; border-left: 3px solid #2563eb; padding: 12px 14px; font-size: 9pt; color: #334155;">
+            <b>Zahlungshinweis:</b> ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'}<br>
+            Bitte überweisen Sie den Gesamtbetrag unter Angabe der Rechnungsnummer <b>${inv.invoice_number}</b> auf das unten genannte Konto.
+          </div>
+
+          <!-- DIN 3-Column GoBD Footer -->
+          <div class="print-footer-section" style="border-top: 1px solid #cbd5e1; padding-top: 14px; font-size: 8pt; color: #64748b; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+            <div>
+              <b style="color: #334155;">${comp.name || 'Meine Firma'}</b><br>
+              ${comp.address_line1 || ''}<br>
+              ${comp.postal_code || ''} ${comp.city || ''}<br>
+              ${comp.email ? `E-Mail: ${comp.email}` : ''}
+            </div>
+            <div>
+              <b style="color: #334155;">Steuer- & Unternehmensangaben</b><br>
+              USt-IdNr.: ${comp.vat_id || '-'}<br>
+              Steuernr.: ${comp.tax_number || '-'}<br>
+              ${comp.legal_form ? `Rechtsform: ${comp.legal_form}` : ''}
+            </div>
+            <div>
+              <b style="color: #334155;">Bankverbindung</b><br>
+              Bank: ${comp.bank_name || '-'}<br>
+              IBAN: ${comp.bank_iban || '-'}<br>
+              BIC: ${comp.bank_bic || '-'}
+            </div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    function getModernInvoiceHtml(inv, comp, client, itemsRows) {
+      return `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; font-size: 10pt; line-height: 1.45;">
+          
+          <!-- Top Modern Header Banner -->
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px;">
+            <div>
+              <div style="font-size: 20pt; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">${comp.name || 'Meine Firma'}</div>
+              <div style="font-size: 9pt; color: #64748b; margin-top: 2px;">${comp.legal_form || 'Business'} • ${comp.city || ''}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="display: inline-block; background: #2563eb; color: #ffffff; font-weight: 800; font-size: 11pt; padding: 4px 12px; border-radius: 6px; letter-spacing: 0.5px; margin-bottom: 4px;">
+                RECHNUNG
+              </div>
+              <div style="font-size: 12pt; font-weight: 700; color: #0f172a;">${inv.invoice_number}</div>
+            </div>
+          </div>
+
+          <!-- Modern Cards Grid: Recipient Card + Meta Card -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+              <div style="font-size: 8pt; text-transform: uppercase; font-weight: 700; color: #2563eb; margin-bottom: 6px; letter-spacing: 0.5px;">👤 RECHNUNGSEMPFÄNGER</div>
+              <div style="font-size: 11pt; font-weight: 700; color: #0f172a; margin-bottom: 3px;">${client.name || 'Kunde'}</div>
+              <div style="font-size: 9.5pt; color: #475569; line-height: 1.4;">
+                ${client.contact_person ? `${client.contact_person}<br>` : ''}
+                ${client.address_line1 || ''}<br>
+                ${client.postal_code || ''} ${client.city || ''}
+                ${client.leitweg_id ? `<br><span style="font-size:8pt; color:#64748b;">Leitweg-ID: ${client.leitweg_id}</span>` : ''}
+              </div>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+              <div style="font-size: 8pt; text-transform: uppercase; font-weight: 700; color: #2563eb; margin-bottom: 6px; letter-spacing: 0.5px;">📄 RECHNUNGSDETAILS</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 9pt;">
+                <div>
+                  <span style="color: #64748b; font-size: 8pt; display: block;">Rechnungsdatum</span>
+                  <b>${inv.issue_date || '-'}</b>
+                </div>
+                <div>
+                  <span style="color: #64748b; font-size: 8pt; display: block;">Fälligkeitsdatum</span>
+                  <b style="color: #dc2626;">${inv.due_date || '-'}</b>
+                </div>
+                <div>
+                  <span style="color: #64748b; font-size: 8pt; display: block;">Liefer-/Leistung</span>
+                  <b>${inv.delivery_date || inv.issue_date || '-'}</b>
+                </div>
+                <div>
+                  <span style="color: #64748b; font-size: 8pt; display: block;">Status</span>
+                  <b style="color: #10b981;">GoBD-Valide</b>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modern Positions Table -->
+          <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 24px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+            <thead>
+              <tr style="background: #0f172a; color: #ffffff; font-size: 8.5pt;">
+                <th style="padding: 10px 12px; text-align: center; width: 35px;">#</th>
+                <th style="padding: 10px 12px; text-align: left;">Bezeichnung & Leistung</th>
+                <th style="padding: 10px 12px; text-align: right; width: 80px;">Menge</th>
+                <th style="padding: 10px 12px; text-align: right; width: 100px;">Einzelpreis</th>
+                <th style="padding: 10px 12px; text-align: right; width: 110px;">Gesamt</th>
+              </tr>
+            </thead>
+            <tbody style="font-size: 9.5pt;">
+              ${itemsRows}
+            </tbody>
+          </table>
+
+          <!-- Totals Card -->
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 28px;">
+            <div style="width: 320px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; color: #475569; margin-bottom: 6px;">
+                <span>Summe Netto:</span>
+                <span style="font-weight: 600;">${(inv.subtotal || 0).toFixed(2)} €</span>
+              </div>
+              ${comp.is_small_business ? `
+              <div style="font-size: 8pt; color: #64748b; margin-bottom: 6px; font-style: italic;">
+                § 19 UStG: Keine Ausweisung von MwSt.
+              </div>` : `
+              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; color: #475569; margin-bottom: 8px;">
+                <span>MwSt. (19%):</span>
+                <span style="font-weight: 600;">${(inv.total_vat || 0).toFixed(2)} €</span>
+              </div>`}
+              <div style="display: flex; justify-content: space-between; align-items: center; background: #2563eb; color: #ffffff; padding: 10px 12px; border-radius: 6px; margin-top: 6px;">
+                <span style="font-size: 10pt; font-weight: 700;">Gesamtbetrag (Brutto):</span>
+                <span style="font-size: 13pt; font-weight: 800;">${(inv.total_gross || 0).toFixed(2)} €</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment & Banking Box -->
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px; margin-bottom: 30px; font-size: 9pt; color: #1e3a8a;">
+            <div style="font-weight: 700; margin-bottom: 4px;">💳 Zahlungsanweisung & Bankverbindung</div>
+            <div style="margin-bottom: 6px;">${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen.'}</div>
+            <div style="display: flex; gap: 20px; font-size: 8.5pt; font-family: monospace;">
+              <span>IBAN: <b>${comp.bank_iban || '-'}</b></span>
+              <span>BIC: <b>${comp.bank_bic || '-'}</b></span>
+              <span>Bank: <b>${comp.bank_name || '-'}</b></span>
+            </div>
+          </div>
+
+          <!-- Modern Footer -->
+          <div class="print-footer-section" style="border-top: 1px solid #e2e8f0; padding-top: 14px; font-size: 8pt; color: #64748b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <div><b>${comp.name || 'Meine Firma'}</b> • ${comp.address_line1 || ''}, ${comp.postal_code || ''} ${comp.city || ''}</div>
+            <div>USt-IdNr.: ${comp.vat_id || comp.tax_number || '-'}</div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    function getMinimalInvoiceHtml(inv, comp, client, itemsRows) {
+      return `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; font-size: 10pt; line-height: 1.5; padding: 10px 0;">
+          
+          <!-- Minimal Header -->
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 45px;">
+            <div>
+              <div style="font-size: 24pt; font-weight: 300; letter-spacing: -0.5px; color: #0f172a;">${comp.name || 'Meine Firma'}</div>
+              <div style="font-size: 9pt; color: #94a3b8; font-weight: 400; margin-top: 2px;">${comp.legal_form || ''}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 9pt; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; font-weight: 600;">RECHNUNG</div>
+              <div style="font-size: 14pt; font-weight: 600; color: #0f172a;">#${inv.invoice_number}</div>
+            </div>
+          </div>
+
+          <!-- 4-Column Minimal Metadata Strip -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; border-top: 1px solid #0f172a; border-bottom: 1px solid #e2e8f0; padding: 14px 0; margin-bottom: 35px; font-size: 9pt;">
+            <div>
+              <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">EMPFÄNGER</div>
+              <div style="font-weight: 600; color: #0f172a;">${client.name || 'Kunde'}</div>
+              <div style="color: #64748b; font-size: 8.5pt;">${client.city || ''}</div>
+            </div>
+            <div>
+              <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">DATUM</div>
+              <div style="font-weight: 600; color: #0f172a;">${inv.issue_date || '-'}</div>
+            </div>
+            <div>
+              <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">FÄLLIGKEIT</div>
+              <div style="font-weight: 600; color: #0f172a;">${inv.due_date || '-'}</div>
+            </div>
+            <div>
+              <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">LEISTUNGSZEITRAUM</div>
+              <div style="font-weight: 600; color: #0f172a;">${inv.delivery_date || inv.issue_date || '-'}</div>
+            </div>
+          </div>
+
+          <!-- Minimalist Table with no vertical borders -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+            <thead>
+              <tr style="border-bottom: 1px solid #cbd5e1; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b;">
+                <th style="padding: 10px 0; text-align: left; width: 30px;">#</th>
+                <th style="padding: 10px 0; text-align: left;">Position</th>
+                <th style="padding: 10px 0; text-align: right; width: 70px;">Menge</th>
+                <th style="padding: 10px 0; text-align: right; width: 95px;">Preis</th>
+                <th style="padding: 10px 0; text-align: right; width: 105px;">Betrag</th>
+              </tr>
+            </thead>
+            <tbody style="font-size: 9.5pt;">
+              ${itemsRows}
+            </tbody>
+          </table>
+
+          <!-- Minimal Totals -->
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 40px;">
+            <div style="width: 260px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9pt; color: #64748b; padding: 4px 0;">
+                <span>Netto</span>
+                <span style="color: #0f172a;">${(inv.subtotal || 0).toFixed(2)} €</span>
+              </div>
+              ${comp.is_small_business ? '' : `
+              <div style="display: flex; justify-content: space-between; font-size: 9pt; color: #64748b; padding: 4px 0;">
+                <span>MwSt. (19%)</span>
+                <span style="color: #0f172a;">${(inv.total_vat || 0).toFixed(2)} €</span>
+              </div>`}
+              <div style="display: flex; justify-content: space-between; font-size: 14pt; font-weight: 600; color: #0f172a; border-top: 1px solid #0f172a; padding: 10px 0 0 0; margin-top: 6px;">
+                <span>Gesamt</span>
+                <span>${(inv.total_gross || 0).toFixed(2)} €</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Minimal Notes -->
+          <div style="margin-bottom: 45px; font-size: 9pt; color: #64748b; line-height: 1.6;">
+            ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen.'}<br>
+            Bank: <b>${comp.bank_name || '-'}</b> • IBAN: <b>${comp.bank_iban || '-'}</b> • BIC: <b>${comp.bank_bic || '-'}</b>
+          </div>
+
+          <!-- Minimal Footer -->
+          <div class="print-footer-section" style="border-top: 1px solid #e2e8f0; padding-top: 16px; font-size: 7.5pt; color: #94a3b8; display: flex; justify-content: space-between;">
+            <span>${comp.name || ''} • ${comp.address_line1 || ''} • ${comp.postal_code || ''} ${comp.city || ''}</span>
+            <span>USt-IdNr.: ${comp.vat_id || comp.tax_number || '-'}</span>
+          </div>
+
+        </div>
+      `;
+    }
+
+    function previewInvoice(id) {
+      activePreviewInvoiceId = id;
+      const inv = (currentStore.invoices || []).find(i => i.id === id);
+      if (!inv) return;
+      const client = (currentStore.clients || []).find(c => c.id === inv.client_id) || { name: 'Kunde' };
+      const comp = currentStore.company || {};
+      const currentTpl = comp.invoice_template || 'classic';
+
+      let templateHtml = '';
+      if (currentTpl === 'modern') {
+        const modernItems = (inv.items || []).map((it, idx) => `
+          <tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 1 ? 'background: #f8fafc;' : ''}">
+            <td style="padding: 10px 12px; text-align: center; color: #64748b;">${idx + 1}</td>
+            <td style="padding: 10px 12px;"><b>${it.description || ''}</b></td>
+            <td style="padding: 10px 12px; text-align: right;">${it.quantity} ${it.unit_of_measure || ''}</td>
+            <td style="padding: 10px 12px; text-align: right;">${(it.price || 0).toFixed(2)} €</td>
+            <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: #0f172a;">${((it.quantity || 0) * (it.price || 0)).toFixed(2)} €</td>
+          </tr>
+        `).join('');
+        templateHtml = getModernInvoiceHtml(inv, comp, client, modernItems);
+      } else if (currentTpl === 'minimal') {
+        const minimalItems = (inv.items || []).map((it, idx) => `
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 12px 0; color: #94a3b8;">${idx + 1}</td>
+            <td style="padding: 12px 0; font-weight: 500;">${it.description || ''}</td>
+            <td style="padding: 12px 0; text-align: right; color: #64748b;">${it.quantity} ${it.unit_of_measure || ''}</td>
+            <td style="padding: 12px 0; text-align: right; color: #64748b;">${(it.price || 0).toFixed(2)} €</td>
+            <td style="padding: 12px 0; text-align: right; font-weight: 500;">${((it.quantity || 0) * (it.price || 0)).toFixed(2)} €</td>
+          </tr>
+        `).join('');
+        templateHtml = getMinimalInvoiceHtml(inv, comp, client, minimalItems);
+      } else {
+        // default: classic DIN 5008
+        const classicItems = (inv.items || []).map((it, idx) => `
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 10px 6px; text-align: center; color: #64748b;">${idx + 1}</td>
+            <td style="padding: 10px 6px;"><b>${it.description || ''}</b></td>
+            <td style="padding: 10px 6px; text-align: right;">${it.quantity} ${it.unit_of_measure || ''}</td>
+            <td style="padding: 10px 6px; text-align: right;">${(it.price || 0).toFixed(2)} €</td>
+            <td style="padding: 10px 6px; text-align: right; font-weight: 600;">${((it.quantity || 0) * (it.price || 0)).toFixed(2)} €</td>
+          </tr>
+        `).join('');
+        templateHtml = getClassicInvoiceHtml(inv, comp, client, classicItems);
+      }
 
       const sheet = document.getElementById('print-sheet-content');
       sheet.innerHTML = `
-        <div class="no-print" style="display:flex; justify-content:space-between; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:16px;">
-          <div>
-            <button class="btn btn-primary" onclick="window.print()">🖨️ Jetzt Drucken</button>
+        <div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:16px; flex-wrap:wrap; gap:10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="btn btn-primary" onclick="window.print()">🖨️ Jetzt Drucken (A4)</button>
             <button class="btn btn-secondary" onclick="window.rechly.exportPdf('${inv.id}')">Als PDF speichern</button>
           </div>
-          <button class="btn btn-secondary" onclick="document.getElementById('print-modal').style.display='none'">Schließen ✕</button>
-        </div>
-
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:40px;">
-          <div>
-            <h1 style="font-size:24px; color:#0f172a; margin-bottom:4px;">${comp.name || 'Meine Firma'}</h1>
-            <div style="font-size:12px; color:#64748b;">${comp.address_line1 || ''}, ${comp.postal_code || ''} ${comp.city || ''}</div>
-            <div style="font-size:12px; color:#64748b;">USt-IdNr.: ${comp.vat_id || comp.tax_number || '-'}</div>
+          
+          <div style="display:flex; align-items:center; gap:6px; background:#f1f5f9; padding:4px 8px; border-radius:8px;">
+            <span style="font-size:12px; font-weight:600; color:#475569;">🎨 Vorlage:</span>
+            <button class="btn btn-sm ${currentTpl === 'classic' ? 'btn-primary' : 'btn-secondary'}" onclick="setInvoiceTemplate('classic')">🏛️ DIN 5008</button>
+            <button class="btn btn-sm ${currentTpl === 'modern' ? 'btn-primary' : 'btn-secondary'}" onclick="setInvoiceTemplate('modern')">💎 Modern</button>
+            <button class="btn btn-sm ${currentTpl === 'minimal' ? 'btn-primary' : 'btn-secondary'}" onclick="setInvoiceTemplate('minimal')">✨ Minimal</button>
           </div>
-          <div style="text-align:right;">
-            <h2 style="font-size:22px; color:#2563eb; margin-bottom:4px;">RECHNUNG</h2>
-            <div style="font-size:13px; font-weight:600;">${inv.invoice_number}</div>
-            <div style="font-size:12px; color:#64748b;">Datum: ${inv.issue_date}</div>
-            <div style="font-size:12px; color:#64748b;">Zahlbar bis: ${inv.due_date}</div>
-          </div>
+
+          <button class="btn btn-secondary" onclick="closePrintModal()">Schließen ✕</button>
         </div>
 
-        <div style="margin-bottom:30px; font-size:13px;">
-          <div style="font-size:11px; color:#64748b; text-transform:uppercase; margin-bottom:4px;">Rechnungsempfänger:</div>
-          <b>${client.name}</b><br>
-          ${client.address_line1 || ''}<br>
-          ${client.postal_code || ''} ${client.city || ''}
-        </div>
-
-        <table style="margin-bottom:24px;">
-          <thead>
-            <tr>
-              <th style="width:40px">Pos.</th>
-              <th>Bezeichnung</th>
-              <th>Menge</th>
-              <th>Einzelpreis</th>
-              <th>Gesamt</th>
-            </tr>
-          </thead>
-          <tbody>${itemsRows}</tbody>
-        </table>
-
-        <div style="text-align:right; margin-bottom:30px;">
-          <div style="font-size:13px; color:#475569;">Nettobetrag: <b>${(inv.subtotal || 0).toFixed(2)} €</b></div>
-          <div style="font-size:13px; color:#475569;">MwSt.: <b>${(inv.total_vat || 0).toFixed(2)} €</b></div>
-          <div style="font-size:18px; color:#0f172a; margin-top:6px;">Gesamtbetrag: <b>${(inv.total_gross || 0).toFixed(2)} €</b></div>
-        </div>
-
-        <div style="border-top:1px solid #e2e8f0; padding-top:16px; font-size:12px; color:#64748b;">
-          <b>Zahlungshinweis:</b> ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen.'}<br>
-          <b>Bankverbindung:</b> IBAN: ${comp.bank_iban || '-'} | BIC: ${comp.bank_bic || '-'} (${comp.bank_name || ''})
-        </div>
+        ${templateHtml}
       `;
+
       document.getElementById('print-modal').style.display = 'flex';
+    }
+
+    async function setInvoiceTemplate(tpl) {
+      if (!currentStore.company) currentStore.company = {};
+      currentStore.company.invoice_template = tpl;
+      await window.rechly.saveCompany(currentStore.company);
+      showToast(`Vorlage ausgewählt: ${tpl === 'classic' ? 'DIN 5008 Klassisch' : tpl === 'modern' ? 'Modern' : 'Minimal'}`);
+      if (activePreviewInvoiceId) {
+        previewInvoice(activePreviewInvoiceId);
+      }
+    }
+
+    function closePrintModal() {
+      document.getElementById('print-modal').style.display = 'none';
     }
 
     // ─── View 3: Clients ───
@@ -1800,7 +2265,10 @@
           <td>${c.city || '-'}</td>
           <td>${c.email || '-'}</td>
           <td>${c.leitweg_id || '-'}</td>
-          <td><button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteClient('${c.id}')">Löschen</button></td>
+          <td style="display:flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="editClient('${c.id}')">✏️ Bearbeiten</button>
+            <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteClient('${c.id}')">Löschen</button>
+          </td>
         </tr>
       `).join('');
 
@@ -1810,15 +2278,47 @@
             <div class="page-title">Kundenstamm (Lokal)</div>
             <div class="page-subtitle">Verwalte deine Geschäftskunden und E-Rechnungs-Empfänger.</div>
           </div>
-          <button class="btn btn-primary" onclick="openModal('modal-client')">+ Neuer Kunde</button>
+          <button class="btn btn-primary" onclick="showNewClientModal()">+ Neuer Kunde</button>
         </div>
         <div class="card">
           <table>
-            <thead><tr><th>Name</th><th>Ansprechpartner</th><th>Ort</th><th>E-Mail</th><th>Leitweg-ID</th><th>Aktion</th></tr></thead>
+            <thead><tr><th>Name</th><th>Ansprechpartner</th><th>Ort</th><th>E-Mail</th><th>Leitweg-ID</th><th>Aktionen</th></tr></thead>
             <tbody>${rows || '<tr><td colspan="6" style="text-align:center; padding:24px;">Keine Kunden gespeichert. Klicke auf "+ Neuer Kunde".</td></tr>'}</tbody>
           </table>
         </div>
       `;
+    }
+
+    function showNewClientModal() {
+      editingClientId = null;
+      const title = document.getElementById('modal-client-title');
+      if (title) title.textContent = 'Neuen Kunden anlegen';
+      document.getElementById('modal-client-name').value = '';
+      document.getElementById('modal-client-contact').value = '';
+      document.getElementById('modal-client-email').value = '';
+      document.getElementById('modal-client-address').value = '';
+      document.getElementById('modal-client-plz').value = '';
+      document.getElementById('modal-client-city').value = '';
+      document.getElementById('modal-client-vat').value = '';
+      document.getElementById('modal-client-leitweg').value = '';
+      document.getElementById('modal-client').style.display = 'flex';
+    }
+
+    function editClient(id) {
+      const c = (currentStore.clients || []).find(x => x.id === id);
+      if (!c) return;
+      editingClientId = id;
+      const title = document.getElementById('modal-client-title');
+      if (title) title.textContent = 'Kunde bearbeiten';
+      document.getElementById('modal-client-name').value = c.name || '';
+      document.getElementById('modal-client-contact').value = c.contact_person || '';
+      document.getElementById('modal-client-email').value = c.email || '';
+      document.getElementById('modal-client-address').value = c.address_line1 || '';
+      document.getElementById('modal-client-plz').value = c.postal_code || '';
+      document.getElementById('modal-client-city').value = c.city || '';
+      document.getElementById('modal-client-vat').value = c.vat_id || '';
+      document.getElementById('modal-client-leitweg').value = c.leitweg_id || '';
+      document.getElementById('modal-client').style.display = 'flex';
     }
 
     async function submitModalClient() {
@@ -1832,11 +2332,18 @@
       const vat_id = document.getElementById('modal-client-vat').value.trim();
       const leitweg_id = document.getElementById('modal-client-leitweg').value.trim();
 
-      await window.rechly.createClient({ name, contact_person, email, address_line1, postal_code, city, vat_id, leitweg_id });
+      const clientData = { name, contact_person, email, address_line1, postal_code, city, vat_id, leitweg_id };
+      if (editingClientId) {
+        await window.rechly.updateClient(editingClientId, clientData);
+        showToast('Kunde erfolgreich aktualisiert!');
+      } else {
+        await window.rechly.createClient(clientData);
+        showToast('Kunde angelegt!');
+      }
+      editingClientId = null;
       currentStore = await window.rechly.getStore();
       updateBadges();
       closeModal('modal-client');
-      showToast('Kunde angelegt!');
       if (currentView === 'clients') renderClientsView(document.getElementById('content-container'));
       else if (currentView === 'dashboard') renderDashboardView(document.getElementById('content-container'));
     }
@@ -1858,10 +2365,13 @@
         <tr>
           <td><b>${p.name}</b></td>
           <td>${p.description || '-'}</td>
-          <td>${p.price.toFixed(2)} €</td>
+          <td>${(p.price || 0).toFixed(2)} €</td>
           <td>${p.tax_rate_percent}%</td>
           <td>${p.unit_of_measure}</td>
-          <td><button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteProduct('${p.id}')">Löschen</button></td>
+          <td style="display:flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="editProduct('${p.id}')">✏️ Bearbeiten</button>
+            <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteProduct('${p.id}')">Löschen</button>
+          </td>
         </tr>
       `).join('');
 
@@ -1871,15 +2381,41 @@
             <div class="page-title">Produkte & Dienstleistungen</div>
             <div class="page-subtitle">Verwalte Artikel und wiederkehrende Stundensätze.</div>
           </div>
-          <button class="btn btn-primary" onclick="openModal('modal-product')">+ Neues Produkt</button>
+          <button class="btn btn-primary" onclick="showNewProductModal()">+ Neues Produkt</button>
         </div>
         <div class="card">
           <table>
-            <thead><tr><th>Bezeichnung</th><th>Beschreibung</th><th>Preis</th><th>MwSt</th><th>Einheit</th><th>Aktion</th></tr></thead>
+            <thead><tr><th>Bezeichnung</th><th>Beschreibung</th><th>Preis</th><th>MwSt</th><th>Einheit</th><th>Aktionen</th></tr></thead>
             <tbody>${rows || '<tr><td colspan="6" style="text-align:center; padding:24px;">Keine Produkte hinterlegt.</td></tr>'}</tbody>
           </table>
         </div>
       `;
+    }
+
+    function showNewProductModal() {
+      editingProductId = null;
+      const title = document.getElementById('modal-product-title');
+      if (title) title.textContent = 'Neues Produkt / Dienstleistung';
+      document.getElementById('modal-product-name').value = '';
+      document.getElementById('modal-product-desc').value = '';
+      document.getElementById('modal-product-price').value = '100.00';
+      document.getElementById('modal-product-unit').value = 'Stunde';
+      document.getElementById('modal-product-vat').value = '19';
+      document.getElementById('modal-product').style.display = 'flex';
+    }
+
+    function editProduct(id) {
+      const p = (currentStore.products || []).find(x => x.id === id);
+      if (!p) return;
+      editingProductId = id;
+      const title = document.getElementById('modal-product-title');
+      if (title) title.textContent = 'Produkt bearbeiten';
+      document.getElementById('modal-product-name').value = p.name || '';
+      document.getElementById('modal-product-desc').value = p.description || '';
+      document.getElementById('modal-product-price').value = p.price !== undefined ? p.price : 0;
+      document.getElementById('modal-product-unit').value = p.unit_of_measure || 'Stunde';
+      document.getElementById('modal-product-vat').value = p.tax_rate_percent !== undefined ? p.tax_rate_percent : 19;
+      document.getElementById('modal-product').style.display = 'flex';
     }
 
     async function submitModalProduct() {
@@ -1890,11 +2426,18 @@
       const unit_of_measure = document.getElementById('modal-product-unit').value;
       const tax_rate_percent = parseFloat(document.getElementById('modal-product-vat').value) || 0;
 
-      await window.rechly.createProduct({ name, description, price, unit_of_measure, tax_rate_percent });
+      const productData = { name, description, price, unit_of_measure, tax_rate_percent };
+      if (editingProductId) {
+        await window.rechly.updateProduct(editingProductId, productData);
+        showToast('Produkt erfolgreich aktualisiert!');
+      } else {
+        await window.rechly.createProduct(productData);
+        showToast('Produkt gespeichert!');
+      }
+      editingProductId = null;
       currentStore = await window.rechly.getStore();
       updateBadges();
       closeModal('modal-product');
-      showToast('Produkt gespeichert!');
       renderProductsView(document.getElementById('content-container'));
     }
 
@@ -1955,7 +2498,10 @@
           <td>${e.category || '-'}</td>
           <td>${e.date || '-'}</td>
           <td><b>${(e.amount_gross || 0).toFixed(2)} €</b></td>
-          <td><button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteExpense('${e.id}')">✕</button></td>
+          <td style="display:flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="editExpense('${e.id}')">✏️ Bearbeiten</button>
+            <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteExpense('${e.id}')">✕</button>
+          </td>
         </tr>
       `).join('');
 
@@ -1965,15 +2511,41 @@
             <div class="page-title">Ausgaben & Belege (Lokal)</div>
             <div class="page-subtitle">Erfasse Belege und Betriebsausgaben für die Steuererklärung.</div>
           </div>
-          <button class="btn btn-primary" onclick="openModal('modal-expense')">+ Beleg erfassen</button>
+          <button class="btn btn-primary" onclick="showNewExpenseModal()">+ Beleg erfassen</button>
         </div>
         <div class="card">
           <table>
-            <thead><tr><th>Lieferant</th><th>Kategorie</th><th>Datum</th><th>Betrag</th><th>Aktion</th></tr></thead>
+            <thead><tr><th>Lieferant</th><th>Kategorie</th><th>Datum</th><th>Betrag</th><th>Aktionen</th></tr></thead>
             <tbody>${rows || '<tr><td colspan="5" style="text-align:center; padding:24px;">Keine Ausgaben erfasst.</td></tr>'}</tbody>
           </table>
         </div>
       `;
+    }
+
+    function showNewExpenseModal() {
+      editingExpenseId = null;
+      const title = document.getElementById('modal-expense-title');
+      if (title) title.textContent = 'Ausgabe / Beleg erfassen';
+      document.getElementById('modal-exp-vendor').value = '';
+      document.getElementById('modal-exp-amount').value = '';
+      document.getElementById('modal-exp-vat').value = '19';
+      document.getElementById('modal-exp-date').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('modal-exp-cat').value = 'Software & Hosting';
+      document.getElementById('modal-expense').style.display = 'flex';
+    }
+
+    function editExpense(id) {
+      const e = (currentStore.expenses || []).find(x => x.id === id);
+      if (!e) return;
+      editingExpenseId = id;
+      const title = document.getElementById('modal-expense-title');
+      if (title) title.textContent = 'Beleg bearbeiten';
+      document.getElementById('modal-exp-vendor').value = e.vendor_name || '';
+      document.getElementById('modal-exp-amount').value = e.amount_gross !== undefined ? e.amount_gross : '';
+      document.getElementById('modal-exp-vat').value = e.vat_rate !== undefined ? e.vat_rate : 19;
+      document.getElementById('modal-exp-date').value = e.date || '';
+      document.getElementById('modal-exp-cat').value = e.category || 'Sonstiges';
+      document.getElementById('modal-expense').style.display = 'flex';
     }
 
     async function submitModalExpense() {
@@ -1984,11 +2556,18 @@
       const date = document.getElementById('modal-exp-date').value || new Date().toISOString().slice(0, 10);
       const category = document.getElementById('modal-exp-cat').value;
 
-      await window.rechly.createExpense({ vendor_name, amount_gross, vat_rate, date, category });
+      const expenseData = { vendor_name, amount_gross, vat_rate, date, category };
+      if (editingExpenseId) {
+        await window.rechly.updateExpense(editingExpenseId, expenseData);
+        showToast('Ausgabe erfolgreich aktualisiert!');
+      } else {
+        await window.rechly.createExpense(expenseData);
+        showToast('Ausgabe erfasst!');
+      }
+      editingExpenseId = null;
       currentStore = await window.rechly.getStore();
       updateBadges();
       closeModal('modal-expense');
-      showToast('Ausgabe erfasst!');
       if (currentView === 'expenses') renderExpensesView(document.getElementById('content-container'));
       else if (currentView === 'dashboard') renderDashboardView(document.getElementById('content-container'));
     }
@@ -2220,6 +2799,31 @@
           </div>
         </div>
 
+        <!-- Invoice Design Template -->
+        <div class="card">
+          <div class="card-title">🎨 Rechnungs-Design & Druckvorlage</div>
+          <p style="font-size:13px; color:#64748b; margin-bottom:14px;">
+            Wähle das Standard-Layout für Rechnungen, Druck und PDF-Exporte:
+          </p>
+          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:14px;">
+            <label style="cursor:pointer; border:2px solid ${comp.invoice_template === 'classic' || !comp.invoice_template ? '#2563eb' : '#e2e8f0'}; border-radius:8px; padding:14px; background:${comp.invoice_template === 'classic' || !comp.invoice_template ? '#eff6ff' : '#ffffff'};">
+              <input type="radio" name="set-tpl" value="classic" ${comp.invoice_template === 'classic' || !comp.invoice_template ? 'checked' : ''} style="margin-right:6px;">
+              <b>🏛️ DIN 5008 Klassisch</b>
+              <div style="font-size:12px; color:#64748b; margin-top:4px;">Deutscher Geschäftsstandard, Absenderzeile, 45mm Adressfenster, 3-Spalten GoBD-Fußzeile.</div>
+            </label>
+            <label style="cursor:pointer; border:2px solid ${comp.invoice_template === 'modern' ? '#2563eb' : '#e2e8f0'}; border-radius:8px; padding:14px; background:${comp.invoice_template === 'modern' ? '#eff6ff' : '#ffffff'};">
+              <input type="radio" name="set-tpl" value="modern" ${comp.invoice_template === 'modern' ? 'checked' : ''} style="margin-right:6px;">
+              <b>💎 Modern</b>
+              <div style="font-size:12px; color:#64748b; margin-top:4px;">Stilvolle Akzentleiste, Adress- und Datenkarten, hervorgehobener Brutto-Block.</div>
+            </label>
+            <label style="cursor:pointer; border:2px solid ${comp.invoice_template === 'minimal' ? '#2563eb' : '#e2e8f0'}; border-radius:8px; padding:14px; background:${comp.invoice_template === 'minimal' ? '#eff6ff' : '#ffffff'};">
+              <input type="radio" name="set-tpl" value="minimal" ${comp.invoice_template === 'minimal' ? 'checked' : ''} style="margin-right:6px;">
+              <b>✨ Minimal</b>
+              <div style="font-size:12px; color:#64748b; margin-top:4px;">Viel Weißraum, dezente Haarlinien-Trenner, puristische Eleganz.</div>
+            </label>
+          </div>
+        </div>
+
         <!-- Database Backup & Restore -->
         <div class="card">
           <div class="card-title">💾 GoBD-Tresor sichern & wiederherstellen</div>
@@ -2314,6 +2918,7 @@
         bank_bic: document.getElementById('set-bic').value,
         bank_name: document.getElementById('set-bank').value,
         is_small_business: document.getElementById('set-smallbiz').checked,
+        invoice_template: document.querySelector('input[name="set-tpl"]:checked')?.value || currentStore.company?.invoice_template || 'classic',
       };
 
       const updatedAi = {
@@ -2352,14 +2957,28 @@
 
     // Modal Helpers
     function openModal(id) {
-      if (id === 'modal-exp-date') {
-        const d = document.getElementById('modal-exp-date');
-        if (d) d.value = new Date().toISOString().slice(0, 10);
+      if (id === 'modal-client' && !editingClientId) {
+        showNewClientModal();
+        return;
       }
-      document.getElementById(id).style.display = 'flex';
+      if (id === 'modal-product' && !editingProductId) {
+        showNewProductModal();
+        return;
+      }
+      if (id === 'modal-expense' && !editingExpenseId) {
+        showNewExpenseModal();
+        return;
+      }
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'flex';
     }
+
     function closeModal(id) {
-      document.getElementById(id).style.display = 'none';
+      if (id === 'modal-client') editingClientId = null;
+      if (id === 'modal-product') editingProductId = null;
+      if (id === 'modal-expense') editingExpenseId = null;
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
     }
 
     function handleGlobalSearch(term) {
@@ -2376,7 +2995,7 @@
     window.addEventListener('keydown', (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault();
-        showView('create-invoice');
+        createNewInvoice();
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
@@ -2386,6 +3005,12 @@
         document.querySelectorAll('.modal-backdrop').forEach(m => m.style.display = 'none');
         const printModal = document.getElementById('print-modal');
         if (printModal) printModal.style.display = 'none';
+      }
+    });
+
+    document.getElementById('print-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'print-modal') {
+        closePrintModal();
       }
     });
 

@@ -270,6 +270,16 @@ ipcMain.handle("products:create", (_e, data) => {
     store.set("products", products);
     return newProduct;
 });
+ipcMain.handle("products:update", (_e, id, data) => {
+    const products = store.get("products") || [];
+    const idx = products.findIndex((p) => p.id === id);
+    if (idx !== -1) {
+        products[idx] = { ...products[idx], ...data };
+        store.set("products", products);
+        return products[idx];
+    }
+    return null;
+});
 ipcMain.handle("products:delete", (_e, id) => {
     let products = store.get("products") || [];
     products = products.filter((p) => p.id !== id);
@@ -285,6 +295,16 @@ ipcMain.handle("offers:create", (_e, data) => {
     offers.unshift(newOffer);
     store.set("offers", offers);
     return newOffer;
+});
+ipcMain.handle("offers:update", (_e, id, data) => {
+    const offers = store.get("offers") || [];
+    const idx = offers.findIndex((o) => o.id === id);
+    if (idx !== -1) {
+        offers[idx] = { ...offers[idx], ...data };
+        store.set("offers", offers);
+        return offers[idx];
+    }
+    return null;
 });
 ipcMain.handle("offers:convert", (_e, id) => {
     const offers = store.get("offers") || [];
@@ -323,6 +343,16 @@ ipcMain.handle("expenses:create", (_e, data) => {
     expenses.unshift(newExpense);
     store.set("expenses", expenses);
     return newExpense;
+});
+ipcMain.handle("expenses:update", (_e, id, data) => {
+    const expenses = store.get("expenses") || [];
+    const idx = expenses.findIndex((e) => e.id === id);
+    if (idx !== -1) {
+        expenses[idx] = { ...expenses[idx], ...data };
+        store.set("expenses", expenses);
+        return expenses[idx];
+    }
+    return null;
 });
 ipcMain.handle("expenses:delete", (_e, id) => {
     let expenses = store.get("expenses") || [];
