@@ -3,29 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rechly Desktop — 100% Offline</title>
+  <title>Rechly Desktop — 100% Offline & KI-gestützt</title>
   <style>
     :root {
       --bg-main: #f8fafc;
       --bg-surface: #ffffff;
-      --sidebar-bg: #0f172a;
+      --sidebar-bg: #0b0f19;
+      --sidebar-surface: #151d2f;
       --sidebar-text: #94a3b8;
       --sidebar-text-active: #ffffff;
-      --sidebar-active-bg: #1e293b;
+      --sidebar-border: #1e293b;
       --primary: #2563eb;
       --primary-hover: #1d4ed8;
+      --primary-light: #eff6ff;
       --success: #10b981;
+      --success-light: #ecfdf5;
       --warning: #f59e0b;
       --danger: #ef4444;
+      --danger-light: #fef2f2;
       --border: #e2e8f0;
+      --border-focus: #3b82f6;
       --text: #0f172a;
       --text-muted: #64748b;
-      --radius: 8px;
+      --radius-sm: 6px;
+      --radius: 10px;
+      --radius-lg: 14px;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      --shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, -apple-system, "SF Pro Display", sans-serif;
       background: var(--bg-main);
       color: var(--text);
       overflow: hidden;
@@ -33,56 +43,74 @@
       display: flex;
       flex-direction: column;
       user-select: none;
+      -webkit-font-smoothing: antialiased;
     }
 
     /* ─── Mac Frameless Titlebar ─── */
     .titlebar {
-      height: 44px;
+      height: 46px;
       background: #ffffff;
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 16px 0 80px; /* Space for Mac traffic lights */
+      padding: 0 16px 0 84px; /* Space for Mac traffic lights */
       -webkit-app-region: drag;
+      z-index: 100;
     }
     .titlebar-center {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       font-size: 13px;
       font-weight: 600;
     }
-    .offline-badge {
+    .badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      background: #ecfdf5;
-      color: #059669;
+      gap: 5px;
       font-size: 11px;
       font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 12px;
-      border: 1px solid #a7f3d0;
+      padding: 3px 10px;
+      border-radius: 20px;
+      transition: all 0.15s ease;
+    }
+    .offline-badge {
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
     }
     .ai-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: #eff6ff;
-      color: #2563eb;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 12px;
-      border: 1px solid #bfdbfe;
+      background: #f8fafc;
+      color: #334155;
+      border: 1px solid var(--border);
       cursor: pointer;
       -webkit-app-region: no-drag;
     }
+    .ai-pill:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    .ai-pill.active-ollama {
+      background: #ecfdf5;
+      color: #065f46;
+      border-color: #a7f3d0;
+    }
+    .ai-pill.active-openai {
+      background: #eff6ff;
+      color: #1e40af;
+      border-color: #bfdbfe;
+    }
+    .ai-pill.active-anthropic {
+      background: #faf5ff;
+      color: #6b21a8;
+      border-color: #e9d5ff;
+    }
+
     .titlebar-right {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       -webkit-app-region: no-drag;
     }
     .quick-search {
@@ -90,32 +118,43 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 12px;
-      width: 180px;
+      width: 200px;
       outline: none;
+      background: #f8fafc;
+      transition: all 0.15s ease;
     }
-    .quick-search:focus { border-color: var(--primary); }
+    .quick-search:focus {
+      background: #ffffff;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+    }
 
-    /* ─── Layout ─── */
+    /* ─── App Body Layout ─── */
     .app-body {
       display: flex;
       flex: 1;
-      height: calc(100vh - 44px);
+      height: calc(100vh - 46px);
     }
 
     /* ─── Sidebar ─── */
     .sidebar {
-      width: 240px;
+      width: 248px;
       background: var(--sidebar-bg);
       color: var(--sidebar-text);
       display: flex;
       flex-direction: column;
       padding: 16px 10px;
       overflow-y: auto;
+      border-right: 1px solid var(--sidebar-border);
     }
     .sidebar-header {
-      padding: 0 8px 16px 8px;
-      border-bottom: 1px solid #1e293b;
+      padding: 4px 8px 16px 8px;
+      border-bottom: 1px solid var(--sidebar-border);
       margin-bottom: 12px;
+      cursor: pointer;
+    }
+    .sidebar-header:hover .company-name {
+      color: #60a5fa;
     }
     .company-name {
       color: #ffffff;
@@ -124,16 +163,21 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      transition: color 0.15s ease;
     }
-    .company-legal { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .company-legal {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
 
     .nav-group-title {
       font-size: 10px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.6px;
       color: #475569;
-      padding: 10px 8px 4px 8px;
+      padding: 12px 10px 4px 10px;
     }
     .nav-item {
       display: flex;
@@ -148,22 +192,70 @@
       transition: all 0.15s ease;
       margin-bottom: 2px;
     }
-    .nav-item:hover { background: #1e293b; color: #ffffff; }
-    .nav-item.active { background: var(--primary); color: #ffffff; font-weight: 600; }
-    .nav-item .icon { margin-right: 8px; font-size: 14px; }
+    .nav-item:hover {
+      background: var(--sidebar-surface);
+      color: #ffffff;
+    }
+    .nav-item.active {
+      background: var(--primary);
+      color: #ffffff;
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(37,99,235,0.3);
+    }
+    .nav-left {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .nav-item .icon {
+      font-size: 14px;
+      width: 16px;
+      text-align: center;
+    }
     .nav-badge {
       font-size: 10px;
-      background: #334155;
-      color: #e2e8f0;
-      padding: 1px 6px;
+      font-weight: 600;
+      background: #1e293b;
+      color: #cbd5e1;
+      padding: 1px 7px;
       border-radius: 10px;
     }
+    .nav-item.active .nav-badge {
+      background: rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+    }
 
-    /* ─── Main Content ─── */
+    .sidebar-footer {
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px solid var(--sidebar-border);
+      font-size: 11px;
+      color: #475569;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .vault-status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #10b981;
+      font-weight: 600;
+      font-size: 11px;
+    }
+    .vault-dot {
+      width: 6px;
+      height: 6px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #10b981;
+    }
+
+    /* ─── Content Area ─── */
     .content-area {
       flex: 1;
       overflow-y: auto;
-      padding: 24px 32px;
+      padding: 24px 32px 48px 32px;
       background: var(--bg-main);
     }
 
@@ -173,24 +265,71 @@
       justify-content: space-between;
       margin-bottom: 20px;
     }
-    .page-title { font-size: 20px; font-weight: 700; color: var(--text); }
+    .page-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.3px;
+    }
+    .page-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ─── Buttons ─── */
     .btn {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 6px;
-      padding: 8px 16px;
-      border-radius: 6px;
+      padding: 8px 15px;
+      border-radius: var(--radius-sm);
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       border: 1px solid transparent;
-      transition: all 0.15s;
+      transition: all 0.15s ease;
+      white-space: nowrap;
     }
-    .btn-primary { background: var(--primary); color: #fff; }
-    .btn-primary:hover { background: var(--primary-hover); }
-    .btn-secondary { background: #fff; border-color: var(--border); color: var(--text); }
-    .btn-secondary:hover { background: #f1f5f9; }
-    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 1px 2px rgba(37,99,235,0.2);
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 2px 4px rgba(37,99,235,0.3);
+    }
+    .btn-secondary {
+      background: #ffffff;
+      border-color: var(--border);
+      color: var(--text);
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-secondary:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+    .btn-success {
+      background: #10b981;
+      color: #ffffff;
+    }
+    .btn-success:hover {
+      background: #059669;
+    }
+    .btn-danger-outline {
+      background: transparent;
+      border-color: #fca5a5;
+      color: #ef4444;
+    }
+    .btn-danger-outline:hover {
+      background: var(--danger-light);
+    }
 
     /* ─── Cards & Tables ─── */
     .card {
@@ -199,17 +338,51 @@
       border-radius: var(--radius);
       padding: 20px;
       margin-bottom: 20px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      box-shadow: var(--shadow-sm);
     }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; padding: 10px 12px; background: #f8fafc; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); }
-    td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    tr:hover td { background: #f8fafc; }
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      background: #f8fafc;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      color: #334155;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    tr:hover td {
+      background: #fbfcfe;
+    }
 
     /* ─── Status Pills ─── */
     .status-pill {
       display: inline-block;
-      padding: 2px 8px;
+      padding: 2px 9px;
       border-radius: 12px;
       font-size: 11px;
       font-weight: 600;
@@ -218,157 +391,573 @@
     .status-sent { background: #e0f2fe; color: #0284c7; }
     .status-paid { background: #dcfce7; color: #15803d; }
 
-    /* ─── AI Quick Bar ─── */
-    .ai-bar-card {
-      background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
-      border: 1px solid #bfdbfe;
-      border-radius: var(--radius);
-      padding: 16px;
-      margin-bottom: 20px;
+    /* ─── Metrics HUD Grid ─── */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
     }
-    .ai-input-row { display: flex; gap: 8px; margin-top: 8px; }
-    .ai-input-row input {
-      flex: 1;
-      padding: 9px 14px;
-      border: 1px solid #93c5fd;
-      border-radius: 6px;
-      font-size: 13px;
-      outline: none;
-    }
-    .ai-input-row input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
-
-    /* ─── Forms ─── */
-    .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px; }
-    .form-group { display: flex; flex-direction: column; gap: 6px; }
-    .form-group label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
-    .form-group input, .form-group select, .form-group textarea {
-      padding: 8px 12px;
+    .metric-card {
+      background: #ffffff;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    .metric-card:hover {
+      border-color: #cbd5e1;
+      box-shadow: var(--shadow);
+    }
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: transparent;
+    }
+    .metric-card.m-green::before { background: #10b981; }
+    .metric-card.m-blue::before { background: #2563eb; }
+    .metric-card.m-amber::before { background: #f59e0b; }
+    .metric-card.m-purple::before { background: #8b5cf6; }
+
+    .metric-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .metric-value {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text);
+      margin: 8px 0 4px 0;
+      letter-spacing: -0.5px;
+    }
+    .metric-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* ─── Startup Quick Actions Grid ─── */
+    .quick-actions-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .action-tile {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      transition: all 0.15s ease;
+      box-shadow: var(--shadow-sm);
+    }
+    .action-tile:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-hover);
+    }
+    .tile-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .tile-blue { background: #eff6ff; color: #2563eb; }
+    .tile-emerald { background: #ecfdf5; color: #059669; }
+    .tile-amber { background: #fffbeb; color: #d97706; }
+    .tile-purple { background: #faf5ff; color: #7c3aed; }
+    .tile-rose { background: #fff1f2; color: #e11d48; }
+    .tile-slate { background: #f1f5f9; color: #475569; }
+
+    .tile-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 3px;
+    }
+    .tile-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* ─── Forms & Inputs ─── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
       font-size: 13px;
       outline: none;
       font-family: inherit;
+      background: #ffffff;
+      color: var(--text);
+      transition: all 0.15s ease;
     }
-    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-      border-color: var(--primary);
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.12);
     }
 
-    /* ─── Print / PDF Preview Modal ─── */
-    #print-modal {
-      display: none;
+    /* ─── AI Provider Selection Tabs ─── */
+    .ai-tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+    }
+    .ai-tab-btn {
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .ai-tab-btn:hover {
+      background: #f1f5f9;
+      color: var(--text);
+    }
+    .ai-tab-btn.active {
+      background: #ffffff;
+      color: var(--primary);
+      border-color: var(--border);
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* ─── Modals ─── */
+    .modal-backdrop {
       position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.6);
-      z-index: 1000;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(2px);
+      display: none;
       align-items: center;
       justify-content: center;
+      z-index: 1000;
+    }
+    .modal-card {
+      background: #ffffff;
+      width: 520px;
+      max-width: 90vw;
+      border-radius: var(--radius-lg);
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      animation: modalFadeIn 0.15s ease-out;
+    }
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.97); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .modal-body {
+      padding: 20px;
+      max-height: 75vh;
+      overflow-y: auto;
+    }
+    .modal-footer {
+      padding: 14px 20px;
+      background: #f8fafc;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* ─── Print & PDF Sheet ─── */
+    #print-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      overflow-y: auto;
+      padding: 20px;
     }
     .print-sheet {
-      background: #fff;
-      width: 750px;
-      max-height: 90vh;
-      overflow-y: auto;
+      width: 780px;
+      background: #ffffff;
+      padding: 48px;
       border-radius: 8px;
-      padding: 40px;
-      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      color: #0f172a;
+      user-select: text;
+    }
+
+    /* ─── Toast Notifications ─── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 18px;
+      background: #0f172a;
+      color: #ffffff;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 9999;
+    }
+    #toast.show {
+      transform: translateY(0);
+      opacity: 1;
     }
 
     @media print {
       body * { visibility: hidden; }
-      .print-sheet, .print-sheet * { visibility: visible; }
-      .print-sheet { position: absolute; left: 0; top: 0; width: 100%; padding: 0; box-shadow: none; }
+      #print-modal, #print-sheet-content, #print-sheet-content * { visibility: visible; }
+      #print-modal { position: absolute; left: 0; top: 0; width: 100%; height: auto; background: white; padding: 0; }
+      .print-sheet { box-shadow: none; width: 100%; max-width: 100%; padding: 0; margin: 0; border: none; }
       .no-print { display: none !important; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Native Titlebar -->
+  <!-- ─── Mac Frameless Titlebar ─── -->
   <div class="titlebar">
     <div class="titlebar-center">
-      <span>Rechly Desktop</span>
-      <span class="offline-badge">🔒 100% Offline • Lokaler Tresor (DSGVO)</span>
-      <span class="ai-pill" id="ai-model-indicator" onclick="showView('settings')">
-        🟢 jonprompter/Rechly-DE-3B
+      <span style="font-weight:700; color:#0f172a; font-size:13px;">Rechly Desktop</span>
+      <span class="badge offline-badge">🔒 100% Offline • Lokaler Tresor</span>
+      <span id="ai-model-indicator" class="badge ai-pill" onclick="showAiSettingsModal()" title="Klicken für KI-Konfiguration (Ollama, OpenAI, Claude)">
+        ⚪ Lade KI...
       </span>
     </div>
     <div class="titlebar-right">
       <input type="text" class="quick-search" id="global-search" placeholder="Suchen (⌘F)..." oninput="handleGlobalSearch(this.value)">
+      <button class="btn btn-primary btn-sm" onclick="showView('create-invoice')">➕ Neue Rechnung (⌘N)</button>
     </div>
   </div>
 
+  <!-- ─── App Body ─── -->
   <div class="app-body">
     <!-- Sidebar -->
     <div class="sidebar">
-      <div class="sidebar-header">
+      <div class="sidebar-header" onclick="showView('settings')">
         <div class="company-name" id="sidebar-company-name">Meine Firma</div>
         <div class="company-legal" id="sidebar-company-legal">Einzelunternehmen</div>
       </div>
 
-      <div class="nav-group-title">Dokumente</div>
-      <div class="nav-item active" onclick="showView('invoices')">
-        <span><span class="icon">📄</span> Rechnungen</span>
+      <div class="nav-group-title">Hauptmenü</div>
+      <div class="nav-item active" id="nav-dashboard" onclick="showView('dashboard')">
+        <div class="nav-left"><span class="icon">🏠</span> Übersicht / Startup</div>
+      </div>
+      <div class="nav-item" id="nav-invoices" onclick="showView('invoices')">
+        <div class="nav-left"><span class="icon">📄</span> Rechnungen</div>
         <span class="nav-badge" id="badge-invoices">0</span>
       </div>
-      <div class="nav-item" onclick="showView('create-invoice')">
-        <span><span class="icon">➕</span> Neue Rechnung</span>
-      </div>
-      <div class="nav-item" onclick="showView('offers')">
-        <span><span class="icon">📑</span> Angebote</span>
+      <div class="nav-item" id="nav-offers" onclick="showView('offers')">
+        <div class="nav-left"><span class="icon">📝</span> Angebote</div>
         <span class="nav-badge" id="badge-offers">0</span>
       </div>
-
-      <div class="nav-group-title">Stammdaten</div>
-      <div class="nav-item" onclick="showView('clients')">
-        <span><span class="icon">👥</span> Kunden</span>
+      <div class="nav-item" id="nav-clients" onclick="showView('clients')">
+        <div class="nav-left"><span class="icon">👥</span> Kunden</div>
         <span class="nav-badge" id="badge-clients">0</span>
       </div>
-      <div class="nav-item" onclick="showView('products')">
-        <span><span class="icon">📦</span> Produkte & Dienste</span>
+      <div class="nav-item" id="nav-products" onclick="showView('products')">
+        <div class="nav-left"><span class="icon">📦</span> Leistungen & Artikel</div>
         <span class="nav-badge" id="badge-products">0</span>
       </div>
+      <div class="nav-item" id="nav-expenses" onclick="showView('expenses')">
+        <div class="nav-left"><span class="icon">🧾</span> Ausgaben & Belege</div>
+        <span class="nav-badge" id="badge-expenses">0</span>
+      </div>
 
-      <div class="nav-group-title">Finanzen & Export</div>
-      <div class="nav-item" onclick="showView('expenses')">
-        <span><span class="icon">🧾</span> Ausgaben</span>
+      <div class="nav-group-title">Steuer & Werkzeuge</div>
+      <div class="nav-item" id="nav-datev" onclick="showView('datev')">
+        <div class="nav-left"><span class="icon">🏛️</span> DATEV Export</div>
       </div>
-      <div class="nav-item" onclick="showView('datev')">
-        <span><span class="icon">💾</span> DATEV Export</span>
-      </div>
-      <div class="nav-item" onclick="showView('tools')">
-        <span><span class="icon">🧮</span> Offline Rechner</span>
+      <div class="nav-item" id="nav-tools" onclick="showView('tools')">
+        <div class="nav-left"><span class="icon">🧮</span> Offline Rechner</div>
       </div>
 
       <div class="nav-group-title">System</div>
-      <div class="nav-item" onclick="showView('settings')">
-        <span><span class="icon">⚙️</span> Einstellungen & KI</span>
+      <div class="nav-item" id="nav-settings" onclick="showView('settings')">
+        <div class="nav-left"><span class="icon">⚙️</span> Einstellungen & KI</div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="vault-status-indicator">
+          <div class="vault-dot"></div>
+          <span>GoBD-Tresor aktiv</span>
+        </div>
+        <div>v1.0.0 Desktop • Vollständig privat</div>
       </div>
     </div>
 
-    <!-- Main Content Area -->
+    <!-- Main Content Container -->
     <div class="content-area" id="content-container">
       <!-- Injected Views via JS -->
     </div>
   </div>
 
-  <!-- Print Modal -->
+  <!-- ─── Modals ─── -->
+
+  <!-- Client Creation Modal -->
+  <div class="modal-backdrop" id="modal-client">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Neuen Kunden anlegen</div>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-client')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Unternehmensname oder Vor-/Nachname *</label>
+            <input type="text" id="modal-client-name" placeholder="z. B. Müller & Partner GmbH">
+          </div>
+          <div class="form-group">
+            <label>Ansprechpartner</label>
+            <input type="text" id="modal-client-contact" placeholder="z. B. Herr Dr. Thomas Müller">
+          </div>
+          <div class="form-group">
+            <label>E-Mail-Adresse</label>
+            <input type="email" id="modal-client-email" placeholder="rechnung@kunde.de">
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Straße & Hausnummer</label>
+            <input type="text" id="modal-client-address" placeholder="Musterstraße 42">
+          </div>
+          <div class="form-group">
+            <label>Postleitzahl</label>
+            <input type="text" id="modal-client-plz" placeholder="10115">
+          </div>
+          <div class="form-group">
+            <label>Stadt</label>
+            <input type="text" id="modal-client-city" placeholder="Berlin">
+          </div>
+          <div class="form-group">
+            <label>USt-IdNr. (optional)</label>
+            <input type="text" id="modal-client-vat" placeholder="DE123456789">
+          </div>
+          <div class="form-group">
+            <label>Leitweg-ID (für E-Rechnung Behörden)</label>
+            <input type="text" id="modal-client-leitweg" placeholder="04011000-12345-12">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-client')">Abbrechen</button>
+        <button class="btn btn-primary" onclick="submitModalClient()">Kunde speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product Creation Modal -->
+  <div class="modal-backdrop" id="modal-product">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Neues Produkt / Dienstleistung</div>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-product')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Bezeichnung *</label>
+            <input type="text" id="modal-product-name" placeholder="z. B. Strategische Beratung">
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Beschreibung</label>
+            <input type="text" id="modal-product-desc" placeholder="Detaillierte Beschreibung...">
+          </div>
+          <div class="form-group">
+            <label>Nettopreis (€) *</label>
+            <input type="number" id="modal-product-price" step="0.01" value="100.00">
+          </div>
+          <div class="form-group">
+            <label>Einheit</label>
+            <select id="modal-product-unit">
+              <option value="Stunde">Stunde</option>
+              <option value="Tag">Tag</option>
+              <option value="Stück">Stück</option>
+              <option value="Pauschal">Pauschal</option>
+              <option value="Monat">Monat</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>MwSt-Satz (%)</label>
+            <select id="modal-product-vat">
+              <option value="19">19% (Regelsatz)</option>
+              <option value="7">7% (Ermäßigt)</option>
+              <option value="0">0% (Steuerfrei / Kleinunternehmer)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-product')">Abbrechen</button>
+        <button class="btn btn-primary" onclick="submitModalProduct()">Produkt speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Expense Creation Modal -->
+  <div class="modal-backdrop" id="modal-expense">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Ausgabe / Beleg erfassen</div>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-expense')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Lieferant / Geschäft *</label>
+            <input type="text" id="modal-exp-vendor" placeholder="z. B. Deutsche Telekom, Deutsche Bahn">
+          </div>
+          <div class="form-group">
+            <label>Bruttobetrag (€) *</label>
+            <input type="number" id="modal-exp-amount" step="0.01" placeholder="49.99">
+          </div>
+          <div class="form-group">
+            <label>MwSt-Satz (%)</label>
+            <select id="modal-exp-vat">
+              <option value="19">19%</option>
+              <option value="7">7%</option>
+              <option value="0">0%</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Datum</label>
+            <input type="date" id="modal-exp-date">
+          </div>
+          <div class="form-group">
+            <label>Kategorie</label>
+            <select id="modal-exp-cat">
+              <option value="Software & Hosting">Software & Hosting</option>
+              <option value="Büromaterial">Büromaterial</option>
+              <option value="Telefon & Internet">Telefon & Internet</option>
+              <option value="Reisekosten & Bahn">Reisekosten & Bahn</option>
+              <option value="Beratung & Recht">Beratung & Recht</option>
+              <option value="Sonstiges">Sonstiges</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-expense')">Abbrechen</button>
+        <button class="btn btn-primary" onclick="submitModalExpense()">Beleg speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Print Sheet Modal -->
   <div id="print-modal">
     <div class="print-sheet" id="print-sheet-content"></div>
   </div>
 
+  <!-- Toast Notification -->
+  <div id="toast">✅ Vorgang abgeschlossen</div>
+
   <script>
     // ─── Desktop App State ───
-    let currentStore = { company: {}, invoices: [], clients: [], products: [], offers: [], expenses: [], aiSettings: {} };
-    let currentView = 'invoices';
+    let currentStore = {
+      company: {},
+      invoices: [],
+      clients: [],
+      products: [],
+      offers: [],
+      expenses: [],
+      aiSettings: {
+        active_provider: 'ollama',
+        ollama_host: 'http://localhost:11434',
+        ollama_model: 'jonprompter/Rechly-DE-3B',
+        openai_key: '',
+        openai_model: 'gpt-4o-mini',
+        anthropic_key: '',
+        anthropic_model: 'claude-3-5-sonnet-20241022',
+        featured_model: 'jonprompter/Rechly-DE-3B',
+        ollama_url: 'https://ollama.com/jonprompter/Rechly-DE-3B',
+        hf_url: 'https://huggingface.co/jonprompter/rechly-de-3b',
+      }
+    };
+    let currentView = 'dashboard';
 
     async function init() {
       if (window.rechly) {
         currentStore = await window.rechly.getStore();
+        if (!currentStore.aiSettings) {
+          currentStore.aiSettings = await window.rechly.getAiSettings();
+        }
         updateSidebarCompany();
         updateBadges();
-        showView('invoices');
-        checkOllamaConnection();
+        showView('dashboard');
+        updateAiStatusPill();
       }
+    }
+
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.innerText = (type === 'success' ? '✅ ' : '❌ ') + message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
     }
 
     function updateSidebarCompany() {
@@ -382,22 +971,35 @@
       document.getElementById('badge-offers').innerText = (currentStore.offers || []).length;
       document.getElementById('badge-clients').innerText = (currentStore.clients || []).length;
       document.getElementById('badge-products').innerText = (currentStore.products || []).length;
+      document.getElementById('badge-expenses').innerText = (currentStore.expenses || []).length;
     }
 
-    async function checkOllamaConnection() {
+    async function updateAiStatusPill() {
       if (!window.rechly) return;
-      const res = await window.rechly.checkOllama('http://localhost:11434');
       const pill = document.getElementById('ai-model-indicator');
-      if (res.connected) {
-        pill.innerHTML = `🟢 <b>jonprompter/Rechly-DE-3B</b> (Aktiv)`;
-        pill.style.borderColor = '#86efac';
-        pill.style.background = '#f0fdf4';
-        pill.style.color = '#15803d';
+      const settings = currentStore.aiSettings || {};
+      const provider = settings.active_provider || 'ollama';
+
+      pill.className = 'badge ai-pill';
+
+      if (provider === 'openai') {
+        pill.classList.add('active-openai');
+        pill.innerHTML = `⚡ <b>OpenAI: ${settings.openai_model || 'gpt-4o-mini'}</b>`;
+      } else if (provider === 'anthropic') {
+        pill.classList.add('active-anthropic');
+        pill.innerHTML = `🧠 <b>Claude: ${settings.anthropic_model?.includes('haiku') ? 'Haiku' : 'Sonnet'}</b>`;
       } else {
-        pill.innerHTML = `⚪ jonprompter/Rechly-DE-3B (Ollama starten)`;
-        pill.style.borderColor = '#e2e8f0';
-        pill.style.background = '#f8fafc';
-        pill.style.color = '#64748b';
+        pill.classList.add('active-ollama');
+        try {
+          const res = await window.rechly.checkOllama(settings.ollama_host || 'http://localhost:11434');
+          if (res.connected) {
+            pill.innerHTML = `🟢 <b>Rechly-DE-3B</b> (Lokal)`;
+          } else {
+            pill.innerHTML = `⚪ Rechly-DE-3B (Ollama offline)`;
+          }
+        } catch {
+          pill.innerHTML = `⚪ Rechly-DE-3B (Ollama offline)`;
+        }
       }
     }
 
@@ -405,11 +1007,12 @@
     function showView(viewId) {
       currentView = viewId;
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-      const activeNav = Array.from(document.querySelectorAll('.nav-item')).find(el => el.innerText.toLowerCase().includes(viewId.replace('-', ' ')));
+      const activeNav = document.getElementById(`nav-${viewId}`) || Array.from(document.querySelectorAll('.nav-item')).find(el => el.innerText.toLowerCase().includes(viewId.replace('-', ' ')));
       if (activeNav) activeNav.classList.add('active');
 
       const container = document.getElementById('content-container');
-      if (viewId === 'invoices') renderInvoicesView(container);
+      if (viewId === 'dashboard') renderDashboardView(container);
+      else if (viewId === 'invoices') renderInvoicesView(container);
       else if (viewId === 'create-invoice') renderCreateInvoiceView(container);
       else if (viewId === 'clients') renderClientsView(container);
       else if (viewId === 'products') renderProductsView(container);
@@ -418,6 +1021,213 @@
       else if (viewId === 'datev') renderDatevView(container);
       else if (viewId === 'tools') renderToolsView(container);
       else if (viewId === 'settings') renderSettingsView(container);
+    }
+
+    // ─── View 0: Startup Menu / Home Dashboard ───
+    function renderDashboardView(container) {
+      const invoices = currentStore.invoices || [];
+      const offers = currentStore.offers || [];
+      const clients = currentStore.clients || [];
+      const expenses = currentStore.expenses || [];
+      const comp = currentStore.company || {};
+      const aiSettings = currentStore.aiSettings || {};
+
+      // Calculate Metrics
+      const paidInvoices = invoices.filter(i => i.status === 'paid');
+      const openInvoices = invoices.filter(i => i.status === 'sent');
+      const totalRevenue = paidInvoices.reduce((sum, i) => sum + (i.total_gross || 0), 0);
+      const totalOutstanding = openInvoices.reduce((sum, i) => sum + (i.total_gross || 0), 0);
+      const totalOffersVolume = offers.reduce((sum, o) => sum + (o.total_gross || 0), 0);
+      const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount_gross || 0), 0);
+
+      // Time-aware Greeting
+      const hour = new Date().getHours();
+      const greeting = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Guten Tag' : 'Guten Abend';
+
+      // Active AI provider label
+      const activeAiLabel = aiSettings.active_provider === 'openai'
+        ? `OpenAI (${aiSettings.openai_model || 'gpt-4o-mini'})`
+        : aiSettings.active_provider === 'anthropic'
+        ? `Anthropic (${aiSettings.anthropic_model || 'Claude 3.5 Sonnet'})`
+        : `jonprompter/Rechly-DE-3B (100% Lokal)`;
+
+      // Recent 5 Invoices
+      const recentInvoices = invoices.slice(0, 5);
+      const recentRows = recentInvoices.map(inv => {
+        const cl = clients.find(c => c.id === inv.client_id) || { name: 'Kunde' };
+        const statusClass = inv.status === 'paid' ? 'status-paid' : inv.status === 'sent' ? 'status-sent' : 'status-draft';
+        const statusText = inv.status === 'paid' ? 'Bezahlt' : inv.status === 'sent' ? 'Offen' : 'Entwurf';
+        return `
+          <tr>
+            <td><b>${inv.invoice_number}</b></td>
+            <td>${cl.name}</td>
+            <td>${inv.issue_date || '-'}</td>
+            <td><b>${(inv.total_gross || 0).toFixed(2)} €</b></td>
+            <td><span class="status-pill ${statusClass}">${statusText}</span></td>
+            <td>
+              <button class="btn btn-secondary btn-sm" onclick="previewInvoice('${inv.id}')">Drucken / PDF</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <!-- Welcome Hero -->
+        <div style="margin-bottom: 24px;">
+          <div class="page-title">${greeting}, ${comp.name || 'Rechly-Nutzer'}! 👋</div>
+          <div class="page-subtitle">Willkommen in deinem lokalen, DSGVO- und GoBD-konformen Finanzarbeitsplatz.</div>
+        </div>
+
+        <!-- 4 Key Metrics HUD -->
+        <div class="metrics-grid">
+          <div class="metric-card m-green">
+            <div class="metric-label">Umsatz bezahlt <span>💶</span></div>
+            <div class="metric-value">${totalRevenue.toFixed(2)} €</div>
+            <div class="metric-sub">${paidInvoices.length} bezahlte Rechnungen</div>
+          </div>
+          <div class="metric-card m-blue">
+            <div class="metric-label">Ausstehend / Offen <span>⏳</span></div>
+            <div class="metric-value">${totalOutstanding.toFixed(2)} €</div>
+            <div class="metric-sub">${openInvoices.length} fällige Rechnungen</div>
+          </div>
+          <div class="metric-card m-amber">
+            <div class="metric-label">Angebote & Entwürfe <span>📝</span></div>
+            <div class="metric-value">${totalOffersVolume.toFixed(2)} €</div>
+            <div class="metric-sub">${offers.length} Angebote in Verhandlung</div>
+          </div>
+          <div class="metric-card m-purple">
+            <div class="metric-label">Erfasste Ausgaben <span>🧾</span></div>
+            <div class="metric-value">${totalExpenses.toFixed(2)} €</div>
+            <div class="metric-sub">${expenses.length} Belege verbucht</div>
+          </div>
+        </div>
+
+        <!-- Startup Quick Launch Menu -->
+        <div style="font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">
+          ⚡ Schnellstart & Aktionen
+        </div>
+        <div class="quick-actions-grid">
+          <div class="action-tile" onclick="showView('create-invoice')">
+            <div class="tile-icon tile-blue">➕</div>
+            <div>
+              <div class="tile-title">Neue Rechnung schreiben <span style="font-size:11px; color:#2563eb;">(⌘N)</span></div>
+              <div class="tile-desc">Rechtssichere Rechnung mit GoBD-Pflichtangaben & E-Rechnung XML erstellen.</div>
+            </div>
+          </div>
+
+          <div class="action-tile" onclick="showView('create-invoice')">
+            <div class="tile-icon tile-emerald">🤖</div>
+            <div>
+              <div class="tile-title">KI-Schnellerfassung</div>
+              <div class="tile-desc">Text auf Deutsch eingeben — aktiv: <b>${activeAiLabel}</b>.</div>
+            </div>
+          </div>
+
+          <div class="action-tile" onclick="showView('offers')">
+            <div class="tile-icon tile-amber">📝</div>
+            <div>
+              <div class="tile-title">Angebot kalkulieren</div>
+              <div class="tile-desc">Kostenvoranschlag verfassen und mit 1 Klick in Rechnung umwandeln.</div>
+            </div>
+          </div>
+
+          <div class="action-tile" onclick="openModal('modal-client')">
+            <div class="tile-icon tile-purple">👥</div>
+            <div>
+              <div class="tile-title">Neuen Kunden anlegen</div>
+              <div class="tile-desc">Kundenstammdaten, Leitweg-ID und Zahlungskonditionen speichern.</div>
+            </div>
+          </div>
+
+          <div class="action-tile" onclick="openModal('modal-expense')">
+            <div class="tile-icon tile-rose">🧾</div>
+            <div>
+              <div class="tile-title">Ausgabe verbuchen</div>
+              <div class="tile-desc">Geschäftsausgaben erfassen für eine saubere Steuerübersicht.</div>
+            </div>
+          </div>
+
+          <div class="action-tile" onclick="showView('datev')">
+            <div class="tile-icon tile-slate">🏛️</div>
+            <div>
+              <div class="tile-title">DATEV Export</div>
+              <div class="tile-desc">Buchungsstapel CSV (Format 700) für Steuerberater generieren.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Startup Checklist & Recent Activities Row -->
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
+          <!-- Checklist -->
+          <div class="card">
+            <div class="card-title">✅ Startklar-Check</div>
+            <div style="display:flex; flex-direction:column; gap:12px; font-size:13px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span>${comp.name && comp.bank_iban ? '🟢' : '⚪'}</span>
+                <div>
+                  <b>Firmendaten & IBAN</b><br>
+                  <span style="font-size:11px; color:#64748b;">${comp.name && comp.bank_iban ? 'Vollständig hinterlegt' : '<a href="#" onclick="showView(\'settings\')">Jetzt ausfüllen ↗</a>'}</span>
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span>🟢</span>
+                <div>
+                  <b>Lokaler Tresor aktiv</b><br>
+                  <span style="font-size:11px; color:#64748b;">Gespeichert auf Ihrer Festplatte</span>
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span>${clients.length > 0 ? '🟢' : '⚪'}</span>
+                <div>
+                  <b>Kundenkartei</b><br>
+                  <span style="font-size:11px; color:#64748b;">${clients.length} Kunde(n) angelegt</span>
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span>${invoices.length > 0 ? '🟢' : '⚪'}</span>
+                <div>
+                  <b>Erste Rechnung</b><br>
+                  <span style="font-size:11px; color:#64748b;">${invoices.length} Rechnung(en) erstellt</span>
+                </div>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span>⚡</span>
+                <div>
+                  <b>KI-Schnittstelle</b><br>
+                  <span style="font-size:11px; color:#64748b;">${activeAiLabel} (<a href="#" onclick="showView(\'settings\')">Ändern ↗</a>)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Invoices -->
+          <div class="card">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+              <div class="card-title" style="margin-bottom:0;">📄 Letzte Rechnungen</div>
+              <button class="btn btn-secondary btn-sm" onclick="showView('invoices')">Alle Rechnungen ↗</button>
+            </div>
+            ${recentInvoices.length === 0 ? '<p style="color:#64748b; font-size:13px; padding: 20px 0;">Noch keine Rechnungen erstellt. Klicke auf "Neue Rechnung schreiben".</p>' : `
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nr.</th>
+                    <th>Kunde</th>
+                    <th>Datum</th>
+                    <th>Betrag</th>
+                    <th>Status</th>
+                    <th>Aktion</th>
+                  </tr>
+                </thead>
+                <tbody>${recentRows}</tbody>
+              </table>
+            `}
+          </div>
+        </div>
+      `;
     }
 
     // ─── View 1: Invoices List ───
@@ -449,11 +1259,14 @@
 
       container.innerHTML = `
         <div class="page-header">
-          <div class="page-title">Rechnungen (Lokal)</div>
+          <div>
+            <div class="page-title">Rechnungen (Lokal)</div>
+            <div class="page-subtitle">Alle Rechnungen liegen sicher im lokalen Tresor.</div>
+          </div>
           <button class="btn btn-primary" onclick="showView('create-invoice')">➕ Neue Rechnung (⌘N)</button>
         </div>
         <div class="card">
-          ${invoices.length === 0 ? '<p style="color:#64748b; text-align:center; padding: 20px;">Noch keine Rechnungen vorhanden. Klicken Sie auf "Neue Rechnung".</p>' : `
+          ${invoices.length === 0 ? '<p style="color:#64748b; text-align:center; padding: 30px;">Noch keine Rechnungen vorhanden. Klicken Sie auf "Neue Rechnung".</p>' : `
             <table>
               <thead>
                 <tr>
@@ -477,23 +1290,33 @@
     function renderCreateInvoiceView(container) {
       const clients = currentStore.clients || [];
       const clientOptions = clients.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      const aiSettings = currentStore.aiSettings || {};
+      const activeProvider = aiSettings.active_provider || 'ollama';
+      const aiLabel = activeProvider === 'openai'
+        ? `OpenAI (${aiSettings.openai_model || 'gpt-4o-mini'})`
+        : activeProvider === 'anthropic'
+        ? `Claude (${aiSettings.anthropic_model?.includes('haiku') ? 'Haiku' : 'Sonnet'})`
+        : `jonprompter/Rechly-DE-3B (100% Lokal)`;
 
       container.innerHTML = `
         <div class="page-header">
-          <div class="page-title">Neue Rechnung erstellen</div>
-          <button class="btn btn-secondary" onclick="showView('invoices')">Zurück</button>
+          <div>
+            <div class="page-title">Neue Rechnung erstellen</div>
+            <div class="page-subtitle">GoBD-konform mit automatischer Berechnung und E-Rechnung-Unterstützung.</div>
+          </div>
+          <button class="btn btn-secondary" onclick="showView('invoices')">Zurück zur Übersicht</button>
         </div>
 
         <!-- AI Text-to-Invoice Bar -->
-        <div class="ai-bar-card">
+        <div class="card" style="background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%); border: 1px solid #bfdbfe;">
           <div style="display:flex; align-items:center; justify-content:space-between">
             <span style="font-weight:700; font-size:13px; color:#1e40af">
-              ⚡ KI-Schnellerfassung mit <code>jonprompter/Rechly-DE-3B</code> (100% Lokal):
+              ⚡ KI-Schnellerfassung mit <code>${aiLabel}</code>:
             </span>
-            <span style="font-size:11px; color:#64748b">Tippen Sie einen Satz auf Deutsch</span>
+            <span style="font-size:11px; color:#64748b;"><a href="#" onclick="showView('settings')">KI-Modell wechseln ↗</a></span>
           </div>
-          <div class="ai-input-row">
-            <input type="text" id="ai-quick-text" placeholder="z. B. Rechnung an Müller GmbH: 10 Std. Beratung à 120€ und Hosting 250€, zahlbar in 14 Tagen mit 2% Skonto">
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <input type="text" id="ai-quick-text" style="flex:1; padding:9px 14px; border:1px solid #93c5fd; border-radius:6px; font-size:13px; outline:none;" placeholder="z. B. Rechnung an Müller GmbH: 10 Std. Beratung à 120€ und Hosting 250€, zahlbar in 14 Tagen mit 2% Skonto">
             <button class="btn btn-primary" id="ai-quick-btn" onclick="executeAiQuickFill()">Ausfüllen</button>
           </div>
         </div>
@@ -501,7 +1324,7 @@
         <div class="card">
           <div class="form-grid">
             <div class="form-group">
-              <label>Kunde auswählen</label>
+              <label>Kunde auswählen <button class="btn btn-secondary btn-sm" style="padding:1px 6px; font-size:11px;" onclick="openModal('modal-client')">+ Neu</button></label>
               <select id="inv-client">${clientOptions || '<option value="">Keine Kunden angelegt</option>'}</select>
             </div>
             <div class="form-group">
@@ -522,10 +1345,10 @@
           <table id="inv-items-table">
             <thead>
               <tr>
-                <th style="width:50%">Beschreibung</th>
+                <th style="width:45%">Beschreibung</th>
                 <th>Menge</th>
                 <th>Einheit</th>
-                <th>Preis (€)</th>
+                <th>Einzelpreis (€)</th>
                 <th>MwSt %</th>
                 <th>Aktion</th>
               </tr>
@@ -533,10 +1356,10 @@
             <tbody id="inv-items-body">
               <tr>
                 <td><input type="text" class="item-desc" value="Beratung und Konzeption" style="width:100%"></td>
-                <td><input type="number" class="item-qty" value="1" style="width:70px"></td>
+                <td><input type="number" class="item-qty" value="1" style="width:70px" oninput="calculateTotals()"></td>
                 <td><input type="text" class="item-unit" value="Stunde" style="width:80px"></td>
-                <td><input type="number" class="item-price" value="110" style="width:90px"></td>
-                <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : 19}" style="width:70px"></td>
+                <td><input type="number" class="item-price" value="110" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
+                <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : 19}" style="width:70px" oninput="calculateTotals()"></td>
                 <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
               </tr>
             </tbody>
@@ -564,10 +1387,10 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><input type="text" class="item-desc" value="${desc}" style="width:100%"></td>
-        <td><input type="number" class="item-qty" value="${qty}" style="width:70px"></td>
+        <td><input type="number" class="item-qty" value="${qty}" style="width:70px" oninput="calculateTotals()"></td>
         <td><input type="text" class="item-unit" value="${unit}" style="width:80px"></td>
-        <td><input type="number" class="item-price" value="${price}" style="width:90px"></td>
-        <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : vat}" style="width:70px"></td>
+        <td><input type="number" class="item-price" value="${price}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
+        <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : vat}" style="width:70px" oninput="calculateTotals()"></td>
         <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
       `;
       tbody.appendChild(tr);
@@ -599,11 +1422,15 @@
       if (!text) return;
 
       const btn = document.getElementById('ai-quick-btn');
-      btn.innerText = 'Analysiere...';
+      btn.innerText = 'Analysiere mit KI...';
       btn.disabled = true;
 
       try {
-        const res = await window.rechly.parseInvoiceDraft(text, currentStore.clients || [], currentStore.company.is_small_business);
+        const res = await window.rechly.parseInvoiceDraft(
+          text,
+          currentStore.clients || [],
+          currentStore.company.is_small_business
+        );
         const parsed = res.parsed;
         if (parsed.client_id) {
           document.getElementById('inv-client').value = parsed.client_id;
@@ -622,6 +1449,7 @@
             addInvoiceItemRow(it.description, it.quantity, it.unit_of_measure, it.price, it.tax_rate_percent);
           });
         }
+        showToast(`Entwurf generiert via ${res.model || 'KI'}`);
       } catch (err) {
         alert('Fehler bei der Schnellerfassung: ' + err.message);
       } finally {
@@ -661,6 +1489,7 @@
       await window.rechly.createInvoice(invoiceData);
       currentStore = await window.rechly.getStore();
       updateBadges();
+      showToast('Rechnung erfolgreich gespeichert!');
       showView('invoices');
     }
 
@@ -669,6 +1498,7 @@
         await window.rechly.deleteInvoice(id);
         currentStore = await window.rechly.getStore();
         updateBadges();
+        showToast('Rechnung gelöscht');
         showView('invoices');
       }
     }
@@ -676,14 +1506,14 @@
     // ─── Export Actions ───
     async function exportXRechnung(id) {
       const res = await window.rechly.exportXRechnung(id);
-      if (res.success) alert('XRechnung 3.0 XML erfolgreich gespeichert!');
+      if (res.success) showToast('XRechnung 3.0 XML erfolgreich gespeichert!');
     }
 
     function previewInvoice(id) {
       const inv = currentStore.invoices.find(i => i.id === id);
       if (!inv) return;
       const client = currentStore.clients.find(c => c.id === inv.client_id) || { name: 'Kunde' };
-      const comp = currentStore.company;
+      const comp = currentStore.company || {};
 
       const itemsRows = (inv.items || []).map((it, idx) => `
         <tr>
@@ -707,8 +1537,8 @@
 
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:40px;">
           <div>
-            <h1 style="font-size:24px; color:#0f172a; margin-bottom:4px;">${comp.name}</h1>
-            <div style="font-size:12px; color:#64748b;">${comp.address_line1}, ${comp.postal_code} ${comp.city}</div>
+            <h1 style="font-size:24px; color:#0f172a; margin-bottom:4px;">${comp.name || 'Meine Firma'}</h1>
+            <div style="font-size:12px; color:#64748b;">${comp.address_line1 || ''}, ${comp.postal_code || ''} ${comp.city || ''}</div>
             <div style="font-size:12px; color:#64748b;">USt-IdNr.: ${comp.vat_id || comp.tax_number || '-'}</div>
           </div>
           <div style="text-align:right;">
@@ -769,28 +1599,39 @@
 
       container.innerHTML = `
         <div class="page-header">
-          <div class="page-title">Kundenstamm (Lokal)</div>
-          <button class="btn btn-primary" onclick="showNewClientForm()">+ Neuer Kunde</button>
+          <div>
+            <div class="page-title">Kundenstamm (Lokal)</div>
+            <div class="page-subtitle">Verwalte deine Geschäftskunden und E-Rechnungs-Empfänger.</div>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('modal-client')">+ Neuer Kunde</button>
         </div>
         <div class="card">
           <table>
             <thead><tr><th>Name</th><th>Ansprechpartner</th><th>Ort</th><th>E-Mail</th><th>Leitweg-ID</th><th>Aktion</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="6" style="text-align:center">Keine Kunden gespeichert.</td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="6" style="text-align:center; padding:24px;">Keine Kunden gespeichert. Klicke auf "+ Neuer Kunde".</td></tr>'}</tbody>
           </table>
         </div>
       `;
     }
 
-    async function showNewClientForm() {
-      const name = prompt('Name des Kunden / Unternehmens:');
-      if (!name) return;
-      const email = prompt('E-Mail-Adresse:');
-      const address = prompt('Straße und Hausnummer:');
-      const city = prompt('PLZ und Stadt:');
-      await window.rechly.createClient({ name, email, address_line1: address, city });
+    async function submitModalClient() {
+      const name = document.getElementById('modal-client-name').value.trim();
+      if (!name) return alert('Bitte Kundenname angeben.');
+      const contact_person = document.getElementById('modal-client-contact').value.trim();
+      const email = document.getElementById('modal-client-email').value.trim();
+      const address_line1 = document.getElementById('modal-client-address').value.trim();
+      const postal_code = document.getElementById('modal-client-plz').value.trim();
+      const city = document.getElementById('modal-client-city').value.trim();
+      const vat_id = document.getElementById('modal-client-vat').value.trim();
+      const leitweg_id = document.getElementById('modal-client-leitweg').value.trim();
+
+      await window.rechly.createClient({ name, contact_person, email, address_line1, postal_code, city, vat_id, leitweg_id });
       currentStore = await window.rechly.getStore();
       updateBadges();
-      renderClientsView(document.getElementById('content-container'));
+      closeModal('modal-client');
+      showToast('Kunde angelegt!');
+      if (currentView === 'clients') renderClientsView(document.getElementById('content-container'));
+      else if (currentView === 'dashboard') renderDashboardView(document.getElementById('content-container'));
     }
 
     async function deleteClient(id) {
@@ -798,6 +1639,7 @@
         await window.rechly.deleteClient(id);
         currentStore = await window.rechly.getStore();
         updateBadges();
+        showToast('Kunde gelöscht');
         renderClientsView(document.getElementById('content-container'));
       }
     }
@@ -818,26 +1660,34 @@
 
       container.innerHTML = `
         <div class="page-header">
-          <div class="page-title">Produkte & Dienstleistungen</div>
-          <button class="btn btn-primary" onclick="showNewProductForm()">+ Neues Produkt</button>
+          <div>
+            <div class="page-title">Produkte & Dienstleistungen</div>
+            <div class="page-subtitle">Verwalte Artikel und wiederkehrende Stundensätze.</div>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('modal-product')">+ Neues Produkt</button>
         </div>
         <div class="card">
           <table>
             <thead><tr><th>Bezeichnung</th><th>Beschreibung</th><th>Preis</th><th>MwSt</th><th>Einheit</th><th>Aktion</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="6" style="text-align:center">Keine Produkte hinterlegt.</td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="6" style="text-align:center; padding:24px;">Keine Produkte hinterlegt.</td></tr>'}</tbody>
           </table>
         </div>
       `;
     }
 
-    async function showNewProductForm() {
-      const name = prompt('Produktbezeichnung:');
-      if (!name) return;
-      const price = parseFloat(prompt('Preis in €:')) || 0;
-      const unit = prompt('Einheit (Stunde, Stück, Pauschal):', 'Stunde') || 'Stunde';
-      await window.rechly.createProduct({ name, price, unit_of_measure: unit, tax_rate_percent: 19 });
+    async function submitModalProduct() {
+      const name = document.getElementById('modal-product-name').value.trim();
+      if (!name) return alert('Bitte Bezeichnung angeben.');
+      const description = document.getElementById('modal-product-desc').value.trim();
+      const price = parseFloat(document.getElementById('modal-product-price').value) || 0;
+      const unit_of_measure = document.getElementById('modal-product-unit').value;
+      const tax_rate_percent = parseFloat(document.getElementById('modal-product-vat').value) || 0;
+
+      await window.rechly.createProduct({ name, description, price, unit_of_measure, tax_rate_percent });
       currentStore = await window.rechly.getStore();
       updateBadges();
+      closeModal('modal-product');
+      showToast('Produkt gespeichert!');
       renderProductsView(document.getElementById('content-container'));
     }
 
@@ -846,6 +1696,7 @@
         await window.rechly.deleteProduct(id);
         currentStore = await window.rechly.getStore();
         updateBadges();
+        showToast('Produkt gelöscht');
         renderProductsView(document.getElementById('content-container'));
       }
     }
@@ -866,12 +1717,15 @@
 
       container.innerHTML = `
         <div class="page-header">
-          <div class="page-title">Angebote & Kostenvoranschläge</div>
+          <div>
+            <div class="page-title">Angebote & Kostenvoranschläge</div>
+            <div class="page-subtitle">Wandle angenommene Angebote in 1 Klick in eine GoBD-Rechnung um.</div>
+          </div>
         </div>
         <div class="card">
           <table>
             <thead><tr><th>Nummer</th><th>Gesamtbetrag</th><th>Status</th><th>Aktion</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="4" style="text-align:center">Keine Angebote vorhanden.</td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="4" style="text-align:center; padding:24px;">Keine Angebote vorhanden.</td></tr>'}</tbody>
           </table>
         </div>
       `;
@@ -881,6 +1735,7 @@
       await window.rechly.convertOffer(id);
       currentStore = await window.rechly.getStore();
       updateBadges();
+      showToast('Angebot in Rechnung umgewandelt!');
       showView('invoices');
     }
 
@@ -892,38 +1747,50 @@
           <td><b>${e.vendor_name || '-'}</b></td>
           <td>${e.category || '-'}</td>
           <td>${e.date || '-'}</td>
-          <td>${(e.amount_gross || 0).toFixed(2)} €</td>
+          <td><b>${(e.amount_gross || 0).toFixed(2)} €</b></td>
           <td><button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteExpense('${e.id}')">✕</button></td>
         </tr>
       `).join('');
 
       container.innerHTML = `
         <div class="page-header">
-          <div class="page-title">Ausgaben & Belege (Lokal)</div>
-          <button class="btn btn-primary" onclick="showNewExpenseForm()">+ Beleg erfassen</button>
+          <div>
+            <div class="page-title">Ausgaben & Belege (Lokal)</div>
+            <div class="page-subtitle">Erfasse Belege und Betriebsausgaben für die Steuererklärung.</div>
+          </div>
+          <button class="btn btn-primary" onclick="openModal('modal-expense')">+ Beleg erfassen</button>
         </div>
         <div class="card">
           <table>
             <thead><tr><th>Lieferant</th><th>Kategorie</th><th>Datum</th><th>Betrag</th><th>Aktion</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="5" style="text-align:center">Keine Ausgaben erfasst.</td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="5" style="text-align:center; padding:24px;">Keine Ausgaben erfasst.</td></tr>'}</tbody>
           </table>
         </div>
       `;
     }
 
-    async function showNewExpenseForm() {
-      const vendor_name = prompt('Lieferant / Geschäft:');
-      if (!vendor_name) return;
-      const amount_gross = parseFloat(prompt('Bruttobetrag in €:')) || 0;
-      const category = prompt('Kategorie (Büro, Bewirtung, Reise, Software):', 'Büromaterial') || 'Allgemein';
-      await window.rechly.createExpense({ vendor_name, amount_gross, category, date: new Date().toISOString().slice(0, 10) });
+    async function submitModalExpense() {
+      const vendor_name = document.getElementById('modal-exp-vendor').value.trim();
+      if (!vendor_name) return alert('Bitte Lieferant angeben.');
+      const amount_gross = parseFloat(document.getElementById('modal-exp-amount').value) || 0;
+      const vat_rate = parseFloat(document.getElementById('modal-exp-vat').value) || 19;
+      const date = document.getElementById('modal-exp-date').value || new Date().toISOString().slice(0, 10);
+      const category = document.getElementById('modal-exp-cat').value;
+
+      await window.rechly.createExpense({ vendor_name, amount_gross, vat_rate, date, category });
       currentStore = await window.rechly.getStore();
-      renderExpensesView(document.getElementById('content-container'));
+      updateBadges();
+      closeModal('modal-expense');
+      showToast('Ausgabe erfasst!');
+      if (currentView === 'expenses') renderExpensesView(document.getElementById('content-container'));
+      else if (currentView === 'dashboard') renderDashboardView(document.getElementById('content-container'));
     }
 
     async function deleteExpense(id) {
       await window.rechly.deleteExpense(id);
       currentStore = await window.rechly.getStore();
+      updateBadges();
+      showToast('Ausgabe gelöscht');
       renderExpensesView(document.getElementById('content-container'));
     }
 
@@ -931,12 +1798,15 @@
     function renderDatevView(container) {
       container.innerHTML = `
         <div class="page-header">
-          <div class="page-title">DATEV Export (1-Klick Steuerberater-Export)</div>
+          <div>
+            <div class="page-title">DATEV Export (Format 700)</div>
+            <div class="page-subtitle">1-Klick Steuerberater-Export nach offiziellem DATEV-Standard.</div>
+          </div>
         </div>
         <div class="card">
           <p style="margin-bottom:16px; color:#475569; font-size:13px; line-height:1.6;">
-            Exportiert alle gespeicherten Rechnungen im offiziellen <b>DATEV EXTF Format 700 (Buchungsstapel)</b>.
-            Die erzeugte Datei kann direkt in <i>DATEV Rechnungswesen / Kanzlei-Rechnungswesen</i> eingelesen werden.
+            Exportiert alle gespeicherten Rechnungen im offiziellen <b>DATEV EXTF Format 700 (Buchungsstapel CSV)</b>.
+            Die Datei kann von Steuerkanzleien direkt in <i>DATEV Rechnungswesen / Kanzlei-Rechnungswesen</i> eingelesen werden.
           </p>
           <button class="btn btn-primary" onclick="window.rechly.exportDatev()">📁 DATEV Buchungsstapel exportieren…</button>
         </div>
@@ -947,7 +1817,10 @@
     function renderToolsView(container) {
       container.innerHTML = `
         <div class="page-header">
-          <div class="page-title">Lokale Offline Rechner</div>
+          <div>
+            <div class="page-title">Lokale Offline Rechner</div>
+            <div class="page-subtitle">Nützliche Rechentools für Selbstständige ohne Internetverbindung.</div>
+          </div>
         </div>
         <div class="form-grid">
           <div class="card">
@@ -992,45 +1865,134 @@
       document.getElementById('calc-skonto-res').innerHTML = `Abzug: <b>${discount.toFixed(2)} €</b> | Zahlbetrag: <b>${(gross - discount).toFixed(2)} €</b>`;
     }
 
-    // ─── View 9: Settings & AI ───
+    // ─── View 9: Settings & AI Configuration ───
     function renderSettingsView(container) {
       const comp = currentStore.company || {};
+      const ai = currentStore.aiSettings || {};
+      const activeProvider = ai.active_provider || 'ollama';
+
       container.innerHTML = `
         <div class="page-header">
-          <div class="page-title">Einstellungen & Lokale KI</div>
+          <div>
+            <div class="page-title">Einstellungen & KI-Schnittstellen</div>
+            <div class="page-subtitle">Firmendaten pflegen und KI-Anbieter (Lokal vs. Cloud) konfigurieren.</div>
+          </div>
           <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
         </div>
 
-        <!-- Featured AI Model Card: jonprompter/Rechly-DE-3B -->
-        <div class="card" style="border: 2px solid #86efac; background: #f0fdf4;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <div>
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:18px;">⭐</span>
-                <h3 style="font-size:16px; color:#166534;">Offizielles Rechly-KI-Modell: <code>jonprompter/Rechly-DE-3B</code></h3>
-              </div>
-              <p style="font-size:13px; color:#15803d; margin: 8px 0 12px 0; line-height:1.5;">
-                Speziell trainiert für deutsche Rechnungen, GoBD-Konformität, §19 UStG Kleinunternehmer & Text-zu-Rechnung.
-                Läuft 100% lokal auf Ihrem Rechner via Ollama (vollkommen offline, DSGVO-sicher).
-              </p>
-              <div style="margin-bottom:12px;">
-                <span style="font-size:12px; color:#166534; font-weight:600;">Terminal-Befehl zum Herunterladen & Starten:</span><br>
-                <code style="display:inline-block; margin-top:4px; padding:6px 12px; background:#ffffff; border:1px solid #bbf7d0; border-radius:6px; font-weight:700; color:#14532d;">
-                  ollama run jonprompter/Rechly-DE-3B
-                </code>
-              </div>
-              <div style="display:flex; gap:12px; font-size:12px;">
-                <a href="https://ollama.com/jonprompter/Rechly-DE-3B" target="_blank" style="color:#15803d; font-weight:600;">Ollama Model Library ↗</a>
-                <a href="https://huggingface.co/jonprompter/rechly-de-3b" target="_blank" style="color:#15803d; font-weight:600;">Hugging Face Repository ↗</a>
+        <!-- AI Engine Configuration Card -->
+        <div class="card" style="border: 1px solid #bfdbfe;">
+          <div class="card-title">🤖 KI-Modell & Anbieter wählen</div>
+          <p style="font-size:13px; color:#475569; margin-bottom:16px;">
+            Wähle, welche künstliche Intelligenz für <b>Text-zu-Rechnung</b> und Beleg-Assistenten genutzt wird.
+          </p>
+
+          <div class="ai-tabs">
+            <button class="ai-tab-btn ${activeProvider === 'ollama' ? 'active' : ''}" onclick="selectAiTab('ollama')">
+              🖥️ Ollama (Lokal & Kostenlos)
+            </button>
+            <button class="ai-tab-btn ${activeProvider === 'openai' ? 'active' : ''}" onclick="selectAiTab('openai')">
+              ⚡ OpenAI Cloud
+            </button>
+            <button class="ai-tab-btn ${activeProvider === 'anthropic' ? 'active' : ''}" onclick="selectAiTab('anthropic')">
+              🧠 Anthropic Claude Cloud
+            </button>
+          </div>
+
+          <!-- Tab Content: Ollama -->
+          <div id="ai-tab-content-ollama" style="display: ${activeProvider === 'ollama' ? 'block' : 'none'};">
+            <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius:8px; padding:16px; margin-bottom:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div>
+                  <div style="font-weight:700; font-size:14px; color:#166534;">
+                    ⭐ Empfohlen: <code>jonprompter/Rechly-DE-3B</code>
+                  </div>
+                  <p style="font-size:12px; color:#15803d; margin: 4px 0 10px 0;">
+                    100% On-Device Rechnungs-KI: Keine API-Kosten, kein Datenabfluss, volle DSGVO- & GoBD-Konformität.
+                  </p>
+                  <div style="font-size:11px; color:#14532d;">
+                    Terminal 1-Liner zum Starten:<br>
+                    <code style="display:inline-block; margin-top:4px; padding:5px 10px; background:#fff; border:1px solid #bbf7d0; border-radius:4px; font-weight:700;">
+                      ollama run jonprompter/Rechly-DE-3B
+                    </code>
+                  </div>
+                  <div style="margin-top:10px; display:flex; gap:12px; font-size:11px;">
+                    <a href="https://ollama.com/jonprompter/Rechly-DE-3B" target="_blank" style="color:#15803d; font-weight:600;">Ollama Model Library ↗</a>
+                    <a href="https://huggingface.co/jonprompter/rechly-de-3b" target="_blank" style="color:#15803d; font-weight:600;">Hugging Face Model ↗</a>
+                  </div>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="testOllama()">🔄 Verbindung prüfen</button>
               </div>
             </div>
-            <button class="btn btn-secondary btn-sm" onclick="checkOllamaConnection()">🔄 Status prüfen</button>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Ollama Host URL</label>
+                <input type="text" id="ai-ollama-host" value="${ai.ollama_host || 'http://localhost:11434'}">
+              </div>
+              <div class="form-group">
+                <label>Modellname</label>
+                <input type="text" id="ai-ollama-model" value="${ai.ollama_model || 'jonprompter/Rechly-DE-3B'}">
+              </div>
+            </div>
+            <div id="ollama-test-result" style="font-size:12px; margin-top:6px;"></div>
+          </div>
+
+          <!-- Tab Content: OpenAI -->
+          <div id="ai-tab-content-openai" style="display: ${activeProvider === 'openai' ? 'block' : 'none'};">
+            <div class="form-grid">
+              <div class="form-group" style="grid-column: span 2;">
+                <label>OpenAI API Key (sk-...)</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="password" id="ai-openai-key" value="${ai.openai_key || ''}" placeholder="sk-proj-..." style="flex:1;">
+                  <button class="btn btn-secondary btn-sm" onclick="togglePasswordVisibility('ai-openai-key')">👁️</button>
+                  <button class="btn btn-secondary btn-sm" onclick="testOpenAi()">Verbindung testen</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Modell</label>
+                <select id="ai-openai-model">
+                  <option value="gpt-4o-mini" ${ai.openai_model === 'gpt-4o-mini' ? 'selected' : ''}>gpt-4o-mini (Empfohlen - Schnell & Günstig)</option>
+                  <option value="gpt-4o" ${ai.openai_model === 'gpt-4o' ? 'selected' : ''}>gpt-4o (Maximale Intelligenz)</option>
+                  <option value="o3-mini" ${ai.openai_model === 'o3-mini' ? 'selected' : ''}>o3-mini (Reasoning)</option>
+                </select>
+              </div>
+            </div>
+            <div id="openai-test-result" style="font-size:12px; margin-top:6px;"></div>
+            <p style="font-size:11px; color:#64748b; margin-top:8px;">
+              🔒 Dein OpenAI API-Key wird ausschließlich verschlüsselt in deinem lokalen Tresor auf diesem Rechner gespeichert.
+            </p>
+          </div>
+
+          <!-- Tab Content: Anthropic Claude -->
+          <div id="ai-tab-content-anthropic" style="display: ${activeProvider === 'anthropic' ? 'block' : 'none'};">
+            <div class="form-grid">
+              <div class="form-group" style="grid-column: span 2;">
+                <label>Anthropic API Key (sk-ant-...)</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="password" id="ai-anthropic-key" value="${ai.anthropic_key || ''}" placeholder="sk-ant-api03-..." style="flex:1;">
+                  <button class="btn btn-secondary btn-sm" onclick="togglePasswordVisibility('ai-anthropic-key')">👁️</button>
+                  <button class="btn btn-secondary btn-sm" onclick="testAnthropic()">Verbindung testen</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Modell</label>
+                <select id="ai-anthropic-model">
+                  <option value="claude-3-5-sonnet-20241022" ${ai.anthropic_model === 'claude-3-5-sonnet-20241022' ? 'selected' : ''}>Claude 3.5 Sonnet (Höchste Text-Präzision)</option>
+                  <option value="claude-3-5-haiku-20241022" ${ai.anthropic_model === 'claude-3-5-haiku-20241022' ? 'selected' : ''}>Claude 3.5 Haiku (Ultraschnell)</option>
+                </select>
+              </div>
+            </div>
+            <div id="anthropic-test-result" style="font-size:12px; margin-top:6px;"></div>
+            <p style="font-size:11px; color:#64748b; margin-top:8px;">
+              🔒 Dein Anthropic API-Key verlässt dieses Gerät niemals zu Drittservern.
+            </p>
           </div>
         </div>
 
         <!-- Company Profile -->
         <div class="card">
-          <h3 style="font-size:15px; margin-bottom:16px;">Unternehmensdaten & Bankverbindung</h3>
+          <div class="card-title">🏢 Unternehmensdaten & Bankverbindung</div>
           <div class="form-grid">
             <div class="form-group"><label>Firmenname</label><input type="text" id="set-name" value="${comp.name || ''}"></div>
             <div class="form-group"><label>Rechtsform</label><input type="text" id="set-legal" value="${comp.legal_form || ''}"></div>
@@ -1041,32 +2003,98 @@
             <div class="form-group"><label>Steuernummer</label><input type="text" id="set-tax" value="${comp.tax_number || ''}"></div>
             <div class="form-group"><label>IBAN</label><input type="text" id="set-iban" value="${comp.bank_iban || ''}"></div>
             <div class="form-group"><label>BIC</label><input type="text" id="set-bic" value="${comp.bank_bic || ''}"></div>
-            <div class="form-group"><label>Bank</label><input type="text" id="set-bank" value="${comp.bank_name || ''}"></div>
+            <div class="form-group"><label>Bankname</label><input type="text" id="set-bank" value="${comp.bank_name || ''}"></div>
           </div>
           <div class="form-group" style="margin-top:12px;">
             <label>
               <input type="checkbox" id="set-smallbiz" ${comp.is_small_business ? 'checked' : ''}>
-              <b>Kleinunternehmerregelung (§ 19 UStG) aktivieren</b> (Keine Umsatzsteuer auf Rechnungen)
+              <b>Kleinunternehmerregelung (§ 19 UStG) aktivieren</b> (Rechnungen ohne Ausweis der Umsatzsteuer)
             </label>
           </div>
         </div>
 
         <!-- Database Backup & Restore -->
         <div class="card">
-          <h3 style="font-size:15px; margin-bottom:12px;">Offline Tresor sichern & wiederherstellen</h3>
+          <div class="card-title">💾 GoBD-Tresor sichern & wiederherstellen</div>
           <p style="font-size:13px; color:#64748b; margin-bottom:16px;">
-            Alle Ihre Daten liegen ausschließlich auf dieser Festplatte. Sie können Ihren Tresor jederzeit mit einem Klick sichern.
+            Alle Daten liegen ausschließlich in einer lokalen Datei (rechly_vault.json). Sichere deinen Tresor regelmäßig als verschlüsselte Kopie.
           </p>
           <div style="display:flex; gap:12px;">
-            <button class="btn btn-secondary" onclick="window.rechly.exportBackup()">💾 Tresor als Datei sichern…</button>
+            <button class="btn btn-secondary" onclick="window.rechly.exportBackup()">💾 Tresor-Backup exportieren…</button>
             <button class="btn btn-secondary" onclick="importBackup()">📂 Tresor aus Datei wiederherstellen…</button>
           </div>
         </div>
       `;
     }
 
+    let selectedAiProvider = 'ollama';
+
+    function selectAiTab(provider) {
+      selectedAiProvider = provider;
+      document.querySelectorAll('.ai-tab-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('ai-tab-content-ollama').style.display = provider === 'ollama' ? 'block' : 'none';
+      document.getElementById('ai-tab-content-openai').style.display = provider === 'openai' ? 'block' : 'none';
+      document.getElementById('ai-tab-content-anthropic').style.display = provider === 'anthropic' ? 'block' : 'none';
+    }
+
+    function togglePasswordVisibility(inputId) {
+      const el = document.getElementById(inputId);
+      if (el) el.type = el.type === 'password' ? 'text' : 'password';
+    }
+
+    async function testOllama() {
+      const host = document.getElementById('ai-ollama-host')?.value || 'http://localhost:11434';
+      const out = document.getElementById('ollama-test-result');
+      out.innerHTML = '⏳ Prüfe lokale Ollama-Verbindung...';
+      try {
+        const res = await window.rechly.checkOllama(host);
+        if (res.connected) {
+          out.innerHTML = `<span style="color:#15803d; font-weight:600;">✅ Ollama aktiv! Verfügbare Modelle: ${(res.models || []).join(', ') || 'keine'}</span>`;
+        } else {
+          out.innerHTML = `<span style="color:#ef4444; font-weight:600;">❌ Keine Verbindung: ${res.error || 'Server offline'}. Führe 'ollama serve' aus.</span>`;
+        }
+      } catch (err) {
+        out.innerHTML = `<span style="color:#ef4444;">❌ Fehler: ${err.message}</span>`;
+      }
+    }
+
+    async function testOpenAi() {
+      const key = document.getElementById('ai-openai-key')?.value;
+      const model = document.getElementById('ai-openai-model')?.value || 'gpt-4o-mini';
+      const out = document.getElementById('openai-test-result');
+      out.innerHTML = '⏳ Prüfe OpenAI API-Key...';
+      try {
+        const res = await window.rechly.testOpenAi(key, model);
+        if (res.success) {
+          out.innerHTML = '<span style="color:#15803d; font-weight:600;">✅ OpenAI Verbindung erfolgreich!</span>';
+        } else {
+          out.innerHTML = `<span style="color:#ef4444; font-weight:600;">❌ Fehler: ${res.error}</span>`;
+        }
+      } catch (err) {
+        out.innerHTML = `<span style="color:#ef4444;">❌ Fehler: ${err.message}</span>`;
+      }
+    }
+
+    async function testAnthropic() {
+      const key = document.getElementById('ai-anthropic-key')?.value;
+      const model = document.getElementById('ai-anthropic-model')?.value || 'claude-3-5-sonnet-20241022';
+      const out = document.getElementById('anthropic-test-result');
+      out.innerHTML = '⏳ Prüfe Anthropic Claude API-Key...';
+      try {
+        const res = await window.rechly.testAnthropic(key, model);
+        if (res.success) {
+          out.innerHTML = '<span style="color:#15803d; font-weight:600;">✅ Anthropic Claude Verbindung erfolgreich!</span>';
+        } else {
+          out.innerHTML = `<span style="color:#ef4444; font-weight:600;">❌ Fehler: ${res.error}</span>`;
+        }
+      } catch (err) {
+        out.innerHTML = `<span style="color:#ef4444;">❌ Fehler: ${err.message}</span>`;
+      }
+    }
+
     async function saveSettings() {
-      const updated = {
+      const updatedComp = {
         ...currentStore.company,
         name: document.getElementById('set-name').value,
         legal_form: document.getElementById('set-legal').value,
@@ -1080,10 +2108,24 @@
         bank_name: document.getElementById('set-bank').value,
         is_small_business: document.getElementById('set-smallbiz').checked,
       };
-      await window.rechly.saveCompany(updated);
+
+      const updatedAi = {
+        active_provider: selectedAiProvider,
+        ollama_host: document.getElementById('ai-ollama-host')?.value || 'http://localhost:11434',
+        ollama_model: document.getElementById('ai-ollama-model')?.value || 'jonprompter/Rechly-DE-3B',
+        openai_key: document.getElementById('ai-openai-key')?.value || '',
+        openai_model: document.getElementById('ai-openai-model')?.value || 'gpt-4o-mini',
+        anthropic_key: document.getElementById('ai-anthropic-key')?.value || '',
+        anthropic_model: document.getElementById('ai-anthropic-model')?.value || 'claude-3-5-sonnet-20241022',
+        featured_model: 'jonprompter/Rechly-DE-3B',
+      };
+
+      await window.rechly.saveCompany(updatedComp);
+      await window.rechly.saveAiSettings(updatedAi);
       currentStore = await window.rechly.getStore();
       updateSidebarCompany();
-      alert('Einstellungen gespeichert!');
+      updateAiStatusPill();
+      showToast('Einstellungen & KI erfolgreich gespeichert!');
     }
 
     async function importBackup() {
@@ -1092,13 +2134,30 @@
         currentStore = await window.rechly.getStore();
         updateSidebarCompany();
         updateBadges();
-        alert('Backup erfolgreich wiederhergestellt!');
-        showView('invoices');
+        showToast('Tresor erfolgreich wiederhergestellt!');
+        showView('dashboard');
       }
+    }
+
+    function showAiSettingsModal() {
+      showView('settings');
+    }
+
+    // Modal Helpers
+    function openModal(id) {
+      if (id === 'modal-exp-date') {
+        const d = document.getElementById('modal-exp-date');
+        if (d) d.value = new Date().toISOString().slice(0, 10);
+      }
+      document.getElementById(id).style.display = 'flex';
+    }
+    function closeModal(id) {
+      document.getElementById(id).style.display = 'none';
     }
 
     function handleGlobalSearch(term) {
       if (!term.trim()) return showView(currentView);
+      showView('invoices');
       const invoices = (currentStore.invoices || []).filter(i =>
         i.invoice_number.toLowerCase().includes(term.toLowerCase()) ||
         (i.items || []).some(it => it.description.toLowerCase().includes(term.toLowerCase()))
@@ -1115,6 +2174,11 @@
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
         document.getElementById('global-search')?.focus();
+      }
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop').forEach(m => m.style.display = 'none');
+        const printModal = document.getElementById('print-modal');
+        if (printModal) printModal.style.display = 'none';
       }
     });
 

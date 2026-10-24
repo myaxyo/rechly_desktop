@@ -36,8 +36,12 @@ contextBridge.exposeInMainWorld("rechly", {
     createExpense: (data) => ipcRenderer.invoke("expenses:create", data),
     deleteExpense: (id) => ipcRenderer.invoke("expenses:delete", id),
 
-    // AI & Ollama (featuring jonprompter/Rechly-DE-3B)
+    // AI & Integrations (Ollama, OpenAI, Claude)
+    getAiSettings: () => ipcRenderer.invoke("ai:getSettings"),
+    saveAiSettings: (settings) => ipcRenderer.invoke("ai:saveSettings", settings),
     checkOllama: (host) => ipcRenderer.invoke("ai:checkOllama", host),
+    testOpenAi: (key, model) => ipcRenderer.invoke("ai:testOpenAi", key, model),
+    testAnthropic: (key, model) => ipcRenderer.invoke("ai:testAnthropic", key, model),
     parseInvoiceDraft: (prompt, clients, isSmallBusiness) =>
         ipcRenderer.invoke("ai:parseDraft", prompt, clients, isSmallBusiness),
 

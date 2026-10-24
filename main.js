@@ -11,7 +11,12 @@ const fs = require("fs");
 
 const store = require("./store");
 const { generateXRechnungXML, generateDatevExport } = require("./eRechnung");
-const { checkOllama, parseInvoiceDraft } = require("./ai");
+const {
+    checkOllama,
+    testOpenAi,
+    testAnthropic,
+    parseInvoiceDraft,
+} = require("./ai");
 
 let mainWindow = null;
 
@@ -324,17 +329,15 @@ ipcMain.handle("expenses:delete", (_e, id) => {
     return true;
 });
 
-// AI & Ollama (jonprompter/Rechly-DE-3B)
+// AI & Cloud Integration (Local Ollama & Cloud OpenAI / Anthropic Claude)
+ipcMain.handle("ai:getSettings", () => store.getAiSettings());
+ipcMain.handle("ai:saveSettings", (_e, settings) => store.saveAiSettings(settings));
 ipcMain.handle("ai:checkOllama", (_e, host) => checkOllama(host));
+ipcMain.handle("ai:testOpenAi", (_e, key, model) => testOpenAi(key, model));
+ipcMain.handle("ai:testAnthropic", (_e, key, model) => testAnthropic(key, model));
 ipcMain.handle("ai:parseDraft", (_e, prompt, clients, isSmallBusiness) => {
-    const aiSettings = store.get("aiSettings") || {};
-    return parseInvoiceDraft(
-        prompt,
-        clients,
-        isSmallBusiness,
-        aiSettings.base_url || "http://localhost:11434",
-        aiSettings.model || "jonprompter/Rechly-DE-3B"
-    );
+    const aiSettings = store.getAiSettings();
+    return parseInvoiceDraft(prompt, clients, isSmallBusiness, aiSettings);
 });
 
 // Native Exports
