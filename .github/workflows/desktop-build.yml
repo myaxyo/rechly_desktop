@@ -49,16 +49,14 @@ jobs:
       - name: Desktop workflows
         run: |
           export RECHLY_PLAYWRIGHT_PATH="$GITHUB_WORKSPACE/.ci-tools/node_modules/playwright-core"
-          node tests/business.electron.cjs
-          node tests/calendar.electron.cjs
-          node tests/core.electron.cjs
+          node scripts/run-desktop-tests.cjs tests/business.electron.cjs tests/calendar.electron.cjs tests/core.electron.cjs
       - name: Build native installer
         run: npx electron-builder --${{ matrix.target }} --${{ matrix.arch }} --publish never
       - name: Verify packaged application
         run: |
           export RECHLY_PLAYWRIGHT_PATH="$GITHUB_WORKSPACE/.ci-tools/node_modules/playwright-core"
           export RECHLY_EXECUTABLE="$(node scripts/packaged-executable.cjs)"
-          node tests/calendar.electron.cjs
+          node scripts/run-desktop-tests.cjs tests/calendar.electron.cjs
       - uses: actions/upload-artifact@v4
         with:
           name: rechly-${{ matrix.target }}-${{ matrix.arch }}
