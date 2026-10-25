@@ -1,0 +1,43 @@
+name: Verify published release checksums
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag
+        required: true
+        default: v1.1.0
+permissions:
+  contents: write
+jobs:
+  checksums:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate checksum manifest from GitHub-verified asset digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > published-release.json
+          python3 - <<'PY'
+          import json, re
+          from pathlib import Path
+          release=json.loads(Path('published-release.json').read_text())
+          if release['draft']:
+              raise RuntimeError('Expected a published release')
+          files=[]
+          for asset in release['assets']:
+              if not asset['name'].endswith(('.exe','.dmg','.zip')):
+                  continue
+              if asset['state'] != 'uploaded' or not re.fullmatch(r'[A-Za-z0-9_.-]+',asset['name']):
+                  raise RuntimeError('Unexpected release asset name or state')
+              digest=asset.get('digest') or ''
+              if not re.fullmatch(r'sha256:[0-9a-f]{64}',digest):
+                  raise RuntimeError('GitHub asset digest is missing')
+              files.append((asset['name'],digest[7:]))
+          if sum(name.endswith('.exe') for name,_ in files)!=1 or sum(name.endswith('.dmg') for name,_ in files)!=2:
+              raise RuntimeError('Expected Windows, Apple Silicon and Intel installers')
+          Path('SHA256SUMS.txt').write_text(''.join(f'{digest}  {name}\n' for name,digest in sorted(files)))
+          print(f'Verified digest metadata for {len(files)} release assets')
+          PY
+          gh release upload "$RELEASE_TAG" SHA256SUMS.txt --clobber
