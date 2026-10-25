@@ -13,6 +13,15 @@ import type {
 } from "./types";
 
 const api = {
+    getCalendar: (from: string, to: string) => ipcRenderer.invoke("calendar:list", from, to),
+    saveCalendarEvent: (record: unknown) => ipcRenderer.invoke("calendar:save", record),
+    deleteCalendarEvent: (id: string, date?: string) => ipcRenderer.invoke("calendar:delete", id, date),
+    exportCalendar: () => ipcRenderer.invoke("calendar:export"),
+    importCalendar: () => ipcRenderer.invoke("calendar:import"),
+    getBusiness: () => ipcRenderer.invoke("business:get"),
+    saveBusiness: (key: import("./business").BusinessCollection, record: unknown) => ipcRenderer.invoke("business:save", key, record),
+    deleteBusiness: (key: import("./business").BusinessCollection, id: string) => ipcRenderer.invoke("business:delete", key, id),
+    exportDocument: (id: string, format: "pdf" | "txt") => ipcRenderer.invoke("business:export", id, format),
     isDesktop: true,
     platform: process.platform,
 

@@ -1,7 +1,7 @@
 {
     "name": "rechly-desktop",
     "productName": "Rechly",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Rechly – Rechnungssoftware für Freelancer und kleine Unternehmen (Desktop)",
     "main": "out/main.js",
     "author": "Rechly",
@@ -21,7 +21,8 @@
         "dist:win": "npm run build && electron-builder --win"
     },
     "dependencies": {
-        "electron-updater": "^6.3.9"
+        "electron-updater": "^6.3.9",
+        "ical.js": "2.2.1"
     },
     "devDependencies": {
         "@types/node": "^20.19.43",

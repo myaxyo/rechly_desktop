@@ -1,5 +1,10 @@
+import { validateEvent, occurrences, exportCalendar, importCalendar, localStamp } from "./calendar";
+import { collection, emptyBusiness, saveBusinessRecord, deleteBusinessRecord, documentHtml } from "./business";
+import { randomUUID } from "node:crypto";
+import { validateInvoice } from "./invoiceValidation";
 import {
     app,
+    Notification,
     BrowserWindow,
     Menu,
     dialog,
@@ -208,6 +213,94 @@ async function exportBackupHandler(): Promise<ExportResult> {
     return { success: true, filePath };
 }
 
+ipcMain.handle("calendar:list", (_e, from: string, to: string) => {
+    const events = store.get("calendar") || [];
+    return {events, occurrences:occurrences(events,from,to)};
+});
+ipcMain.handle("calendar:save", (_e, raw: unknown) => {
+    const events = store.get("calendar") || [];
+    const event = validateEvent(raw, events);
+    if(events.length>=10000&&!events.some(e=>e.id===event.id))throw new Error("Maximal 10.000 Termine pro Kalender.");
+    store.set("calendar", [event,...events.filter(e=>e.id!==event.id)]);
+    checkCalendarReminders();
+    return event;
+});
+ipcMain.handle("calendar:delete", (_e, id: string, occurrenceDate?: string) => {
+    const events = store.get("calendar") || [];
+    const event = events.find(e=>e.id===id);
+    if(!event)throw new Error("Termin nicht gefunden.");
+    if(occurrenceDate && event.repeat!=="none") {
+        const updated = validateEvent({...event,exceptions:[...event.exceptions,occurrenceDate]},events);
+        store.set("calendar",events.map(e=>e.id===id?updated:e));
+    } else store.set("calendar",events.filter(e=>e.id!==id));
+    return true;
+});
+ipcMain.handle("calendar:export", async () => {
+    const result = await dialog.showSaveDialog({title:"Kalender exportieren",defaultPath:"Rechly-Kalender.ics",filters:[{name:"iCalendar",extensions:["ics"]}]});
+    if(result.canceled||!result.filePath)return {success:false};
+    fs.writeFileSync(result.filePath,exportCalendar(store.get("calendar")||[]),"utf8");return {success:true};
+});
+ipcMain.handle("calendar:import", async () => {
+    const result = await dialog.showOpenDialog({title:"Kalender importieren",properties:["openFile"],filters:[{name:"iCalendar",extensions:["ics"]}]});
+    if(result.canceled||!result.filePaths[0])return {success:false};
+    if(fs.statSync(result.filePaths[0]).size>5*1024*1024)throw new Error("Kalenderdatei ist größer als 5 MB.");
+    const events = store.get("calendar") || [];
+    const imported = importCalendar(fs.readFileSync(result.filePaths[0],"utf8"),events);
+    if(imported.length>10000)throw new Error("Maximal 10.000 Termine pro Kalender.");
+    const count=imported.length-events.length;
+    const confirmation=await dialog.showMessageBox({type:"question",title:"Kalender importieren",message:`${count} neue Termine importieren?`,detail:"Bereits bekannte Kennungen werden übersprungen. Vorhandene Termine werden nicht ersetzt.",buttons:["Abbrechen","Importieren"],defaultId:1,cancelId:0});
+    if(confirmation.response!==1)return {success:false};
+    store.set("calendar",imported);return {success:true,count};
+});
+function checkCalendarReminders(): void {
+    if(!Notification.isSupported())return;
+    try {
+        const now=new Date();const from=new Date(now);from.setDate(from.getDate()-2);from.setHours(0,0,0,0);
+        const to=new Date(now);to.setDate(to.getDate()+2);to.setHours(0,0,0,0);
+        const seen=store.get("calendarReminders")||[];
+        let changed=false;
+        for(const event of occurrences(store.get("calendar")||[],localStamp(from),localStamp(to))) {
+            if(event.reminder<0)continue;
+            const due=new Date(event.occurrenceStart).getTime()-event.reminder*60000;
+            const key=`${event.id}:${event.occurrenceStart}:${event.updated_at}`;
+            // Do not flood the user with missed reminders after a long shutdown.
+            if(due>now.getTime()||due<now.getTime()-5*60000||seen.includes(key))continue;
+            const notification=new Notification({title:event.title,body:`${event.allDay?"Ganztägig":new Date(event.occurrenceStart).toLocaleString("de-DE")}${event.location?" · "+event.location:""}`});
+            notification.on("click",()=>{mainWindow?.show();mainWindow?.focus();});
+            notification.show();seen.push(key);changed=true;
+        }
+        if(changed)store.set("calendarReminders",seen.slice(-2000));
+    } catch(error) { console.error("Kalender-Erinnerung konnte nicht angezeigt werden",error); }
+}
+
+ipcMain.handle("business:get", () => store.get("business") || emptyBusiness());
+ipcMain.handle("business:save", (_e, key: unknown, record: unknown) => {
+    const next = saveBusinessRecord(store.get("business") || emptyBusiness(), collection(key), record, (store.get("clients") || []).map(c=>c.id));
+    store.set("business", next);
+    return next;
+});
+ipcMain.handle("business:delete", (_e, key: unknown, id: unknown) => {
+    const next = deleteBusinessRecord(store.get("business") || emptyBusiness(), collection(key), id);
+    store.set("business", next);
+    return next;
+});
+ipcMain.handle("business:export", async (_e, id: string, format: unknown): Promise<ExportResult> => {
+    if (format !== "pdf" && format !== "txt") throw new Error("Unbekanntes Exportformat.");
+    const doc = (store.get("business") || emptyBusiness()).documents.find(d=>d.id===id);
+    if (!doc) throw new Error("Dokument nicht gefunden.");
+    const result = await dialog.showSaveDialog({ title: "Dokument exportieren", defaultPath: `${doc.title.replace(/[^a-zA-Z0-9äöüÄÖÜß _-]/g, "_")}.${format}`, filters: [{name:format.toUpperCase(),extensions:[format]}] });
+    if (result.canceled || !result.filePath) return {success:false};
+    if (format === "txt") fs.writeFileSync(result.filePath, `${doc.title}\n\n${doc.recipient}\n\n${doc.body}`, "utf8");
+    else {
+        const win = new BrowserWindow({show:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
+        try {
+            await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(documentHtml(doc, store.get("company")?.name || "")));
+            fs.writeFileSync(result.filePath, await win.webContents.printToPDF({pageSize:"A4",printBackground:true,preferCSSPageSize:true}));
+        } finally { win.destroy(); }
+    }
+    return {success:true,filePath:result.filePath};
+});
+
 // ─── IPC Handlers ────────────────────────────────────────────────────────────
 
 ipcMain.handle("store:get", () => store.getAll());
@@ -221,11 +314,11 @@ ipcMain.handle("company:save", (_e, data: Company) => {
 ipcMain.handle("invoices:getAll", () => store.get("invoices") || []);
 ipcMain.handle("invoices:create", (_e, data: Draft<Invoice>) => {
     const invoices = store.get("invoices") || [];
-    const newInvoice: Invoice = {
-        id: `inv-${Date.now()}`,
-        created_at: Date.now(),
+    const newInvoice = validateInvoice({
         ...data,
-    };
+        id: `inv-${randomUUID()}`,
+        created_at: Date.now(),
+    }, invoices, (store.get("clients") || []).map(c => c.id));
     invoices.unshift(newInvoice);
     store.set("invoices", invoices);
     return newInvoice;
@@ -234,7 +327,7 @@ ipcMain.handle("invoices:update", (_e, id: string, data: Draft<Invoice>) => {
     const invoices = store.get("invoices") || [];
     const idx = invoices.findIndex((i) => i.id === id);
     if (idx !== -1) {
-        invoices[idx] = { ...invoices[idx], ...data, updated_at: Date.now() };
+        invoices[idx] = validateInvoice({ ...invoices[idx], ...data, id, updated_at: Date.now() }, invoices, (store.get("clients") || []).map(c => c.id));
         store.set("invoices", invoices);
         return invoices[idx];
     }
@@ -271,6 +364,9 @@ ipcMain.handle("clients:update", (_e, id: string, data: Draft<Client>) => {
     return null;
 });
 ipcMain.handle("clients:delete", (_e, id: string) => {
+    if ([...(store.get("invoices") || []), ...(store.get("offers") || []), ...(store.get("business")?.projects || [])].some(doc => doc.client_id === id)) {
+        throw new Error("Dieser Kunde wird in Rechnungen, Angeboten oder Projekten verwendet und kann nicht gelöscht werden.");
+    }
     let clients = store.get("clients") || [];
     clients = clients.filter((c) => c.id !== id);
     store.set("clients", clients);
@@ -516,6 +612,9 @@ ipcMain.handle("native:print", () => {
 app.whenReady().then(() => {
     buildMenu();
     createWindow();
+    checkCalendarReminders();
+    const reminderTimer = setInterval(checkCalendarReminders, 30000);
+    app.once("before-quit", () => clearInterval(reminderTimer));
 
     app.on("activate", () => {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();

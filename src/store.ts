@@ -11,6 +11,13 @@ import type { AiSettings, StoreData } from "./types";
  * - Linux:   ~/.config/Rechly/rechly_vault.json
  */
 
+// Explicit profile directory also keeps automated native-platform checks isolated.
+const profileOverride = app.commandLine?.getSwitchValue("user-data-dir");
+if (profileOverride) {
+    fs.mkdirSync(profileOverride, { recursive: true });
+    app.setPath("userData", profileOverride);
+}
+
 const getStorePath = (): string => {
     const userDataPath = app.getPath("userData");
     if (!fs.existsSync(userDataPath)) {
@@ -188,11 +195,19 @@ class OfflineStore {
             if (fs.existsSync(filePath)) {
                 fs.copyFileSync(filePath, backup);
             }
-            fs.writeFileSync(filePath, raw, "utf8");
+            const temporaryPath = filePath + ".tmp";
+            const fd = fs.openSync(temporaryPath, "w", 0o600);
+            try {
+                fs.writeFileSync(fd, raw, "utf8");
+                fs.fsyncSync(fd);
+            } finally {
+                fs.closeSync(fd);
+            }
+            fs.renameSync(temporaryPath, filePath);
             return true;
         } catch (err) {
             console.error("Failed to save store:", err);
-            return false;
+            throw new Error("Der lokale Tresor konnte nicht gespeichert werden. Bitte prüfen Sie Speicherplatz und Schreibrechte.");
         }
     }
 
@@ -201,13 +216,19 @@ class OfflineStore {
     }
 
     get<K extends keyof StoreData>(key: K): StoreData[K] | null {
-        return this.data ? this.data[key] : null;
+        return this.data ? structuredClone(this.data[key]) : null;
     }
 
     set<K extends keyof StoreData>(key: K, value: StoreData[K]): boolean {
         if (!this.data) this.data = getDefaultStore();
-        this.data[key] = value;
-        return this.save();
+        const previous = this.data[key];
+        this.data[key] = structuredClone(value);
+        try {
+            return this.save();
+        } catch (error) {
+            this.data[key] = previous;
+            throw error;
+        }
     }
 
     getAll(): StoreData {

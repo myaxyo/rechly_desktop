@@ -127,6 +127,9 @@ export interface OnboardingState {
 }
 
 export interface StoreData {
+    calendar?: import("./calendar").CalendarEvent[];
+    calendarReminders?: string[];
+    business?: import("./business").BusinessData;
     version: number;
     initialized_at: string;
     company: Company;

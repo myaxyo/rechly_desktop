@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rechly Desktop — 100% Offline & KI-gestützt</title>
+  <title>Rechly Business — Ihr lokaler Arbeitsplatz</title>
   <style>
     :root {
       --bg-main: #f8fafc;
@@ -868,20 +868,26 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="workspace.css">
+  <link rel="stylesheet" href="business.css">
+  <script src="business.js"></script>
+  <script src="calendar.js"></script>
+  <script src="shell.js"></script>
+  <link rel="stylesheet" href="calendar.css">
 </head>
 <body>
 
   <!-- ─── Mac Frameless Titlebar ─── -->
   <div class="titlebar">
     <div class="titlebar-center">
-      <span class="badge offline-badge">🔒 100% Offline</span>
+      <span class="badge offline-badge">● Lokal gespeichert</span>
       <span id="ai-model-indicator" class="badge ai-pill" onclick="showAiSettingsModal()" title="Klicken für KI-Konfiguration (Ollama, OpenAI, Claude)">
         ⚪ Lade KI...
       </span>
     </div>
 
     <div class="titlebar-right">
-      <input type="text" class="quick-search" id="global-search" placeholder="Suchen (⌘F)..." oninput="handleGlobalSearch(this.value)">
+      <input type="text" class="quick-search" id="global-search" aria-label="Rechnungen durchsuchen" placeholder="Rechnung oder Kunde suchen …" oninput="handleGlobalSearch(this.value)">
       <button class="btn btn-primary btn-sm" onclick="createNewInvoice()">➕ Neue Rechnung (⌘N)</button>
     </div>
   </div>
@@ -895,9 +901,15 @@
         <div class="company-legal" id="sidebar-company-legal">Einzelunternehmen</div>
       </div>
 
-      <div class="nav-group-title">Hauptmenü</div>
+      <div class="nav-group-title">Arbeitsplatz</div>
+      <div class="nav-item" id="nav-business" onclick="showView('business')"><div class="nav-left"><span class="icon">◈</span> Business Cockpit</div></div>
+      <div class="nav-item" id="nav-calendar" onclick="showView('calendar')"><div class="nav-left"><span class="icon">▦</span> Mein Kalender</div></div>
+      <div class="nav-item" id="nav-documents" onclick="showView('documents')"><div class="nav-left"><span class="icon">▤</span> Dokumente</div></div>
+      <div class="nav-item" id="nav-projects" onclick="showView('projects')"><div class="nav-left"><span class="icon">▧</span> Projekte</div></div>
+      <div class="nav-item" id="nav-tasks" onclick="showView('tasks')"><div class="nav-left"><span class="icon">☑</span> Aufgaben</div></div>
+      <div class="nav-group-title">Finanzen & Kunden</div>
       <div class="nav-item active" id="nav-dashboard" onclick="showView('dashboard')">
-        <div class="nav-left"><span class="icon">🏠</span> Startmenü & Übersicht</div>
+        <div class="nav-left"><span class="icon">🏠</span> Übersicht</div>
       </div>
       <div class="nav-item" id="nav-invoices" onclick="showView('invoices')">
         <div class="nav-left"><span class="icon">📄</span> Rechnungen</div>
@@ -936,9 +948,9 @@
       <div class="sidebar-footer">
         <div class="vault-status-indicator">
           <div class="vault-dot"></div>
-          <span>GoBD-Tresor aktiv</span>
+          <span>Lokale Speicherung aktiv</span>
         </div>
-        <div>v1.0.0 Desktop • Vollständig privat</div>
+        <div>Rechly Desktop • Ihr Finanzarbeitsplatz</div>
       </div>
     </div>
 
@@ -1119,7 +1131,7 @@
   </div>
 
   <!-- Toast Notification -->
-  <div id="toast">✅ Vorgang abgeschlossen</div>
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true">✅ Vorgang abgeschlossen</div>
 
   <script>
     // ─── Desktop App State ───
@@ -1159,17 +1171,20 @@
         }
         updateSidebarCompany();
         updateBadges();
-        showView('dashboard');
+        showView('business');
         updateAiStatusPill();
         if (!currentStore.onboarding) await showOnboarding();
       }
     }
 
+    let toastTimer;
     function showToast(message, type = 'success') {
       const toast = document.getElementById('toast');
-      toast.innerText = (type === 'success' ? '✅ ' : '❌ ') + message;
+      clearTimeout(toastTimer);
+      toast.dataset.type = type;
+      toast.innerText = message;
       toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 3000);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), type === 'success' ? 4000 : 7000);
     }
 
     function updateSidebarCompany() {
@@ -1261,10 +1276,15 @@
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
       const navId = viewId === 'create-offer' ? 'offers' : viewId === 'create-invoice' ? 'invoices' : viewId;
       const activeNav = document.getElementById(`nav-${navId}`) || Array.from(document.querySelectorAll('.nav-item')).find(el => el.innerText.toLowerCase().includes(viewId.replace('-', ' ')));
-      if (activeNav) activeNav.classList.add('active');
+      document.querySelectorAll('.nav-item').forEach(el => el.removeAttribute('aria-current'));
+      if (activeNav) { activeNav.classList.add('active'); activeNav.setAttribute('aria-current', 'page'); }
 
       const container = document.getElementById('content-container');
-      if (viewId === 'dashboard') renderDashboardView(container);
+      container.onclick = null;
+      container.onchange = null;
+      if (viewId === 'calendar') Calendar.render();
+      else if (['business','documents','projects','tasks'].includes(viewId)) Business.render(viewId);
+      else if (viewId === 'dashboard') renderDashboardView(container);
       else if (viewId === 'invoices') renderInvoicesView(container);
       else if (viewId === 'create-invoice') renderCreateInvoiceView(container, 'invoice');
       else if (viewId === 'create-offer') renderCreateInvoiceView(container, 'offer');
@@ -1278,263 +1298,68 @@
     }
 
     // ─── View 0: Startup Menu / Home Dashboard ───
+    const money = value => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(Number(value) || 0);
+    const dateLabel = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? value.split('-').reverse().join('.') : '—';
+    function localToday() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    function isOverdue(inv) { return inv.status === 'sent' && inv.due_date && inv.due_date < localToday(); }
+    function openInvoiceFilter(status) {
+      invoiceFilter = status;
+      document.getElementById('global-search').value = '';
+      showView('invoices');
+    }
     function renderDashboardView(container) {
       const invoices = currentStore.invoices || [];
-      const offers = currentStore.offers || [];
       const clients = currentStore.clients || [];
-      const expenses = currentStore.expenses || [];
-      const comp = currentStore.company || {};
-      const aiSettings = currentStore.aiSettings || {};
-
-      // Calculate Metrics
-      const paidInvoices = invoices.filter(i => i.status === 'paid');
-      const openInvoices = invoices.filter(i => i.status === 'sent');
-      const totalRevenue = paidInvoices.reduce((sum, i) => sum + (i.total_gross || 0), 0);
-      const totalOutstanding = openInvoices.reduce((sum, i) => sum + (i.total_gross || 0), 0);
-      const totalOffersVolume = offers.reduce((sum, o) => sum + (o.total_gross || 0), 0);
-      const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount_gross || 0), 0);
-
-      // Time-aware Greeting
+      const paid = invoices.filter(i => i.status === 'paid');
+      const open = invoices.filter(i => i.status === 'sent');
+      const overdue = invoices.filter(isOverdue);
+      const sum = list => list.reduce((n,i) => n + (Number(i.total_gross) || 0), 0);
+      const recent = [...invoices].sort((a,b) => (b.created_at || 0) - (a.created_at || 0)).slice(0,5);
       const hour = new Date().getHours();
-      const greeting = hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Guten Tag' : 'Guten Abend';
-
-      // Active AI provider label
-      const activeAiLabel = aiSettings.active_provider === 'openai'
-        ? `OpenAI (${aiSettings.openai_model || 'gpt-4o-mini'})`
-        : aiSettings.active_provider === 'anthropic'
-        ? `Anthropic (${aiSettings.anthropic_model || 'Claude 3.5 Sonnet'})`
-        : `jonprompter/Rechly-DE-3B (100% Lokal)`;
-
-      // Recent 5 Invoices
-      const recentInvoices = invoices.slice(0, 5);
-      const recentRows = recentInvoices.map(inv => {
-        const cl = clients.find(c => c.id === inv.client_id) || { name: 'Kunde' };
-        return `
-          <tr>
-            <td><b>${inv.invoice_number}</b></td>
-            <td>${cl.name}</td>
-            <td>${inv.issue_date || '-'}</td>
-            <td><b>${(inv.total_gross || 0).toFixed(2)} €</b></td>
-            <td>${invoiceStatusSelect(inv)}</td>
-            <td>
-              <button class="btn btn-secondary btn-sm" onclick="previewInvoice('${inv.id}')">Drucken / PDF</button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
       container.innerHTML = `
-        <!-- Welcome Hero -->
-        <div style="margin-bottom: 24px;">
-          <div class="page-title">${greeting}, ${comp.name || 'Rechly-Nutzer'}! 👋</div>
-          <div class="page-subtitle">Willkommen in deinem lokalen, DSGVO- und GoBD-konformen Finanzarbeitsplatz.</div>
-        </div>
-
-        <!-- 4 Key Metrics HUD -->
+        <div class="page-header dashboard-heading"><div><div class="eyebrow">IHR FINANZÜBERBLICK</div>
+          <h1 class="page-title">${hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Guten Tag' : 'Guten Abend'}, ${esc(currentStore.company?.name || 'willkommen')}.</h1>
+          <p class="page-subtitle">Alles Wichtige auf einen Blick. Alle Beträge brutto, über den gesamten Datenbestand.</p></div>
+          <button class="btn btn-primary" onclick="createNewInvoice()">+ Neue Rechnung</button></div>
         <div class="metrics-grid">
-          <div class="metric-card m-green">
-            <div class="metric-label">Umsatz bezahlt <span>💶</span></div>
-            <div class="metric-value">${totalRevenue.toFixed(2)} €</div>
-            <div class="metric-sub">${paidInvoices.length} bezahlte Rechnungen</div>
-          </div>
-          <div class="metric-card m-blue">
-            <div class="metric-label">Ausstehend / Offen <span>⏳</span></div>
-            <div class="metric-value">${totalOutstanding.toFixed(2)} €</div>
-            <div class="metric-sub">${openInvoices.length} fällige Rechnungen</div>
-          </div>
-          <div class="metric-card m-amber">
-            <div class="metric-label">Angebote & Entwürfe <span>📝</span></div>
-            <div class="metric-value">${totalOffersVolume.toFixed(2)} €</div>
-            <div class="metric-sub">${offers.length} Angebote in Verhandlung</div>
-          </div>
-          <div class="metric-card m-purple">
-            <div class="metric-label">Erfasste Ausgaben <span>🧾</span></div>
-            <div class="metric-value">${totalExpenses.toFixed(2)} €</div>
-            <div class="metric-sub">${expenses.length} Belege verbucht</div>
-          </div>
+          <button class="metric-card" onclick="openInvoiceFilter('paid')"><span class="metric-label">Bezahlt</span><strong class="metric-value">${money(sum(paid))}</strong><span class="metric-sub">${paid.length} Rechnungen · Zahlungseingänge</span></button>
+          <button class="metric-card" onclick="openInvoiceFilter('sent')"><span class="metric-label">Offene Forderungen</span><strong class="metric-value">${money(sum(open))}</strong><span class="metric-sub">${open.length} Rechnungen · noch ausstehend</span></button>
+          <button class="metric-card attention" onclick="openInvoiceFilter('overdue')"><span class="metric-label">Überfällig</span><strong class="metric-value">${money(sum(overdue))}</strong><span class="metric-sub">${overdue.length} Rechnungen · Zahlung prüfen</span></button>
+          <button class="metric-card" onclick="showView('expenses')"><span class="metric-label">Erfasste Ausgaben</span><strong class="metric-value">${money((currentStore.expenses || []).reduce((n,e)=>n+(Number(e.amount_gross)||0),0))}</strong><span class="metric-sub">${(currentStore.expenses || []).length} Belege im Überblick</span></button>
         </div>
-
-        <!-- Startup Quick Launch Menu -->
-        <div style="font-size: 13px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">
-          ⚡ Schnellstart & Aktionen
-        </div>
-        <div class="quick-actions-grid">
-          <div class="action-tile" onclick="createNewInvoice()">
-            <div class="tile-icon tile-blue">➕</div>
-            <div>
-              <div class="tile-title">Neue Rechnung schreiben <span style="font-size:11px; color:#2563eb;">(⌘N)</span></div>
-              <div class="tile-desc">Rechtssichere Rechnung mit GoBD-Pflichtangaben & E-Rechnung XML erstellen.</div>
-            </div>
-          </div>
-
-          <div class="action-tile" onclick="createNewInvoice()">
-            <div class="tile-icon tile-emerald">🤖</div>
-            <div>
-              <div class="tile-title">KI-Schnellerfassung</div>
-              <div class="tile-desc">Text auf Deutsch eingeben — aktiv: <b>${activeAiLabel}</b>.</div>
-            </div>
-          </div>
-
-          <div class="action-tile" onclick="createNewOffer()">
-            <div class="tile-icon tile-amber">📝</div>
-            <div>
-              <div class="tile-title">Angebot kalkulieren</div>
-              <div class="tile-desc">Kostenvoranschlag verfassen und mit 1 Klick in Rechnung umwandeln.</div>
-            </div>
-          </div>
-
-          <div class="action-tile" onclick="showNewClientModal()">
-            <div class="tile-icon tile-purple">👥</div>
-            <div>
-              <div class="tile-title">Neuen Kunden anlegen</div>
-              <div class="tile-desc">Kundenstammdaten, Leitweg-ID und Zahlungskonditionen speichern.</div>
-            </div>
-          </div>
-
-          <div class="action-tile" onclick="showNewExpenseModal()">
-            <div class="tile-icon tile-rose">🧾</div>
-            <div>
-              <div class="tile-title">Ausgabe verbuchen</div>
-              <div class="tile-desc">Geschäftsausgaben erfassen für eine saubere Steuerübersicht.</div>
-            </div>
-          </div>
-
-          <div class="action-tile" onclick="showView('datev')">
-            <div class="tile-icon tile-slate">🏛️</div>
-            <div>
-              <div class="tile-title">DATEV Export</div>
-              <div class="tile-desc">Buchungsstapel CSV (Format 700) für Steuerberater generieren.</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Startup Checklist & Recent Activities Row -->
-        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
-          <!-- Checklist -->
-          <div class="card">
-            <div class="card-title">✅ Startklar-Check</div>
-            <div style="display:flex; flex-direction:column; gap:12px; font-size:13px;">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span>${comp.name && comp.bank_iban ? '🟢' : '⚪'}</span>
-                <div>
-                  <b>Firmendaten & IBAN</b><br>
-                  <span style="font-size:11px; color:#64748b;">${comp.name && comp.bank_iban ? 'Vollständig hinterlegt' : '<a href="#" onclick="showView(\'settings\')">Jetzt ausfüllen ↗</a>'}</span>
-                </div>
-              </div>
-
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span>🟢</span>
-                <div>
-                  <b>Lokaler Tresor aktiv</b><br>
-                  <span style="font-size:11px; color:#64748b;">Gespeichert auf Ihrer Festplatte</span>
-                </div>
-              </div>
-
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span>${clients.length > 0 ? '🟢' : '⚪'}</span>
-                <div>
-                  <b>Kundenkartei</b><br>
-                  <span style="font-size:11px; color:#64748b;">${clients.length} Kunde(n) angelegt</span>
-                </div>
-              </div>
-
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span>${invoices.length > 0 ? '🟢' : '⚪'}</span>
-                <div>
-                  <b>Erste Rechnung</b><br>
-                  <span style="font-size:11px; color:#64748b;">${invoices.length} Rechnung(en) erstellt</span>
-                </div>
-              </div>
-
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span>⚡</span>
-                <div>
-                  <b>KI-Schnittstelle</b><br>
-                  <span style="font-size:11px; color:#64748b;">${activeAiLabel} (<a href="#" onclick="showView(\'settings\')">Ändern ↗</a>)</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Recent Invoices -->
-          <div class="card">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-              <div class="card-title" style="margin-bottom:0;">📄 Letzte Rechnungen</div>
-              <button class="btn btn-secondary btn-sm" onclick="showView('invoices')">Alle Rechnungen ↗</button>
-            </div>
-            ${recentInvoices.length === 0 ? '<p style="color:#64748b; font-size:13px; padding: 20px 0;">Noch keine Rechnungen erstellt. Klicke auf "Neue Rechnung schreiben".</p>' : `
-              <table>
-                <thead>
-                  <tr>
-                    <th>Nr.</th>
-                    <th>Kunde</th>
-                    <th>Datum</th>
-                    <th>Betrag</th>
-                    <th>Status</th>
-                    <th>Aktion</th>
-                  </tr>
-                </thead>
-                <tbody>${recentRows}</tbody>
-              </table>
-            `}
-          </div>
-        </div>
-      `;
+        <div class="workspace-grid"><section class="card recent-card"><div class="section-heading"><div><h2>Letzte Rechnungen</h2><p>Ihre zuletzt erstellten Dokumente</p></div><button class="btn btn-secondary btn-sm" onclick="openInvoiceFilter('all')">Alle anzeigen →</button></div>
+          <div class="table-scroll"><table><thead><tr><th>Rechnung / Kunde</th><th>Fälligkeit</th><th class="numeric">Betrag</th><th>Status</th></tr></thead><tbody>
+          ${recent.map(i=>`<tr><td><button class="text-button" onclick="editInvoice('${i.id}')">${esc(i.invoice_number || 'Ohne Nummer')}</button><span class="cell-sub">${esc(clients.find(c=>c.id===i.client_id)?.name || 'Unbekannter Kunde')}</span></td><td class="${isOverdue(i)?'overdue-text':''}">${dateLabel(i.due_date)}${isOverdue(i)?'<span class="cell-sub">Überfällig</span>':''}</td><td class="numeric">${money(i.total_gross)}</td><td>${invoiceStatusSelect(i)}</td></tr>`).join('') || '<tr><td colspan="4"><div class="empty-state"><h3>Platz für Ihre erste Rechnung</h3><p>Legen Sie einen Kunden an und erfassen Sie Ihre Leistungen.</p><button class="btn btn-primary" onclick="createNewInvoice()">Rechnung erstellen</button></div></td></tr>'}
+          </tbody></table></div></section>
+          <aside class="card workflow-card"><div class="eyebrow">NÄCHSTE SCHRITTE</div><h2>Gut organisiert.</h2><p>Von der ersten Anfrage bis zur fertigen Abrechnung.</p>
+          <button class="workflow-action" onclick="createNewOffer()"><span>01</span><div><b>Angebot erstellen</b><small>Leistungen planen und kalkulieren</small></div><span>→</span></button>
+          <button class="workflow-action" onclick="showNewClientModal()"><span>02</span><div><b>Kunde anlegen</b><small>Kontaktdaten zentral verwalten</small></div><span>→</span></button>
+          <button class="workflow-action" onclick="showNewExpenseModal()"><span>03</span><div><b>Ausgabe erfassen</b><small>Geschäftsausgaben im Blick behalten</small></div><span>→</span></button>
+          <div class="backup-note"><b>Ihre Daten bleiben bei Ihnen.</b><p>Erstellen Sie regelmäßig eine Sicherung auf einem separaten Laufwerk.</p><button class="btn btn-secondary btn-sm" onclick="showView('settings')">Sicherung & Einstellungen →</button></div></aside></div>`;
     }
 
     // ─── View 1: Invoices List ───
+    let invoiceFilter = 'all';
+    let invoiceSort = 'newest';
     function renderInvoicesView(container) {
-      const invoices = currentStore.invoices || [];
+      const all = currentStore.invoices || [];
       const clients = currentStore.clients || [];
-
-      let rows = invoices.map(inv => {
-        const client = clients.find(c => c.id === inv.client_id) || { name: 'Unbekannter Kunde' };
-
-        return `
-          <tr>
-            <td><b>${inv.invoice_number}</b></td>
-            <td>${client.name}</td>
-            <td>${inv.issue_date || '-'}</td>
-            <td>${inv.due_date || '-'}</td>
-            <td><b>${(inv.total_gross || 0).toFixed(2)} €</b></td>
-            <td>${invoiceStatusSelect(inv)}</td>
-            <td>
-              <button class="btn btn-secondary btn-sm" onclick="editInvoice('${inv.id}')">✏️ Bearbeiten</button>
-              <button class="btn btn-secondary btn-sm" onclick="previewInvoice('${inv.id}')">Drucken / PDF</button>
-              <button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${inv.id}')">XRechnung XML</button>
-              <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteInvoice('${inv.id}')">Löschen</button>
-            </td>
-          </tr>
-        `;
-      }).join('');
-
-      container.innerHTML = `
-        <div class="page-header">
-          <div>
-            <div class="page-title">Rechnungen (Lokal)</div>
-            <div class="page-subtitle">Alle Rechnungen liegen sicher im lokalen Tresor.</div>
-          </div>
-          <button class="btn btn-primary" onclick="createNewInvoice()">➕ Neue Rechnung (⌘N)</button>
-        </div>
-        <div class="card">
-          ${invoices.length === 0 ? '<p style="color:#64748b; text-align:center; padding: 30px;">Noch keine Rechnungen vorhanden. Klicken Sie auf "Neue Rechnung".</p>' : `
-            <table>
-              <thead>
-                <tr>
-                  <th>Nr.</th>
-                  <th>Kunde</th>
-                  <th>Datum</th>
-                  <th>Fällig</th>
-                  <th>Betrag</th>
-                  <th>Status</th>
-                  <th>Aktionen</th>
-                </tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          `}
-        </div>
-      `;
+      const term = document.getElementById('global-search').value.trim().toLocaleLowerCase('de');
+      const invoices = all.filter(i => {
+        const text = [i.invoice_number, clients.find(c=>c.id===i.client_id)?.name, ...(i.items || []).map(it=>it.description)].join(' ').toLocaleLowerCase('de');
+        return (!term || text.includes(term)) && (invoiceFilter === 'all' || (invoiceFilter === 'overdue' ? isOverdue(i) : normalizeInvoiceStatus(i.status) === invoiceFilter));
+      }).sort((a,b)=> invoiceSort === 'amount' ? (b.total_gross||0)-(a.total_gross||0) : invoiceSort === 'due' ? (a.due_date || '9999').localeCompare(b.due_date || '9999') : (b.created_at||0)-(a.created_at||0));
+      container.innerHTML = `<div class="page-header"><div><div class="eyebrow">DOKUMENTE</div><h1 class="page-title">Rechnungen</h1><p class="page-subtitle">Zahlungen verfolgen, Rechnungen bearbeiten und Dokumente exportieren.</p></div><button class="btn btn-primary" onclick="createNewInvoice()">+ Neue Rechnung</button></div>
+        <div class="card"><div class="invoice-toolbar"><div class="filter-tabs" role="group" aria-label="Rechnungsstatus">
+        ${[['all','Alle'],['draft','Entwürfe'],['sent','Offen'],['overdue','Überfällig'],['paid','Bezahlt']].map(([v,l])=>`<button class="filter-tab ${invoiceFilter===v?'selected':''}" aria-pressed="${invoiceFilter===v}" onclick="invoiceFilter='${v}'; renderInvoicesView(document.getElementById('content-container'))">${l}</button>`).join('')}</div>
+        <select aria-label="Rechnungen sortieren" onchange="invoiceSort=this.value; renderInvoicesView(document.getElementById('content-container'))">${[['newest','Zuletzt erstellt'],['due','Fälligkeit aufsteigend'],['amount','Betrag absteigend']].map(([v,l])=>`<option value="${v}" ${invoiceSort===v?'selected':''}>${l}</option>`).join('')}</select></div>
+        <p class="result-count" role="status">${invoices.length} von ${all.length} Rechnungen${term ? ` · Suche: „${esc(term)}“` : ''}</p>
+        <div class="table-scroll"><table><thead><tr><th>Rechnung / Kunde</th><th>Datum</th><th>Fällig</th><th class="numeric">Betrag</th><th>Status</th><th>Aktionen</th></tr></thead><tbody>
+        ${invoices.map(i=>`<tr><td><button class="text-button" onclick="editInvoice('${i.id}')">${esc(i.invoice_number || 'Ohne Nummer')}</button><span class="cell-sub">${esc(clients.find(c=>c.id===i.client_id)?.name || 'Unbekannter Kunde')}</span></td><td>${dateLabel(i.issue_date)}</td><td class="${isOverdue(i)?'overdue-text':''}">${dateLabel(i.due_date)}${isOverdue(i)?'<span class="cell-sub">Überfällig</span>':''}</td><td class="numeric">${money(i.total_gross)}</td><td>${invoiceStatusSelect(i)}</td><td><div class="row-actions"><button class="btn btn-secondary btn-sm" onclick="previewInvoice('${i.id}')">PDF</button><button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${i.id}')">XML</button><button class="btn btn-danger-outline btn-sm" aria-label="Rechnung ${esc(i.invoice_number)} löschen" onclick="deleteInvoice('${i.id}')">Löschen</button></div></td></tr>`).join('') || `<tr><td colspan="6"><div class="empty-state"><h3>${all.length?'Keine passenden Rechnungen':'Ihre erste Rechnung beginnt hier'}</h3><p>${all.length?'Ändern Sie den Suchbegriff oder setzen Sie die Filter zurück.':'Erfassen Sie Ihre Leistungen und behalten Sie Zahlungen im Blick.'}</p><button class="btn btn-secondary" onclick="${all.length?"openInvoiceFilter('all')":"createNewInvoice()"}">${all.length?'Filter zurücksetzen':'Rechnung erstellen'}</button></div></td></tr>`}
+        </tbody></table></div></div>`;
     }
 
     // ─── View 2: Create & Edit Invoice with Text-to-Invoice ───
@@ -1553,7 +1378,9 @@
       const docNumber = inv ? (isOffer ? inv.offer_number : inv.invoice_number) : '';
       const backView = isOffer ? 'offers' : 'invoices';
       const year = new Date().getFullYear();
-      const defaultNumber = `${isOffer ? 'AN' : 'RE'}-${year}-${Math.floor(100 + Math.random() * 900)}`;
+      const prefix = `${isOffer ? 'AN' : 'RE'}-${year}-`;
+      const numbers = ((isOffer ? currentStore.offers : currentStore.invoices) || []).map(d => isOffer ? d.offer_number : d.invoice_number).filter(n => n?.startsWith(prefix)).map(n => Number(n.slice(prefix.length))).filter(Number.isSafeInteger);
+      const defaultNumber = prefix + String(Math.max(0, ...numbers) + 1).padStart(3, '0');
       const dueValue = inv ? (isOffer ? inv.valid_until : inv.due_date) : new Date(Date.now() + (isOffer ? 30 : 14) * 86400000).toISOString().slice(0, 10);
       const titleText = isEditing && inv ? `${docLabel} ${docNumber || ''} bearbeiten` : `${isOffer ? 'Neues Angebot' : 'Neue Rechnung'} erstellen`;
       const submitText = isEditing ? '💾 Änderungen speichern' : `${docLabel} speichern`;
@@ -1564,7 +1391,7 @@
       const productOptions = products.map(pr => `<option value="${esc(pr.id)}">${esc(pr.name)} – ${(pr.price || 0).toFixed(2)} € / ${esc(pr.unit_of_measure || 'Stück')}</option>`).join('');
 
       const clients = currentStore.clients || [];
-      const clientOptions = clients.map(c => `<option value="${c.id}" ${inv && inv.client_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('');
+      const clientOptions = clients.map(c => `<option value="${c.id}" ${inv && inv.client_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
       const aiSettings = currentStore.aiSettings || {};
       const activeProvider = aiSettings.active_provider || 'ollama';
       const aiLabel = activeProvider === 'openai'
@@ -1682,7 +1509,7 @@
             </div>
             <div style="display:flex; gap:10px;">
               ${isEditing ? `<button class="btn btn-secondary" onclick="showView('${backView}')">Abbrechen</button>` : ''}
-              <button class="btn btn-primary" onclick="saveNewInvoice()">${submitText}</button>
+              <button class="btn btn-primary" id="save-document" onclick="saveNewInvoice()">${submitText}</button>
             </div>
           </div>
         </div>
@@ -1727,14 +1554,16 @@
         const qty = parseFloat(tr.querySelector('.item-qty')?.value) || 0;
         const price = parseFloat(tr.querySelector('.item-price')?.value) || 0;
         const vat = parseFloat(tr.querySelector('.item-vat')?.value) || 0;
-        const net = qty * price;
+        const net = Math.round((qty * price + Number.EPSILON) * 100) / 100;
         subtotal += net;
-        totalVat += net * (vat / 100);
+        totalVat += Math.round((net * vat / 100 + Number.EPSILON) * 100) / 100;
       });
-      const gross = subtotal + totalVat;
+      subtotal = Math.round(subtotal * 100) / 100;
+      totalVat = Math.round(totalVat * 100) / 100;
+      const gross = Math.round((subtotal + totalVat) * 100) / 100;
       const el = document.getElementById('inv-totals-display');
       if (el) {
-        el.innerHTML = `Gesamt Netto: <b>${subtotal.toFixed(2)} €</b> | MwSt: <b>${totalVat.toFixed(2)} €</b> | Brutto: <b style="color:#0f172a; font-size:16px;">${gross.toFixed(2)} €</b>`;
+        el.innerHTML = `Gesamt Netto: <b>${money(subtotal)}</b> | MwSt: <b>${money(totalVat)}</b> | Brutto: <b style="color:#0f172a; font-size:16px;">${money(gross)}</b>`;
       }
       return { subtotal, totalVat, totalGross: gross };
     }
@@ -1781,72 +1610,110 @@
       }
     }
 
+    function validateDocumentEditor() {
+      const check = (id, message, predicate) => { const element = document.getElementById(id); return predicate(element.value.trim()) ? null : {element, message}; };
+      let error = check('inv-client', 'Bitte wählen Sie einen Kunden aus.', Boolean)
+        || check('inv-num', 'Bitte geben Sie eine Dokumentnummer an.', Boolean)
+        || check('inv-date', 'Bitte geben Sie ein gültiges Rechnungsdatum an.', v => /^\d{4}-\d{2}-\d{2}$/.test(v))
+        || check('inv-due', 'Die Fälligkeit darf nicht vor dem Rechnungsdatum liegen.', v => /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= document.getElementById('inv-date').value);
+      if (error) return error;
+      const isOffer = editorDocType === 'offer';
+      const docs = (isOffer ? currentStore.offers : currentStore.invoices) || [];
+      const number = document.getElementById('inv-num').value.trim();
+      if (docs.some(d => d.id !== (isOffer ? editingOfferId : editingInvoiceId) && (isOffer ? d.offer_number : d.invoice_number) === number)) return {element:document.getElementById('inv-num'), message:'Diese Dokumentnummer ist bereits vergeben.'};
+      const rows = [...document.querySelectorAll('#inv-items-body tr')];
+      if (!rows.length) return {message:'Bitte fügen Sie mindestens eine Position hinzu.'};
+      for (const row of rows) {
+        for (const [selector, valid, message] of [
+          ['.item-desc', v => v.trim().length > 0, 'Bitte beschreiben Sie jede Position.'],
+          ['.item-qty', v => v !== '' && Number.isFinite(Number(v)) && Number(v)>0, 'Die Menge muss größer als null sein.'],
+          ['.item-price', v => v !== '' && Number.isFinite(Number(v)) && Number(v)>=0, 'Bitte geben Sie einen gültigen, nicht negativen Preis ein.'],
+          ['.item-vat', v => v !== '' && Number.isFinite(Number(v)) && Number(v)>=0 && Number(v)<=100, 'Der Steuersatz muss zwischen 0 und 100 liegen.']
+        ]) { const element=row.querySelector(selector); if (!valid(element.value)) return {element,message}; }
+      }
+      return null;
+    }
+
+    let savingDocument = false;
     async function saveNewInvoice() {
-      const clientId = document.getElementById('inv-client').value;
-      if (!clientId) return alert('Bitte zuerst einen Kunden auswählen oder anlegen.');
+      if (savingDocument) return;
+      const invalid = validateDocumentEditor();
+      if (invalid) { showToast(invalid.message, 'error'); invalid.element?.focus(); return; }
+      savingDocument = true;
+      const saveButton = document.getElementById('save-document');
+      saveButton.disabled = true;
+      try {
+        const clientId = document.getElementById('inv-client').value;
+        if (!clientId) return;
 
-      const items = [];
-      document.querySelectorAll('#inv-items-body tr').forEach(tr => {
-        const desc = tr.querySelector('.item-desc').value.trim();
-        const qty = parseFloat(tr.querySelector('.item-qty').value) || 1;
-        const unit = tr.querySelector('.item-unit').value.trim() || 'Stück';
-        const price = parseFloat(tr.querySelector('.item-price').value) || 0;
-        const vat = parseFloat(tr.querySelector('.item-vat').value) || 0;
-        if (desc) items.push({ description: desc, quantity: qty, unit_of_measure: unit, price, tax_rate_percent: vat });
-      });
+        const items = [];
+        document.querySelectorAll('#inv-items-body tr').forEach(tr => {
+          const desc = tr.querySelector('.item-desc').value.trim();
+          const qty = parseFloat(tr.querySelector('.item-qty').value) || 1;
+          const unit = tr.querySelector('.item-unit').value.trim() || 'Stück';
+          const price = parseFloat(tr.querySelector('.item-price').value) || 0;
+          const vat = parseFloat(tr.querySelector('.item-vat').value) || 0;
+          if (desc) items.push({ description: desc, quantity: qty, unit_of_measure: unit, price, tax_rate_percent: vat });
+        });
 
-      const totals = calculateTotals();
-      const invoiceData = {
-        client_id: clientId,
-        invoice_number: document.getElementById('inv-num').value,
-        issue_date: document.getElementById('inv-date').value,
-        due_date: document.getElementById('inv-due').value,
-        payment_terms: document.getElementById('inv-terms').value,
-        items,
-        subtotal: totals.subtotal,
-        total_vat: totals.totalVat,
-        total_gross: totals.totalGross,
-        status: document.getElementById('inv-status').value,
-      };
-
-      if (editorDocType === 'offer') {
-        const offerData = {
-          client_id: invoiceData.client_id,
-          offer_number: invoiceData.invoice_number,
-          issue_date: invoiceData.issue_date,
-          valid_until: invoiceData.due_date,
-          payment_terms: invoiceData.payment_terms,
+        const totals = calculateTotals();
+        const invoiceData = {
+          client_id: clientId,
+          invoice_number: document.getElementById('inv-num').value.trim(),
+          issue_date: document.getElementById('inv-date').value,
+          due_date: document.getElementById('inv-due').value,
+          payment_terms: document.getElementById('inv-terms').value,
           items,
           subtotal: totals.subtotal,
           total_vat: totals.totalVat,
           total_gross: totals.totalGross,
-          status: invoiceData.status,
+          status: document.getElementById('inv-status').value,
         };
-        if (editingOfferId) {
-          await window.rechly.updateOffer(editingOfferId, offerData);
-          showToast('Angebot erfolgreich aktualisiert!');
-        } else {
-          await window.rechly.createOffer(offerData);
-          showToast('Angebot erfolgreich gespeichert!');
+
+        if (editorDocType === 'offer') {
+          const offerData = {
+            client_id: invoiceData.client_id,
+            offer_number: invoiceData.invoice_number,
+            issue_date: invoiceData.issue_date,
+            valid_until: invoiceData.due_date,
+            payment_terms: invoiceData.payment_terms,
+            items,
+            subtotal: totals.subtotal,
+            total_vat: totals.totalVat,
+            total_gross: totals.totalGross,
+            status: invoiceData.status,
+          };
+          if (editingOfferId) {
+            await window.rechly.updateOffer(editingOfferId, offerData);
+            showToast('Angebot erfolgreich aktualisiert!');
+          } else {
+            await window.rechly.createOffer(offerData);
+            showToast('Angebot erfolgreich gespeichert!');
+          }
+          currentStore = await window.rechly.getStore();
+          updateBadges();
+          showView('offers');
+          return;
         }
+
+        if (editingInvoiceId) {
+          await window.rechly.updateInvoice(editingInvoiceId, invoiceData);
+          showToast('Rechnung erfolgreich aktualisiert!');
+          editingInvoiceId = null;
+        } else {
+          await window.rechly.createInvoice(invoiceData);
+          showToast('Rechnung erfolgreich gespeichert!');
+        }
+
         currentStore = await window.rechly.getStore();
         updateBadges();
-        showView('offers');
-        return;
+        showView('invoices');
+      } catch (error) {
+        showToast('Speichern fehlgeschlagen. Ihre Eingaben bleiben erhalten. ' + error.message, 'error');
+      } finally {
+        savingDocument = false;
+        if (saveButton.isConnected) saveButton.disabled = false;
       }
-
-      if (editingInvoiceId) {
-        await window.rechly.updateInvoice(editingInvoiceId, invoiceData);
-        showToast('Rechnung erfolgreich aktualisiert!');
-        editingInvoiceId = null;
-      } else {
-        await window.rechly.createInvoice(invoiceData);
-        showToast('Rechnung erfolgreich gespeichert!');
-      }
-
-      currentStore = await window.rechly.getStore();
-      updateBadges();
-      showView('invoices');
     }
 
     async function deleteInvoice(id) {
@@ -2415,6 +2282,10 @@
     }
 
     async function deleteClient(id) {
+      if ([...(currentStore.invoices || []), ...(currentStore.offers || [])].some(d => d.client_id === id)) {
+        showToast('Dieser Kunde wird in Rechnungen oder Angeboten verwendet und kann nicht gelöscht werden.', 'error');
+        return;
+      }
       if (confirm('Kunde löschen?')) {
         await window.rechly.deleteClient(id);
         currentStore = await window.rechly.getStore();
@@ -3125,13 +2996,8 @@
     }
 
     function handleGlobalSearch(term) {
-      if (!term.trim()) return showView(currentView);
+      if (currentView !== 'invoices') invoiceFilter = 'all';
       showView('invoices');
-      const invoices = (currentStore.invoices || []).filter(i =>
-        i.invoice_number.toLowerCase().includes(term.toLowerCase()) ||
-        (i.items || []).some(it => it.description.toLowerCase().includes(term.toLowerCase()))
-      );
-      renderInvoicesView(document.getElementById('content-container'));
     }
 
     // ─── First-Run Setup Assistant ───
@@ -3574,7 +3440,7 @@
 
     // Keyboard shortcuts
     window.addEventListener('keydown', (e) => {
-      if (onb) return;
+      if (onb || document.querySelector('dialog[open]')) return;
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault();
         createNewInvoice();
@@ -3596,6 +3462,13 @@
       }
     });
 
+    if (window.rechly?.platform === 'darwin') document.body.classList.add('platform-mac');
+    document.querySelectorAll('.nav-item, .sidebar-header, #ai-model-indicator').forEach(el => {
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
+    });
+    window.addEventListener('unhandledrejection', () => showToast('Der Vorgang konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.', 'error'));
     init();
   </script>
 </body>
