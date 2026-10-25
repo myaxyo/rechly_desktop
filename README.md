@@ -75,7 +75,7 @@ Termine verwenden die Gerätezeitzone. Es gibt keine Konten, Teilnehmer-Einladun
 
 ## Desktop builds
 
-GitHub Actions builds Windows x64, macOS Intel and macOS Apple Silicon on native runners. Each job runs type checking, unit tests, desktop workflow tests, builds its installer and launches the packaged app for a calendar smoke test. Successful installers are retained as build artifacts for release publication. These builds are unsigned / not Apple-notarized unless signing is separately configured; OS warnings are expected, as with the existing 1.0.0 release.
+GitHub Actions builds Windows x64, macOS Intel and macOS Apple Silicon on native runners. Each job runs type checking, unit tests, desktop workflow tests, builds its installer and launches the packaged app for a calendar smoke test. After all three platform jobs pass on `main`, the release job publishes the new package version with SHA-256 checksums. Existing releases are never overwritten. Installers are also retained as build artifacts. These builds are unsigned / not Apple-notarized unless signing is separately configured; OS warnings are expected, as with the existing 1.0.0 release.
 
 ## 🚀 Running the App Locally
 
