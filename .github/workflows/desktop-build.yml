@@ -91,6 +91,11 @@ jobs:
           test "$(find release-files -name '*.exe' | wc -l)" -eq 1
           test "$(find release-files -name '*.dmg' | wc -l)" -eq 2
           cd release-files
+          # GitHub normalizes spaces in uploaded asset names to dots.
+          for file in *; do
+            normalized="${file// /.}"
+            if [ "$file" != "$normalized" ]; then mv -- "$file" "$normalized"; fi
+          done
           sha256sum * > SHA256SUMS.txt
       - name: Publish GitHub Release
         shell: bash
@@ -101,7 +106,7 @@ jobs:
           tag="v$version"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; refusing to replace published assets."
-            exit 1
+            exit 0
           fi
           gh release create "$tag" release-files/* --target "$GITHUB_SHA" --title "Rechly Desktop $version" --notes-file "docs/RELEASE-$version.md" --draft
           gh release edit "$tag" --draft=false --latest
