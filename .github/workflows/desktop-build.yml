@@ -45,18 +45,21 @@ jobs:
       - name: Install isolated UI test tooling
         run: npm install --prefix .ci-tools --no-save --package-lock=false playwright-core@1.57.0
       - name: Typecheck, compile and regression tests
-        run: npm run typecheck && npm run build && node --test tests/*.test.cjs
+        run: npm run typecheck && npm test
       - name: Desktop workflows
         run: |
           export RECHLY_PLAYWRIGHT_PATH="$GITHUB_WORKSPACE/.ci-tools/node_modules/playwright-core"
-          node scripts/run-desktop-tests.cjs tests/business.electron.cjs tests/calendar.electron.cjs tests/core.electron.cjs
+          node scripts/run-desktop-tests.cjs tests/business.electron.cjs tests/calendar.electron.cjs tests/core.electron.cjs tests/worklog.electron.cjs tests/storage.electron.cjs
       - name: Build native installer
         run: npx electron-builder --${{ matrix.target }} --${{ matrix.arch }} --publish never
+      - name: Verify Mac bundle signature
+        if: runner.os == 'macOS'
+        run: node scripts/verify-macos.cjs
       - name: Verify packaged application
         run: |
           export RECHLY_PLAYWRIGHT_PATH="$GITHUB_WORKSPACE/.ci-tools/node_modules/playwright-core"
           export RECHLY_EXECUTABLE="$(node scripts/packaged-executable.cjs)"
-          node scripts/run-desktop-tests.cjs tests/calendar.electron.cjs
+          node scripts/run-desktop-tests.cjs tests/calendar.electron.cjs tests/worklog.electron.cjs tests/storage.electron.cjs
       - uses: actions/upload-artifact@v4
         with:
           name: rechly-${{ matrix.target }}-${{ matrix.arch }}

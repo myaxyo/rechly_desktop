@@ -1,6 +1,6 @@
 /**
- * Shared data model for the Rechly offline vault (rechly_vault.json).
- * Most fields are optional because the vault is user-editable JSON and
+ * Shared data model for the Rechly SQLite store and portable backups.
+ * Most fields are optional because historical records are partial and
  * records are created from partial form data in the renderer.
  */
 
@@ -35,6 +35,7 @@ export interface InvoiceItem {
 }
 
 export interface Invoice {
+    project_id?: string;
     id: string;
     invoice_number?: string;
     client_id?: string | null;
@@ -94,6 +95,7 @@ export interface Offer {
 }
 
 export interface Expense {
+    project_id?: string;
     id: string;
     vendor_name?: string;
     category?: string;
@@ -127,6 +129,8 @@ export interface OnboardingState {
 }
 
 export interface StoreData {
+    timeEntries?: import("./worklog").TimeEntry[];
+    runningTimer?: import("./worklog").RunningTimer | null;
     calendar?: import("./calendar").CalendarEvent[];
     calendarReminders?: string[];
     business?: import("./business").BusinessData;

@@ -1,0 +1,132 @@
+#storage-dialog {
+  margin: auto;
+  width: min(620px, 92vw);
+  max-height: 90vh;
+  padding: 28px;
+  border: 1px solid #d6e0dc;
+  border-radius: 14px;
+  color: #203b32;
+  box-shadow: 0 20px 80px #14282040;
+  font-family: inherit;
+}
+#storage-dialog::backdrop {
+  background: #14282080;
+}
+#storage-dialog h2 {
+  font-size: 23px;
+  margin: 8px 0 20px;
+}
+#storage-dialog p,
+#storage-status p {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 12px 0;
+}
+#storage-dialog label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 18px 0;
+}
+#storage-dialog input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 11px;
+  border: 1px solid #bdcec5;
+  border-radius: 6px;
+  font: inherit;
+}
+#storage-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+.storage-note {
+  background: #eff5f1;
+  padding: 12px;
+  border-radius: 8px;
+}
+.storage-counts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.storage-counts > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px;
+  background: #f5f7f6;
+  font-size: 13px;
+}
+.storage-counts dd {
+  font-weight: 700;
+}
+#storage-error,
+.storage-warning {
+  color: #8e3d24;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.storage-path {
+  overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 11px !important;
+}
+#storage-status {
+  margin: 16px 0 24px;
+}
+.recovery-page {
+  max-width: 720px;
+  margin: 10vh auto;
+  padding: 32px;
+  background: white;
+  border: 1px solid #d6e0dc;
+  border-radius: 14px;
+}
+.recovery-page p {
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 20px 0;
+}
+.recovery-page h1 {
+  font-size: 28px;
+}
+.recovery-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+body:has(.recovery-page) {
+  background: #f5f6f8;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #203b32;
+}
+.recovery-page .btn {
+  border: 1px solid #bdcec5;
+  border-radius: 6px;
+  padding: 11px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+.recovery-page .btn-primary {
+  background: #315e53;
+  color: white;
+}
+.recovery-page .btn-secondary {
+  background: white;
+  color: #203b32;
+}
+body:has(.recovery-page) #storage-dialog .btn {
+  border: 1px solid #bdcec5;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+body:has(.recovery-page) #storage-dialog .btn-primary {
+  background: #315e53;
+  color: white;
+}

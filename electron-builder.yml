@@ -12,6 +12,7 @@ files:
   - package.json
 
 mac:
+  sign: scripts/sign-macos.cjs
   category: public.app-category.finance
   target:
     - target: dmg

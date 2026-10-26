@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self'; script-src 'self'"
+    />
+    <title>Rechly — Daten wiederherstellen</title>
+    <link rel="stylesheet" href="workspace.css" />
+    <link rel="stylesheet" href="storage.css" />
+    <script src="storage.js"></script>
+    <script src="recovery.js" defer></script>
+  </head>
+  <body>
+    <main class="recovery-page">
+      <span class="eyebrow">RECHLY · DATENSCHUTZ & WIEDERHERSTELLUNG</span>
+      <h1>Ihre Daten konnten nicht geöffnet werden.</h1>
+      <p>
+        Rechly hat keine Beispieldaten angelegt und Ihre bisherigen Dateien
+        nicht ersetzt. Prüfen Sie die Meldung unten. Nach dem Entsperren des
+        Schlüsselbunds oder Beheben eines Speicherproblems können Sie die App
+        neu starten.
+      </p>
+      <p id="recovery-message" role="alert"></p>
+      <p class="storage-path" id="recovery-path"></p>
+      <p>
+        Alternativ können Sie eine geprüfte Sicherung wiederherstellen. Eine
+        neue Datenbank wird erstellt; die ursprünglichen Dateien bleiben für
+        eine spätere Reparatur erhalten.
+      </p>
+      <div class="recovery-actions">
+        <button class="btn btn-primary" id="recover-backup">
+          Sicherung auswählen …</button
+        ><button class="btn btn-secondary" id="recover-restart">
+          App neu starten
+        </button>
+      </div>
+    </main>
+  </body>
+</html>

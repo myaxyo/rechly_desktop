@@ -873,6 +873,10 @@
   <script src="business.js"></script>
   <script src="calendar.js"></script>
   <script src="shell.js"></script>
+  <script src="worklog.js"></script>
+  <script src="storage.js"></script>
+  <link rel="stylesheet" href="storage.css">
+  <link rel="stylesheet" href="worklog.css">
   <link rel="stylesheet" href="calendar.css">
 </head>
 <body>
@@ -907,6 +911,8 @@
       <div class="nav-item" id="nav-documents" onclick="showView('documents')"><div class="nav-left"><span class="icon">▤</span> Dokumente</div></div>
       <div class="nav-item" id="nav-projects" onclick="showView('projects')"><div class="nav-left"><span class="icon">▧</span> Projekte</div></div>
       <div class="nav-item" id="nav-tasks" onclick="showView('tasks')"><div class="nav-left"><span class="icon">☑</span> Aufgaben</div></div>
+      <div class="nav-item" id="nav-worklog" onclick="showView('worklog')"><div class="nav-left"><span class="icon">◷</span> Zeiten & Abrechnung</div></div>
+      <div class="nav-item" id="nav-reports" onclick="showView('reports')"><div class="nav-left"><span class="icon">▥</span> Projektcontrolling</div></div>
       <div class="nav-group-title">Finanzen & Kunden</div>
       <div class="nav-item active" id="nav-dashboard" onclick="showView('dashboard')">
         <div class="nav-left"><span class="icon">🏠</span> Übersicht</div>
@@ -1097,14 +1103,19 @@
               <option value="Telefon & Internet">Telefon & Internet</option>
               <option value="Reisekosten & Bahn">Reisekosten & Bahn</option>
               <option value="Beratung & Recht">Beratung & Recht</option>
+              <option value="Projektkosten">Projektkosten</option>
               <option value="Sonstiges">Sonstiges</option>
             </select>
           </div>
         </div>
       </div>
+      <div class="modal-body" style="padding-top:0;">
+        <div class="form-group"><label for="modal-exp-project">Projekt (optional)</label><select id="modal-exp-project"></select></div>
+        <div class="form-group"><label for="modal-exp-description">Beschreibung</label><input id="modal-exp-description" maxlength="1000"></div>
+      </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('modal-expense')">Abbrechen</button>
-        <button class="btn btn-primary" onclick="submitModalExpense()">Beleg speichern</button>
+        <button class="btn btn-primary" id="modal-exp-save" onclick="submitModalExpense()">Beleg speichern</button>
       </div>
     </div>
   </div>
@@ -1162,6 +1173,7 @@
     let editingClientId = null;
     let editingProductId = null;
     let editingExpenseId = null;
+    let savingExpense = false;
 
     async function init() {
       if (window.rechly) {
@@ -1282,7 +1294,8 @@
       const container = document.getElementById('content-container');
       container.onclick = null;
       container.onchange = null;
-      if (viewId === 'calendar') Calendar.render();
+      if (viewId === 'worklog' || viewId === 'reports') Worklog.render(viewId);
+      else if (viewId === 'calendar') Calendar.render();
       else if (['business','documents','projects','tasks'].includes(viewId)) Business.render(viewId);
       else if (viewId === 'dashboard') renderDashboardView(container);
       else if (viewId === 'invoices') renderInvoicesView(container);
@@ -1294,7 +1307,7 @@
       else if (viewId === 'expenses') renderExpensesView(container);
       else if (viewId === 'datev') renderDatevView(container);
       else if (viewId === 'tools') renderToolsView(container);
-      else if (viewId === 'settings') renderSettingsView(container);
+      else if (viewId === 'settings') { renderSettingsView(container); StorageUI.renderStatus(); }
     }
 
     // ─── View 0: Startup Menu / Home Dashboard ───
@@ -1718,11 +1731,13 @@
 
     async function deleteInvoice(id) {
       if (confirm('Rechnung wirklich löschen?')) {
-        await window.rechly.deleteInvoice(id);
-        currentStore = await window.rechly.getStore();
-        updateBadges();
-        showToast('Rechnung gelöscht');
-        showView('invoices');
+        try {
+          await window.rechly.deleteInvoice(id);
+          currentStore = await window.rechly.getStore();
+          updateBadges();
+          showToast('Rechnung gelöscht');
+          showView('invoices');
+        } catch (error) { showToast(error.message, 'error'); }
       }
     }
 
@@ -2498,9 +2513,9 @@
       const exps = currentStore.expenses || [];
       const rows = exps.map(e => `
         <tr>
-          <td><b>${e.vendor_name || '-'}</b></td>
-          <td>${e.category || '-'}</td>
-          <td>${e.date || '-'}</td>
+          <td><b>${esc(e.vendor_name || '-')}</b>${e.project_id ? `<span class="cell-sub">${esc(currentStore.business?.projects.find(p=>p.id===e.project_id)?.name || 'Projekt')}</span>` : ''}</td>
+          <td>${esc(e.category || '-')}</td>
+          <td>${esc(e.date || '-')}</td>
           <td><b>${(e.amount_gross || 0).toFixed(2)} €</b></td>
           <td style="display:flex; gap:6px;">
             <button class="btn btn-secondary btn-sm" onclick="editExpense('${e.id}')">✏️ Bearbeiten</button>
@@ -2526,6 +2541,12 @@
       `;
     }
 
+    function setExpenseProject(projectId = '') {
+      const select = document.getElementById('modal-exp-project');
+      select.innerHTML = '<option value="">Keinem Projekt zugeordnet</option>' + (currentStore.business?.projects || []).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+      select.value = projectId;
+    }
+
     function showNewExpenseModal() {
       editingExpenseId = null;
       const title = document.getElementById('modal-expense-title');
@@ -2535,6 +2556,8 @@
       document.getElementById('modal-exp-vat').value = '19';
       document.getElementById('modal-exp-date').value = new Date().toISOString().slice(0, 10);
       document.getElementById('modal-exp-cat').value = 'Software & Hosting';
+      setExpenseProject();
+      document.getElementById('modal-exp-description').value = '';
       document.getElementById('modal-expense').style.display = 'flex';
     }
 
@@ -2549,31 +2572,42 @@
       document.getElementById('modal-exp-vat').value = e.vat_rate !== undefined ? e.vat_rate : 19;
       document.getElementById('modal-exp-date').value = e.date || '';
       document.getElementById('modal-exp-cat').value = e.category || 'Sonstiges';
+      setExpenseProject(e.project_id || '');
+      document.getElementById('modal-exp-description').value = e.description || '';
       document.getElementById('modal-expense').style.display = 'flex';
     }
 
     async function submitModalExpense() {
+      if (savingExpense) return;
       const vendor_name = document.getElementById('modal-exp-vendor').value.trim();
       if (!vendor_name) return alert('Bitte Lieferant angeben.');
-      const amount_gross = parseFloat(document.getElementById('modal-exp-amount').value) || 0;
-      const vat_rate = parseFloat(document.getElementById('modal-exp-vat').value) || 19;
+      const amount_gross = Number.parseFloat(document.getElementById('modal-exp-amount').value);
+      if (!Number.isFinite(amount_gross) || amount_gross < 0) return showToast('Bitte einen gültigen Bruttobetrag angeben.', 'error');
+      const vat_rate = Number(document.getElementById('modal-exp-vat').value);
       const date = document.getElementById('modal-exp-date').value || new Date().toISOString().slice(0, 10);
       const category = document.getElementById('modal-exp-cat').value;
 
-      const expenseData = { vendor_name, amount_gross, vat_rate, date, category };
-      if (editingExpenseId) {
-        await window.rechly.updateExpense(editingExpenseId, expenseData);
-        showToast('Ausgabe erfolgreich aktualisiert!');
-      } else {
-        await window.rechly.createExpense(expenseData);
-        showToast('Ausgabe erfasst!');
-      }
-      editingExpenseId = null;
-      currentStore = await window.rechly.getStore();
-      updateBadges();
-      closeModal('modal-expense');
-      if (currentView === 'expenses') renderExpensesView(document.getElementById('content-container'));
-      else if (currentView === 'dashboard') renderDashboardView(document.getElementById('content-container'));
+      const project_id = document.getElementById('modal-exp-project').value;
+      const description = document.getElementById('modal-exp-description').value.trim();
+      const expenseData = { vendor_name, amount_gross, vat_rate, date, category, project_id, description };
+      savingExpense = true;
+      document.getElementById('modal-exp-save').disabled = true;
+      try {
+        if (editingExpenseId) {
+          await window.rechly.updateExpense(editingExpenseId, expenseData);
+          showToast('Ausgabe erfolgreich aktualisiert!');
+        } else {
+          await window.rechly.createExpense(expenseData);
+          showToast('Ausgabe erfasst!');
+        }
+        editingExpenseId = null;
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        closeModal('modal-expense');
+        if (currentView === 'expenses') renderExpensesView(document.getElementById('content-container'));
+        else if (currentView === 'dashboard') renderDashboardView(document.getElementById('content-container'));
+      } catch (error) { showToast(error.message, 'error'); }
+      finally { savingExpense = false; document.getElementById('modal-exp-save').disabled = false; }
     }
 
     async function deleteExpense(id) {
@@ -2753,7 +2787,7 @@
             </div>
             <div id="openai-test-result" style="font-size:12px; margin-top:6px;"></div>
             <p style="font-size:11px; color:#64748b; margin-top:8px;">
-              🔒 Dein OpenAI API-Key wird ausschließlich verschlüsselt in deinem lokalen Tresor auf diesem Rechner gespeichert.
+              Ihr API-Schlüssel wird mit dem sicheren Betriebssystemspeicher geschützt und nur für Anfragen an OpenAI verwendet.
             </p>
           </div>
 
@@ -2778,7 +2812,7 @@
             </div>
             <div id="anthropic-test-result" style="font-size:12px; margin-top:6px;"></div>
             <p style="font-size:11px; color:#64748b; margin-top:8px;">
-              🔒 Dein Anthropic API-Key verlässt dieses Gerät niemals zu Drittservern.
+              Ihr API-Schlüssel wird mit dem sicheren Betriebssystemspeicher geschützt und nur für Anfragen an Anthropic verwendet.
             </p>
           </div>
         </div>
@@ -2833,12 +2867,13 @@
 
         <!-- Database Backup & Restore -->
         <div class="card">
-          <div class="card-title">💾 GoBD-Tresor sichern & wiederherstellen</div>
+          <div class="card-title">💾 Lokale Daten & Sicherungen</div>
           <p style="font-size:13px; color:#64748b; margin-bottom:16px;">
-            Alle Daten liegen ausschließlich in einer lokalen Datei (rechly_vault.json). Sichere deinen Tresor regelmäßig als verschlüsselte Kopie.
+            Ihre Geschäftsdaten liegen in einer lokalen SQLite-Datenbank. Exportieren Sie regelmäßig eine passwortverschlüsselte Sicherung auf ein separates Laufwerk.
           </p>
+          <div id="storage-status" role="status"></div>
           <div style="display:flex; gap:12px;">
-            <button class="btn btn-secondary" onclick="window.rechly.exportBackup()">💾 Tresor-Backup exportieren…</button>
+            <button class="btn btn-secondary" onclick="StorageUI.exportBackup()">💾 Tresor-Backup exportieren…</button>
             <button class="btn btn-secondary" onclick="importBackup()">📂 Tresor aus Datei wiederherstellen…</button>
           </div>
         </div>
@@ -2955,11 +2990,12 @@
     }
 
     async function importBackup() {
-      const res = await window.rechly.importBackup();
-      if (res.success) {
+      const res = await StorageUI.importBackup();
+      if (res) {
         currentStore = await window.rechly.getStore();
         updateSidebarCompany();
         updateBadges();
+        window.Worklog?.sync(currentStore);
         showToast('Tresor erfolgreich wiederhergestellt!');
         showView('dashboard');
       }
@@ -3122,11 +3158,8 @@
     }
 
     async function onbRestoreBackup() {
-      const res = await window.rechly.importBackup();
-      if (!res.success) {
-        if (res.error) onbError(`Backup konnte nicht geladen werden: ${res.error}`);
-        return;
-      }
+      const res = await StorageUI.importBackup();
+      if (!res) return;
       currentStore = await window.rechly.getStore();
       onb.company = companyForOnboarding(currentStore.company || {});
       onb.removeSamples = false;
@@ -3142,11 +3175,11 @@
 
         <div class="onb-section">
           <h4>💾 Lokale Speicherung <span style="color:var(--danger)">*</span></h4>
-          <p>Alle Rechnungen, Kunden und Einstellungen werden ausschließlich in dieser Datei auf Ihrem Gerät gespeichert:</p>
-          <span class="onb-path">${esc(onb.info?.vaultPath || 'rechly_vault.json')}</span>
+          <p>Rechnungen, Kunden und Einstellungen werden in dieser lokalen SQLite-Datenbank gespeichert. Die Geschäftsdatenbank ist nicht verschlüsselt; nutzen Sie FileVault oder BitLocker zum Schutz Ihres Geräts:</p>
+          <span class="onb-path">${esc(onb.info?.vaultPath || 'rechly.sqlite')}</span>
           <label class="onb-check">
             <input type="checkbox" id="onb-consent" ${onb.storageConsent ? 'checked' : ''} onchange="onb.storageConsent = this.checked">
-            <span>Ich habe verstanden, dass meine Daten nur auf diesem Gerät liegen und ich selbst für regelmäßige Backups verantwortlich bin (Aufbewahrungspflicht nach GoBD: 10 Jahre).</span>
+            <span>Ich habe verstanden, dass meine Daten nur auf diesem Gerät liegen und ich selbst für regelmäßige Backups verantwortlich bin (beachten Sie die für Ihre Unterlagen geltenden Aufbewahrungsfristen).</span>
           </label>
         </div>
 
@@ -3290,7 +3323,7 @@
               <input type="password" id="onb-cloud-key" style="flex:1;" value="${esc(onb.cloudKey[onb.aiChoice])}" oninput="onb.cloudKey[onb.aiChoice] = this.value.trim()">
               <button class="btn btn-secondary btn-sm" onclick="onbTestCloud()">Verbindung testen</button>
             </div>
-            <div class="onb-hint">${esc(onb.cloudTest) || 'Der Key wird nur in Ihrem lokalen Tresor gespeichert.'}</div>
+            <div class="onb-hint">${esc(onb.cloudTest) || 'Der Schlüssel wird durch den sicheren Betriebssystemspeicher geschützt.'}</div>
           </div>`;
       }
 

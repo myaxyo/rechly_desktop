@@ -13,6 +13,14 @@ import type {
 } from "./types";
 
 const api = {
+    getWork: () => ipcRenderer.invoke("work:get"),
+    saveTime: (record: unknown) => ipcRenderer.invoke("work:save",record),
+    deleteTime: (id: string) => ipcRenderer.invoke("work:delete",id),
+    startTimer: (record: unknown) => ipcRenderer.invoke("work:start",record),
+    stopTimer: (minutes: number) => ipcRenderer.invoke("work:stop",minutes),
+    cancelTimer: () => ipcRenderer.invoke("work:cancel"),
+    invoiceTime: (record: unknown) => ipcRenderer.invoke("work:invoice",record),
+    exportTime: () => ipcRenderer.invoke("work:export"),
     getCalendar: (from: string, to: string) => ipcRenderer.invoke("calendar:list", from, to),
     saveCalendarEvent: (record: unknown) => ipcRenderer.invoke("calendar:save", record),
     deleteCalendarEvent: (id: string, date?: string) => ipcRenderer.invoke("calendar:delete", id, date),
@@ -102,8 +110,17 @@ const api = {
     printPage: () => ipcRenderer.invoke("native:print"),
 
     // Backup & Restore
-    exportBackup: () => ipcRenderer.invoke("backup:export"),
-    importBackup: () => ipcRenderer.invoke("backup:import"),
+    exportBackup: (password: string) => ipcRenderer.invoke("backup:export", password),
+    getStorageInfo: () => ipcRenderer.invoke("storage:info"),
+    selectBackup: () => ipcRenderer.invoke("backup:select"),
+    previewBackup: (token: string, password: string) => ipcRenderer.invoke("backup:preview", token, password),
+    restoreBackup: (token: string) => ipcRenderer.invoke("backup:restore", token),
+    relaunchAfterRecovery: () => ipcRenderer.invoke("storage:relaunch"),
+    onBackupRequested: (callback: () => void) => {
+        const listener = () => callback();
+        ipcRenderer.on("backup:requestExport", listener);
+        return () => ipcRenderer.removeListener("backup:requestExport", listener);
+    },
 };
 
 /** Type of `window.rechly` in the renderer. */

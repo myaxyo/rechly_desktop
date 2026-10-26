@@ -1,3 +1,9 @@
+import "./singleInstance";
+import {
+    saveTimeEntry, deleteTimeEntry, startTimer, stopTimer, createTimeInvoice,
+    deleteInvoiceAndUnlink, validateProjectExpense, assertProjectUnused,
+    projectReports, nextInvoiceNumber, timeCsv,
+} from "./worklog";
 import { validateEvent, occurrences, exportCalendar, importCalendar, localStamp } from "./calendar";
 import { collection, emptyBusiness, saveBusinessRecord, deleteBusinessRecord, documentHtml } from "./business";
 import { randomUUID } from "node:crypto";
@@ -16,6 +22,8 @@ import * as path from "node:path";
 import * as fs from "node:fs";
 
 import store from "./store";
+import { BackupSelection } from "./backupService";
+import { checkPassword } from "./backupCrypto";
 import { generateXRechnungXML, generateDatevExport } from "./eRechnung";
 import { checkOllama, testOpenAi, testAnthropic, parseInvoiceDraft, pullOllamaModel } from "./ai";
 import { detectOllama, launchOllama } from "./setup";
@@ -43,6 +51,8 @@ const SAMPLE_IDS = {
 
 let mainWindow: BrowserWindow | null = null;
 
+let storageFailure = "";
+const backupSelection = new BackupSelection();
 const createWindow = () => {
     mainWindow = new BrowserWindow({
         width: 1320,
@@ -63,7 +73,7 @@ const createWindow = () => {
     });
 
     // Load local offline desktop UI (compiled code lives in out/, UI in ui/)
-    mainWindow.loadFile(path.join(__dirname, "..", "ui", "index.html"));
+    mainWindow.loadFile(path.join(__dirname, "..", "ui", storageFailure ? "recovery.html" : "index.html"));
 
     mainWindow.once("ready-to-show", () => {
         mainWindow?.show();
@@ -122,7 +132,7 @@ const buildMenu = () => {
                 },
                 {
                     label: "Datenbank sichern (Backup)…",
-                    click: async () => exportBackupHandler(),
+                    click: () => mainWindow?.webContents.send("backup:requestExport"),
                 },
                 { type: "separator" },
                 isMac ? { role: "close", label: "Fenster schließen" } : { role: "quit", label: "Beenden" },
@@ -157,6 +167,14 @@ const buildMenu = () => {
         {
             label: "Hilfe",
             submenu: [
+                {
+                    label: "Über Rechly Desktop",
+                    click: () => dialog.showMessageBox({
+                        type: "info", title: "Über Rechly",
+                        message: `Rechly Desktop ${app.getVersion()}`,
+                        detail: "Ihr persönlicher Offline-Arbeitsplatz. Updates werden manuell installiert; Ihre Daten bleiben im lokalen Tresor.",
+                    }),
+                },
                 {
                     label: "jonprompter/Rechly-DE-3B auf Ollama",
                     click: () => shell.openExternal("https://ollama.com/jonprompter/Rechly-DE-3B"),
@@ -198,20 +216,42 @@ async function exportDatevHandler(): Promise<ExportResult> {
     return { success: true, filePath };
 }
 
-async function exportBackupHandler(): Promise<ExportResult> {
+async function exportBackupHandler(password: string): Promise<ExportResult> {
+    checkPassword(password);
     if (!mainWindow) return { success: false };
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
         title: "Rechly Offline Tresor sichern",
         defaultPath: `Rechly_Backup_${new Date().toISOString().slice(0, 10)}.rechly-backup`,
-        filters: [{ name: "Rechly Backup", extensions: ["rechly-backup", "json"] }],
+        filters: [{ name: "Rechly Backup", extensions: ["rechly-backup"] }],
     });
 
     if (canceled || !filePath) return { success: false };
 
-    store.exportBackup(filePath);
+    await store.exportBackup(filePath, password);
     shell.showItemInFolder(filePath);
     return { success: true, filePath };
 }
+
+// Project work, billing and reports share the local vault transaction boundary.
+ipcMain.handle("work:get", () => {
+    const data = store.getAll();
+    return { store: data, reports: projectReports(data), nextInvoiceNumber: nextInvoiceNumber(data) };
+});
+ipcMain.handle("work:save", (_e, raw: unknown) => store.transaction(draft => saveTimeEntry(draft, raw)));
+ipcMain.handle("work:delete", (_e, id: unknown) => store.transaction(draft => deleteTimeEntry(draft, id)));
+ipcMain.handle("work:start", (_e, raw: unknown) => store.transaction(draft => startTimer(draft, raw)));
+ipcMain.handle("work:stop", (_e, minutes: unknown) => store.transaction(draft => stopTimer(draft, minutes)));
+ipcMain.handle("work:cancel", () => store.set("runningTimer", null));
+ipcMain.handle("work:invoice", (_e, raw: unknown) => store.transaction(draft => createTimeInvoice(draft, raw)));
+ipcMain.handle("work:export", async () => {
+    const result = await dialog.showSaveDialog({
+        title: "Zeiten exportieren", defaultPath: "Rechly-Zeiten.csv",
+        filters: [{ name: "CSV", extensions: ["csv"] }],
+    });
+    if (result.canceled || !result.filePath) return { success: false };
+    fs.writeFileSync(result.filePath, timeCsv(store.getAll()), "utf8");
+    return { success: true };
+});
 
 ipcMain.handle("calendar:list", (_e, from: string, to: string) => {
     const events = store.get("calendar") || [];
@@ -280,6 +320,7 @@ ipcMain.handle("business:save", (_e, key: unknown, record: unknown) => {
     return next;
 });
 ipcMain.handle("business:delete", (_e, key: unknown, id: unknown) => {
+    if (key === "projects") assertProjectUnused(store.getAll(), id);
     const next = deleteBusinessRecord(store.get("business") || emptyBusiness(), collection(key), id);
     store.set("business", next);
     return next;
@@ -334,9 +375,7 @@ ipcMain.handle("invoices:update", (_e, id: string, data: Draft<Invoice>) => {
     return null;
 });
 ipcMain.handle("invoices:delete", (_e, id: string) => {
-    let invoices = store.get("invoices") || [];
-    invoices = invoices.filter((i) => i.id !== id);
-    store.set("invoices", invoices);
+    store.transaction(draft => deleteInvoiceAndUnlink(draft, id));
     return true;
 });
 
@@ -458,7 +497,8 @@ ipcMain.handle("offers:convert", (_e, id: string) => {
 ipcMain.handle("expenses:getAll", () => store.get("expenses") || []);
 ipcMain.handle("expenses:create", (_e, data: Draft<Expense>) => {
     const expenses = store.get("expenses") || [];
-    const newExpense: Expense = { id: `exp-${Date.now()}`, ...data };
+    const newExpense: Expense = { ...data, id: `exp-${randomUUID()}` };
+    validateProjectExpense(newExpense, store.getAll());
     expenses.unshift(newExpense);
     store.set("expenses", expenses);
     return newExpense;
@@ -467,7 +507,8 @@ ipcMain.handle("expenses:update", (_e, id: string, data: Draft<Expense>) => {
     const expenses = store.get("expenses") || [];
     const idx = expenses.findIndex((e) => e.id === id);
     if (idx !== -1) {
-        expenses[idx] = { ...expenses[idx], ...data };
+        expenses[idx] = { ...expenses[idx], ...data, id };
+        validateProjectExpense(expenses[idx], store.getAll());
         store.set("expenses", expenses);
         return expenses[idx];
     }
@@ -584,42 +625,62 @@ ipcMain.handle("export:xrechnung", async (_e, invoiceId: string): Promise<Export
 });
 
 ipcMain.handle("export:datev", exportDatevHandler);
-ipcMain.handle("backup:export", exportBackupHandler);
+ipcMain.handle("backup:export", (_e, password: string) => exportBackupHandler(password));
 
-ipcMain.handle("backup:import", async (): Promise<ExportResult> => {
-    if (!mainWindow) return { success: false };
-    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-        title: "Rechly Backup wiederherstellen",
-        filters: [{ name: "Rechly Backup", extensions: ["rechly-backup", "json"] }],
+ipcMain.handle("storage:info", () => storageFailure
+    ? {error: storageFailure, databasePath: store.getVaultPath()}
+    : store.getInfo());
+ipcMain.handle("backup:select", async () => {
+    if (!mainWindow) return null;
+    const {canceled, filePaths} = await dialog.showOpenDialog(mainWindow, {
+        title: "Rechly-Sicherung auswählen",
+        filters: [{name: "Rechly-Sicherung", extensions: ["rechly-backup", "json", "sqlite"]}],
         properties: ["openFile"],
     });
-
-    if (canceled || !filePaths[0]) return { success: false };
-
-    try {
-        store.importBackup(filePaths[0]);
-        return { success: true };
-    } catch (err) {
-        return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
+    if (canceled || !filePaths[0]) return null;
+    return {...backupSelection.select(filePaths[0], file => store.readSnapshot(file)), name: path.basename(filePaths[0])};
 });
+ipcMain.handle("backup:preview", (_e, token: unknown, password: string) => backupSelection.preview(token, password));
+ipcMain.handle("backup:restore", (_e, token: unknown) => {
+    const data = backupSelection.take(token);
+    if (storageFailure) store.recover(data); else store.restore(data);
+    storageFailure = "";
+    backupSelection.clear();
+    return {success: true};
+});
+
+ipcMain.handle("storage:relaunch", () => { store.close(); app.relaunch(); app.exit(0); });
 
 ipcMain.handle("native:print", () => {
     mainWindow?.webContents.print();
 });
 
 // App Lifecycle
+app.on("second-instance", () => {
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+    } else if (app.isReady()) {
+        createWindow();
+    }
+});
 app.whenReady().then(() => {
+    try { store.initialize(); }
+    catch (error) { storageFailure = error instanceof Error ? error.message : String(error); }
     buildMenu();
     createWindow();
+    if (storageFailure) return;
     checkCalendarReminders();
     const reminderTimer = setInterval(checkCalendarReminders, 30000);
     app.once("before-quit", () => clearInterval(reminderTimer));
 
-    app.on("activate", () => {
-        if (BrowserWindow.getAllWindows().length === 0) createWindow();
-    });
 });
+
+app.on("activate", () => {
+    if (app.isReady() && BrowserWindow.getAllWindows().length === 0) createWindow();
+});
+app.on("will-quit", () => store.close());
 
 app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();

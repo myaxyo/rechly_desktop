@@ -2,6 +2,8 @@
 document.addEventListener('DOMContentLoaded', () => {
   const paths = {
     business:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',
+    worklog:'M12 3a9 9 0 100 18 9 9 0 000-18 M12 7v6l4 2',
+    reports:'M4 21V3 M4 21h17 M8 17v-5 M13 17V7 M18 17v-9',
     calendar:'M4 5h16v16H4z M8 3v4 M16 3v4 M4 10h16 M8 14h2 M14 14h2 M8 18h2',
     documents:'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h6',
     projects:'M3 7h7l2-3h9v16H3z M3 10h18',
@@ -22,6 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const shortcut=window.rechly?.platform==='darwin'?'⌘':'Strg+';
   document.querySelector('.titlebar-right .btn-primary').textContent=`+ Neue Rechnung (${shortcut}N)`;
   document.querySelector('.sidebar-footer').innerHTML='<div class="vault-status-indicator"><div class="vault-dot"></div><span>Persönlicher Arbeitsplatz</span></div><div>Lokal auf diesem Gerät gespeichert</div>';
+  const version=document.createElement('div');version.id='app-version';version.title='Updates werden manuell installiert';document.querySelector('.sidebar-footer').append(version);
+  window.rechly.getAppInfo().then(info=>{version.textContent='Rechly '+info.version+' · Offline';}).catch(()=>{version.textContent='Versionsinfo nicht verfügbar';});
   const content=document.getElementById('content-container');
   content.setAttribute('role','main');
   const navigation=document.querySelector('.sidebar');navigation.setAttribute('role','navigation');navigation.setAttribute('aria-label','Hauptnavigation');
