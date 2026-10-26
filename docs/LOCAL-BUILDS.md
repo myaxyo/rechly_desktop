@@ -36,14 +36,13 @@ The custom signer preserves Electron's per-file entitlements, signs nested code,
 Install your **Developer ID Application** certificate with its private key in Keychain. Configure notarization credentials using `xcrun notarytool store-credentials` and an Apple app-specific password, then use the saved profile name:
 
 ```bash
-export CSC_IDENTITY_AUTO_DISCOVERY=true
 export APPLE_KEYCHAIN_PROFILE=rechly-notary
 export RECHLY_REQUIRE_NOTARIZATION=1
-npm run dist:mac -- --publish never
+npm run dist:mac -- --publish never -c.mac.identity="Your Name (TEAMID)"
 node scripts/verify-macos.cjs --distribution
 ```
 
-`rechly-notary` must be the profile you actually created. Credentials stay in Keychain; do not commit certificates or passwords. Electron Builder submits and staples the app when notarization is configured. The distribution check additionally requires a valid stapled ticket and a passing Gatekeeper assessment. Build failure must be resolved before distributing.
+`electron-builder.yml` sets `mac.identity: "-"` (ad-hoc), so a distribution build must override it with your Developer ID Application certificate name, without the `Developer ID Application:` prefix. If you forget the override while notarization is required, the signing hook stops the build instead of producing an ad-hoc app. `rechly-notary` must be the profile you actually created. Credentials stay in Keychain; do not commit certificates or passwords. Electron Builder submits and staples the app when notarization is configured. The distribution check additionally requires a valid stapled ticket and a passing Gatekeeper assessment. Build failure must be resolved before distributing.
 
 Mount the generated DMG, copy the app to Applications, and verify that installed copy too:
 
@@ -63,7 +62,7 @@ The previous 1.1.0 Intel archive had no bundle signature manifests. That finding
 npm run dist:win -- --x64 --publish never
 ```
 
-The NSIS installer is `dist/Rechly-Desktop-Setup-win-x64.exe`. This app now includes a native SQLite addon. Cross-building Windows on macOS depends on an available Electron/Windows SQLite prebuild as well as Wine and compatible helper tools; rebuilding a missing Windows addon requires a native Windows toolchain. Native Windows builds are the recommended route. An EXE cannot be launch-tested on macOS. If cross-packaging fails, use the existing **Desktop validation and installers** GitHub Actions workflow or a Windows machine. The native Windows job builds and exercises the actual Windows application. Windows signing requires a separately configured certificate; an unsigned installer may trigger SmartScreen.
+The NSIS installer is `dist/Rechly-Desktop-Setup-win-x64.exe`. The SQLite addon (`better-sqlite3` 13, N-API) ships prebuilt Windows and Mac binaries, and packaging uses them without recompiling (`npmRebuild: false`), so the EXE can also be cross-built on a Mac. An EXE cannot be launch-tested on macOS, so native Windows builds remain the recommended route for verification. If cross-packaging fails, use the existing **Desktop validation and installers** GitHub Actions workflow or a Windows machine. The native Windows job builds and exercises the actual Windows application. Windows signing requires a separately configured certificate; an unsigned installer may trigger SmartScreen.
 
 `npm run dist` packages for the host OS; it does not automatically build every platform. All commands above use `--publish never` to avoid uploads. The existing workflow still publishes a new package version after a push to `main` and successful native checks; a manual run on another branch produces artifacts without a release.
 

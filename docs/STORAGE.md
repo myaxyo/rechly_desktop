@@ -51,4 +51,4 @@ A newer database schema is rejected rather than downgraded. A missing database s
 
 ## Build and testing notes
 
-`better-sqlite3` is rebuilt for Electron by the `postinstall` script. Run `npm ci` after pulling dependency changes and run `npm test` rather than loading the native addon under a different Node ABI. Native Windows and both Mac builds run the same storage tests and packaged migration/backup/recovery workflows.
+`better-sqlite3` 13 is an N-API addon with prebuilt binaries for Windows and macOS (x64 and arm64); the `postinstall` script still prepares it for Electron. Run `npm ci` after pulling dependency changes and run `npm test` rather than loading the native addon under a different Node ABI. Native Windows and both Mac builds run the same storage tests and packaged migration/backup/recovery workflows.

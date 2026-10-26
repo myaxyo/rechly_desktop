@@ -1,4 +1,5 @@
-// electron-builder 25 skips signing without a certificate unless a custom signer is supplied.
+// electron-builder 26 calls this signer only when an identity resolves; electron-builder.yml sets
+// mac.identity "-" so local and CI builds get an ad-hoc signature instead of none.
 // Ad-hoc signatures provide local bundle integrity; they do not provide Apple trust.
 const { signAsync } = require("@electron/osx-sign");
 module.exports = async function signMac(options) {

@@ -6,6 +6,10 @@ directories:
   output: dist
   buildResources: build
 
+# better-sqlite3 >= 13 is an N-API addon that ships prebuilt binaries for
+# darwin/win32 x64+arm64 and loads them first, so packaging doesn't need to
+# recompile it (and node-gyp can't cross-compile, e.g. Windows from macOS).
+npmRebuild: false
 files:
   - out/**/*.js
   - ui/**/*
@@ -13,6 +17,10 @@ files:
 
 mac:
   sign: scripts/sign-macos.cjs
+  # electron-builder 26 only calls the custom signer when an identity resolves.
+  # "-" opts in to ad-hoc signing for local and CI builds. For Developer ID
+  # distribution, override it: -c.mac.identity="Your Name (TEAMID)".
+  identity: "-"
   category: public.app-category.finance
   target:
     - target: dmg
