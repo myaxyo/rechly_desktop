@@ -3,3 +3,4 @@ dist/
 out/
 
 .ci-tools/
+.DS_Store

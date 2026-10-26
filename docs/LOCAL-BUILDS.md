@@ -1,4 +1,4 @@
-# Build Rechly 1.2.0 on your MacBook
+# Build Rechly 1.2.1 on your MacBook
 
 These instructions build the source in your checkout. Downloading the existing GitHub release does not install changes from this checkout. The installed version is visible in the sidebar footer and **Hilfe → Über Rechly Desktop**. Updates are installed manually.
 
@@ -16,7 +16,7 @@ npm start
 
 The `npm ci` postinstall rebuilds the native SQLite addon for Electron. If a prebuilt binary is unavailable, compilation needs the platform C++ build tools. Run tests with `npm test`, which uses Electron's Node runtime so the addon ABI matches.
 
-The app is for one local user. Back up your existing vault from Rechly before trying a new build with real business data. For a separate demo profile, run `npx electron . --user-data-dir=/tmp/rechly-demo-120` after building.
+The app is for one local user. Back up your existing vault from Rechly before trying a new build with real business data. For a separate demo profile, run `npx electron . --user-data-dir=/tmp/rechly-demo-121` after building.
 
 ## Build a Mac installer
 

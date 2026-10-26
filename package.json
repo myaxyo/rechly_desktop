@@ -1,7 +1,7 @@
 {
     "name": "rechly-desktop",
     "productName": "Rechly",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "description": "Rechly – Rechnungssoftware für Freelancer und kleine Unternehmen (Desktop)",
     "main": "out/main.js",
     "author": "Rechly",

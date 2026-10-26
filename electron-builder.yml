@@ -14,6 +14,13 @@ files:
   - out/**/*.js
   - ui/**/*
   - package.json
+  # Ship only the SQLite binary for the target platform/arch, not the C sources
+  # or prebuilds for other platforms (~26 MB). Exclusions only: platform-level
+  # `files` can't re-include something excluded here. ${arch} is the target arch.
+  - "!node_modules/better-sqlite3/{deps,src,build}{,/**/*}"
+  - "!node_modules/better-sqlite3/binding.gyp"
+  - "!node_modules/better-sqlite3/prebuilds/linux*.node"
+  - "!node_modules/better-sqlite3/prebuilds/!(*-${arch}).node"
 
 mac:
   sign: scripts/sign-macos.cjs
@@ -21,6 +28,8 @@ mac:
   # "-" opts in to ad-hoc signing for local and CI builds. For Developer ID
   # distribution, override it: -c.mac.identity="Your Name (TEAMID)".
   identity: "-"
+  files:
+    - "!node_modules/better-sqlite3/prebuilds/win32-*.node"
   category: public.app-category.finance
   target:
     - target: dmg
@@ -37,6 +46,8 @@ dmg:
   artifactName: Rechly-Desktop-mac-${arch}.${ext}
 
 win:
+  files:
+    - "!node_modules/better-sqlite3/prebuilds/darwin-*.node"
   target:
     - target: nsis
       arch: [x64]

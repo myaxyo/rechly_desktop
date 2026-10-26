@@ -56,7 +56,7 @@ Open **Projektcontrolling** to see work value, internal labor costs, project exp
 
 The start page links to the workflow, a running timer remains visible across screens, and the installed version appears in the sidebar and **Hilfe → Über Rechly Desktop**. Timers persist across restarts; verify the elapsed duration before saving. New data uses the existing local vault and backup process.
 
-See the [1.2.0 changes](docs/RELEASE-1.2.0.md) and [prioritized product direction](docs/PRODUCT-DIRECTION.md).
+See the [1.2.1 changes](docs/RELEASE-1.2.1.md), [1.2.0 changes](docs/RELEASE-1.2.0.md), and [prioritized product direction](docs/PRODUCT-DIRECTION.md).
 
 ![Project reporting with sample data](docs/images/project-reports.png)
 
