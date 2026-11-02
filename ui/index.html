@@ -773,6 +773,161 @@
     .onb-hint { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; }
     .onb-body .form-group label .req { color: var(--danger); }
 
+    /* ─── Hardware Detection & Model Tiers ─── */
+    .hw-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: var(--radius);
+      font-size: 13px;
+      color: #166534;
+      margin-bottom: 16px;
+      line-height: 1.45;
+    }
+    .hw-banner b { color: #14532d; font-weight: 700; }
+    .hw-badge-rec {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #86efac;
+    }
+    .tier-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .tier-card {
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+      position: relative;
+      cursor: pointer;
+    }
+    .tier-card:hover {
+      border-color: #93c5fd;
+      box-shadow: var(--shadow);
+    }
+    .tier-card.selected {
+      border-color: var(--primary);
+      background: #f8faff;
+      box-shadow: 0 0 0 1px var(--primary), var(--shadow);
+    }
+    .tier-card.active-model {
+      border-color: #10b981;
+    }
+    .tier-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 6px;
+    }
+    .tier-card-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tier-badge-tag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .tier-badge-tag.tag-3b { background: #dbeafe; color: #1e40af; }
+    .tier-badge-tag.tag-15b { background: #fef3c7; color: #92400e; }
+    .tier-badge-tag.tag-05b { background: #f3e8ff; color: #6b21a8; }
+    .tier-badge-highlight {
+      display: inline-block;
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin: 4px 0 8px 0;
+      background: #f1f5f9;
+      color: #334155;
+      border: 1px solid #e2e8f0;
+    }
+    .tier-meta {
+      font-size: 11px;
+      color: #64748b;
+      margin: 4px 0 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .tier-meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .tier-desc {
+      font-size: 11.5px;
+      color: #475569;
+      line-height: 1.45;
+      margin-bottom: 10px;
+      flex-grow: 1;
+    }
+    .tier-rec-hw {
+      font-size: 10.5px;
+      color: #64748b;
+      margin-bottom: 12px;
+      padding: 5px 8px;
+      background: #f8fafc;
+      border: 1px solid #f1f5f9;
+      border-radius: var(--radius-sm);
+      line-height: 1.35;
+    }
+    .tier-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid #f1f5f9;
+    }
+    .tier-pull-progress {
+      width: 100%;
+      margin-top: 6px;
+    }
+    .tier-pull-bar-wrap {
+      height: 7px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .tier-pull-bar {
+      height: 100%;
+      background: var(--primary);
+      width: 0%;
+      transition: width 0.15s ease;
+    }
+    .tier-pull-label {
+      font-size: 10.5px;
+      color: #475569;
+      font-weight: 500;
+    }
+
     /* ─── Toast Notifications ─── */
     #toast {
       position: fixed;
@@ -1145,6 +1300,52 @@
   <div id="toast" role="status" aria-live="polite" aria-atomic="true">✅ Vorgang abgeschlossen</div>
 
   <script>
+    // ─── Model Registry (Multi-Tier Local AI Family) ───
+    const RECHLY_MODEL_FAMILY = {
+      '3b': {
+        id: '3b',
+        name: 'Rechly-DE-3B (Flagship)',
+        tag: 'Flagship',
+        modelIdentifier: 'jonprompter/rechly-de-3b',
+        paramSize: '3B Parameter',
+        downloadSize: '1.93 GB',
+        ramRequired: '~2.5 GB RAM',
+        badge: 'Maximale Präzision (100% Benchmark)',
+        description: 'Vollständige deutsche Steuer- & GoBD-Prüfung, komplexe XRechnung/ZUGFeRD-Parsing-Fälle und DATEV-Kontierung.',
+        recommendedFor: 'Apple Silicon (M1–M4), Workstations, PCs mit ≥ 8 GB RAM',
+        hfUrl: 'https://huggingface.co/jonprompter/rechly-de-3b',
+        minRamGb: 8,
+      },
+      '1.5b': {
+        id: '1.5b',
+        name: 'Rechly-DE-1.5B (Slim)',
+        tag: 'Slim',
+        modelIdentifier: 'jonprompter/rechly-de-1.5b',
+        paramSize: '1.5B Parameter',
+        downloadSize: '986 MB',
+        ramRequired: '~1.1 GB RAM',
+        badge: 'Ausgewogen & Schnell',
+        description: 'Optimiert für Standard-Rechnungen, UStG-Pflichtangaben und DATEV SKR03/04 Kontierung.',
+        recommendedFor: 'Laptops, Intel MacBooks, PCs mit 4–8 GB RAM, 1 GB VPS',
+        hfUrl: 'https://huggingface.co/jonprompter/rechly-de-1.5b',
+        minRamGb: 4,
+      },
+      '0.5b': {
+        id: '0.5b',
+        name: 'Rechly-DE-0.5B (Nano)',
+        tag: 'Nano',
+        modelIdentifier: 'jonprompter/rechly-de-0.5b',
+        paramSize: '0.5B Parameter',
+        downloadSize: '398 MB',
+        ramRequired: '~512 MB RAM',
+        badge: 'Ultra-Leicht & Sparsam',
+        description: 'Extrem sparsam im Arbeitsspeicher, blitzschnelle Antwortzeiten für Basis-Rechnungserfassung.',
+        recommendedFor: 'Ältere Geräte, Thin Clients, Micro-Instanzen, RAM < 4 GB',
+        hfUrl: 'https://huggingface.co/jonprompter/rechly-de-0.5b',
+        minRamGb: 2,
+      },
+    };
+
     // ─── Desktop App State ───
     let currentStore = {
       company: {},
@@ -1156,13 +1357,14 @@
       aiSettings: {
         active_provider: 'ollama',
         ollama_host: 'http://localhost:11434',
-        ollama_model: 'jonprompter/Rechly-DE-3B',
+        ollama_model: 'jonprompter/rechly-de-3b',
+        selected_tier: '3b',
         openai_key: '',
         openai_model: 'gpt-4o-mini',
         anthropic_key: '',
         anthropic_model: 'claude-3-5-sonnet-20241022',
-        featured_model: 'jonprompter/Rechly-DE-3B',
-        ollama_url: 'https://ollama.com/jonprompter/Rechly-DE-3B',
+        featured_model: 'jonprompter/rechly-de-3b',
+        ollama_url: 'https://ollama.com/jonprompter/rechly-de-3b',
         hf_url: 'https://huggingface.co/jonprompter/rechly-de-3b',
       }
     };
@@ -1216,6 +1418,7 @@
     async function updateAiStatusPill() {
       if (!window.rechly) return;
       const pill = document.getElementById('ai-model-indicator');
+      if (!pill) return;
       const settings = currentStore.aiSettings || {};
       const provider = settings.active_provider || 'ollama';
 
@@ -1229,15 +1432,28 @@
         pill.innerHTML = `🧠 <b>Claude: ${settings.anthropic_model?.includes('haiku') ? 'Haiku' : 'Sonnet'}</b>`;
       } else {
         pill.classList.add('active-ollama');
+        const tierId = settings.selected_tier || (
+          settings.ollama_model?.includes('0.5b') ? '0.5b' :
+          settings.ollama_model?.includes('1.5b') ? '1.5b' : '3b'
+        );
+        const modelLabel =
+          tierId === '0.5b' ? 'Rechly-DE-0.5B (Nano)' :
+          tierId === '1.5b' ? 'Rechly-DE-1.5B (Slim)' :
+          'Rechly-DE-3B (Lokal)';
+        const offlineLabel =
+          tierId === '0.5b' ? 'Rechly-DE-0.5B (offline)' :
+          tierId === '1.5b' ? 'Rechly-DE-1.5B (offline)' :
+          'Rechly-DE-3B (offline)';
+
         try {
           const res = await window.rechly.checkOllama(settings.ollama_host || 'http://localhost:11434');
           if (res.connected) {
-            pill.innerHTML = `🟢 <b>Rechly-DE-3B</b> (Lokal)`;
+            pill.innerHTML = `🟢 ${modelLabel}`;
           } else {
-            pill.innerHTML = `⚪ Rechly-DE-3B (Ollama offline)`;
+            pill.innerHTML = `⚪ ${offlineLabel}`;
           }
         } catch {
-          pill.innerHTML = `⚪ Rechly-DE-3B (Ollama offline)`;
+          pill.innerHTML = `⚪ ${offlineLabel}`;
         }
       }
     }
@@ -2726,43 +2942,42 @@
             </button>
           </div>
 
-          <!-- Tab Content: Ollama -->
+          <!-- Tab Content: Ollama (Local Multi-Tier Model Family) -->
           <div id="ai-tab-content-ollama" style="display: ${activeProvider === 'ollama' ? 'block' : 'none'};">
-            <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius:8px; padding:16px; margin-bottom:16px;">
-              <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <div>
-                  <div style="font-weight:700; font-size:14px; color:#166534;">
-                    ⭐ Empfohlen: <code>jonprompter/Rechly-DE-3B</code>
-                  </div>
-                  <p style="font-size:12px; color:#15803d; margin: 4px 0 10px 0;">
-                    100% On-Device Rechnungs-KI: Keine API-Kosten, kein Datenabfluss, volle DSGVO- & GoBD-Konformität.
-                  </p>
-                  <div style="font-size:11px; color:#14532d;">
-                    Terminal 1-Liner zum Starten:<br>
-                    <code style="display:inline-block; margin-top:4px; padding:5px 10px; background:#fff; border:1px solid #bbf7d0; border-radius:4px; font-weight:700;">
-                      ollama run jonprompter/Rechly-DE-3B
-                    </code>
-                  </div>
-                  <div style="margin-top:10px; display:flex; gap:12px; font-size:11px;">
-                    <a href="https://ollama.com/jonprompter/Rechly-DE-3B" target="_blank" style="color:#15803d; font-weight:600;">Ollama Model Library ↗</a>
-                    <a href="https://huggingface.co/jonprompter/rechly-de-3b" target="_blank" style="color:#15803d; font-weight:600;">Hugging Face Model ↗</a>
-                  </div>
-                </div>
-                <button class="btn btn-secondary btn-sm" onclick="testOllama()">🔄 Verbindung prüfen</button>
+            <!-- Hardware Detection Banner -->
+            <div id="settings-hw-banner" class="hw-banner">
+              💻 <span>Lade Systemhardware & Empfehlung…</span>
+            </div>
+
+            <!-- Model Tiers Comparison Section -->
+            <div id="ai-model-selector" style="margin-bottom: 20px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h4 style="font-size:14px; font-weight:700; color:var(--text);">Verfügbare Rechly-Modellstufen (3B / 1.5B / 0.5B)</h4>
+                <button class="btn btn-secondary btn-sm" onclick="loadSettingsOllamaInfo()">🔄 Status aktualisieren</button>
+              </div>
+              <div id="settings-tiers-container">
+                <p style="font-size:12px; color:var(--text-muted);">Prüfe installierte Ollama-Modelle…</p>
               </div>
             </div>
 
-            <div class="form-grid">
-              <div class="form-group">
-                <label>Ollama Host URL</label>
-                <input type="text" id="ai-ollama-host" value="${ai.ollama_host || 'http://localhost:11434'}">
+            <!-- Host & Connection Settings -->
+            <div class="card" style="background:#f8fafc; border:1px solid var(--border); padding:14px; margin-bottom:14px;">
+              <div style="font-weight:600; font-size:13px; margin-bottom:8px;">Ollama Verbindungseinstellungen</div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Ollama Host URL</label>
+                  <input type="text" id="ai-ollama-host" value="${esc(ai.ollama_host || 'http://localhost:11434')}">
+                </div>
+                <div class="form-group">
+                  <label>Aktiver Modell-Identifier (Ollama)</label>
+                  <input type="text" id="ai-ollama-model" value="${esc(ai.ollama_model || 'jonprompter/rechly-de-3b')}">
+                </div>
               </div>
-              <div class="form-group">
-                <label>Modellname</label>
-                <input type="text" id="ai-ollama-model" value="${ai.ollama_model || 'jonprompter/Rechly-DE-3B'}">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                <button class="btn btn-secondary btn-sm" onclick="testOllama()">🔄 Verbindung prüfen</button>
+                <div id="ollama-test-result" style="font-size:12px;"></div>
               </div>
             </div>
-            <div id="ollama-test-result" style="font-size:12px; margin-top:6px;"></div>
           </div>
 
           <!-- Tab Content: OpenAI -->
@@ -2878,6 +3093,7 @@
           </div>
         </div>
       `;
+      setTimeout(loadSettingsOllamaInfo, 0);
     }
 
     let selectedAiProvider = 'ollama';
@@ -2885,10 +3101,172 @@
     function selectAiTab(provider) {
       selectedAiProvider = provider;
       document.querySelectorAll('.ai-tab-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
+      const activeBtn = Array.from(document.querySelectorAll('.ai-tab-btn')).find(b => b.getAttribute('onclick')?.includes(`'${provider}'`));
+      if (activeBtn) activeBtn.classList.add('active');
       document.getElementById('ai-tab-content-ollama').style.display = provider === 'ollama' ? 'block' : 'none';
       document.getElementById('ai-tab-content-openai').style.display = provider === 'openai' ? 'block' : 'none';
       document.getElementById('ai-tab-content-anthropic').style.display = provider === 'anthropic' ? 'block' : 'none';
+      if (provider === 'ollama') loadSettingsOllamaInfo();
+    }
+
+    async function loadSettingsOllamaInfo() {
+      if (!window.rechly) return;
+      const host = document.getElementById('ai-ollama-host')?.value || currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
+      const [profile, status] = await Promise.all([
+        window.rechly.getSystemProfile(),
+        window.rechly.checkOllama(host),
+      ]);
+
+      const hwBanner = document.getElementById('settings-hw-banner');
+      if (hwBanner && profile) {
+        hwBanner.innerHTML = `💻 Erkanntes System: <b>${esc(profile.cpuModel)}</b> • <b>${profile.totalRamGb} GB RAM</b> • Empfohlen: <span class="hw-badge-rec">⭐ ${esc(RECHLY_MODEL_FAMILY[profile.recommendedTier]?.name || 'Rechly-DE-3B (Flagship)')}</span>`;
+      }
+
+      const tiersContainer = document.getElementById('settings-tiers-container');
+      if (tiersContainer) {
+        const activeTierId = currentStore.aiSettings?.selected_tier || (
+          currentStore.aiSettings?.ollama_model?.includes('0.5b') ? '0.5b' :
+          currentStore.aiSettings?.ollama_model?.includes('1.5b') ? '1.5b' : '3b'
+        );
+
+        tiersContainer.innerHTML = Object.values(RECHLY_MODEL_FAMILY).map(tier => {
+          const isInstalled = Boolean(status.connected && status.installedTiers?.[tier.id]);
+          const isActive = tier.id === activeTierId;
+          const isRecommended = profile?.recommendedTier === tier.id;
+
+          let statusBadge = '';
+          let actionButtons = '';
+
+          if (isActive) {
+            statusBadge = '<span class="badge" style="background:#dcfce7; color:#15803d; font-weight:700; border:1px solid #86efac;">Aktiv 🟢</span>';
+            actionButtons = `
+              <button class="btn btn-sm" disabled style="background:#dcfce7; color:#15803d; font-weight:700; border:1px solid #86efac;">Aktives Modell</button>
+              ${isInstalled ? `<button class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:#fecaca;" onclick="deleteModelTier('${tier.id}')" title="Modell löschen, um Speicherplatz freizugeben">🗑️ Entfernen</button>` : ''}
+            `;
+          } else if (isInstalled) {
+            statusBadge = '<span class="badge" style="background:#f1f5f9; color:#475569; font-weight:600; border:1px solid #cbd5e1;">Installiert (Bereit) ⚪</span>';
+            actionButtons = `
+              <button class="btn btn-primary btn-sm" onclick="activateModelTier('${tier.id}')">⚡ 1-Klick Aktivieren</button>
+              <button class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:#fecaca;" onclick="deleteModelTier('${tier.id}')" title="Modell löschen, um Speicherplatz freizugeben">🗑️ Entfernen</button>
+            `;
+          } else {
+            statusBadge = '<span class="badge" style="background:#fef2f2; color:#b91c1c; font-weight:600; border:1px solid #fecaca;">Nicht geladen 📥</span>';
+            actionButtons = `
+              <button class="btn btn-primary btn-sm" ${!status.connected ? 'disabled title="Ollama muss laufen"' : ''} onclick="downloadModelTier('${tier.id}')">📥 Herunterladen</button>
+            `;
+          }
+
+          return `
+            <div class="tier-card ${isActive ? 'selected active-model' : ''}" style="margin-bottom:12px;">
+              <div class="tier-card-header">
+                <div>
+                  <div class="tier-card-title">
+                    ${esc(tier.name)}
+                    <span class="tier-badge-tag tag-${tier.id.replace('.', '')}">${tier.tag}</span>
+                    ${isRecommended ? '<span class="hw-badge-rec">⭐ Empfohlen</span>' : ''}
+                  </div>
+                  <div class="tier-badge-highlight">${esc(tier.badge)}</div>
+                </div>
+                <div>${statusBadge}</div>
+              </div>
+              <div class="tier-meta">
+                <div class="tier-meta-item"><span>📐 <b>${esc(tier.paramSize)}</b></span> • <span>💾 Download: <b>${esc(tier.downloadSize)}</b></span> • <span>🧠 RAM: <b>${esc(tier.ramRequired)}</b></span></div>
+              </div>
+              <div class="tier-desc">${esc(tier.description)}</div>
+              <div class="tier-rec-hw"><b>Empfohlen für:</b> ${esc(tier.recommendedFor)}</div>
+              <div class="tier-actions">
+                <div>
+                  <a href="${tier.hfUrl}" target="_blank" style="font-size:11px; color:#2563eb; text-decoration:none;">Hugging Face ↗</a>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  ${actionButtons}
+                </div>
+              </div>
+              <div id="settings-pull-wrap-${tier.id}" style="display:none; margin-top:8px;" class="tier-pull-progress">
+                <div class="tier-pull-label">
+                  <span id="settings-pull-status-${tier.id}">Download läuft…</span>
+                  <span id="settings-pull-pct-${tier.id}">0%</span>
+                </div>
+                <div class="tier-pull-bar-wrap"><div id="settings-pull-bar-${tier.id}" class="tier-pull-bar"></div></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    async function activateModelTier(tierId) {
+      const tier = RECHLY_MODEL_FAMILY[tierId];
+      if (!tier) return;
+      await window.rechly.setActiveTier(tierId);
+      currentStore = await window.rechly.getStore();
+      const modelInput = document.getElementById('ai-ollama-model');
+      if (modelInput) modelInput.value = tier.modelIdentifier;
+      updateAiStatusPill();
+      showToast(`${tier.name} ist jetzt aktiv!`);
+      await loadSettingsOllamaInfo();
+    }
+
+    async function deleteModelTier(tierId) {
+      const tier = RECHLY_MODEL_FAMILY[tierId];
+      if (!tier) return;
+      if (!confirm(`Möchten Sie ${tier.name} wirklich vom Gerät löschen? Der Speicherplatz (${tier.downloadSize}) wird freigegeben.`)) {
+        return;
+      }
+      const host = document.getElementById('ai-ollama-host')?.value || currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
+      const res = await window.rechly.deleteModel(tier.modelIdentifier);
+      if (res.success) {
+        showToast(`${tier.name} wurde erfolgreich gelöscht.`);
+        if (currentStore.aiSettings?.selected_tier === tierId) {
+          const tiers = await window.rechly.getInstalledTiers();
+          const fallback = tiers['3b'] ? '3b' : tiers['1.5b'] ? '1.5b' : tiers['0.5b'] ? '0.5b' : '3b';
+          await window.rechly.setActiveTier(fallback);
+          currentStore = await window.rechly.getStore();
+          const modelInput = document.getElementById('ai-ollama-model');
+          if (modelInput) modelInput.value = RECHLY_MODEL_FAMILY[fallback].modelIdentifier;
+          updateAiStatusPill();
+        }
+        await loadSettingsOllamaInfo();
+      } else {
+        showToast(`Fehler beim Löschen: ${res.error}`, 'error');
+      }
+    }
+
+    async function downloadModelTier(tierId) {
+      const tier = RECHLY_MODEL_FAMILY[tierId];
+      if (!tier) return;
+      const wrap = document.getElementById(`settings-pull-wrap-${tierId}`);
+      const bar = document.getElementById(`settings-pull-bar-${tierId}`);
+      const statusLabel = document.getElementById(`settings-pull-status-${tierId}`);
+      const pctLabel = document.getElementById(`settings-pull-pct-${tierId}`);
+      if (wrap) wrap.style.display = 'block';
+
+      const unsubscribe = window.rechly.onPullProgress(p => {
+        const pct = p.percent ?? (p.total ? Math.round((p.completed || 0) / p.total * 100) : 0);
+        if (bar) bar.style.width = `${pct}%`;
+        if (pctLabel) pctLabel.innerText = `${pct}%`;
+        if (statusLabel) {
+          statusLabel.innerText = p.total
+            ? `${p.status} – ${formatBytes(p.completed)} / ${formatBytes(p.total)}`
+            : p.status;
+        }
+      });
+
+      const host = document.getElementById('ai-ollama-host')?.value || currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
+      const res = await window.rechly.pullModel(host, tier.modelIdentifier);
+      unsubscribe();
+
+      if (res.success) {
+        await window.rechly.setActiveTier(tierId);
+        currentStore = await window.rechly.getStore();
+        const modelInput = document.getElementById('ai-ollama-model');
+        if (modelInput) modelInput.value = tier.modelIdentifier;
+        updateAiStatusPill();
+        showToast(`${tier.name} erfolgreich geladen und aktiviert!`);
+      } else {
+        showToast(`Download fehlgeschlagen: ${res.error}`, 'error');
+      }
+      await loadSettingsOllamaInfo();
     }
 
     function togglePasswordVisibility(inputId) {
@@ -2963,15 +3341,24 @@
         invoice_template: document.querySelector('input[name="set-tpl"]:checked')?.value || currentStore.company?.invoice_template || 'classic',
       };
 
+      const customModel = document.getElementById('ai-ollama-model')?.value || '';
+      let detectedTier = currentStore.aiSettings?.selected_tier || '3b';
+      if (customModel.includes('0.5b')) detectedTier = '0.5b';
+      else if (customModel.includes('1.5b')) detectedTier = '1.5b';
+      else if (customModel.includes('3b')) detectedTier = '3b';
+
       const updatedAi = {
         active_provider: selectedAiProvider,
         ollama_host: document.getElementById('ai-ollama-host')?.value || 'http://localhost:11434',
-        ollama_model: document.getElementById('ai-ollama-model')?.value || 'jonprompter/Rechly-DE-3B',
+        ollama_model: customModel || RECHLY_MODEL_FAMILY[detectedTier]?.modelIdentifier || 'jonprompter/rechly-de-3b',
+        selected_tier: detectedTier,
         openai_key: document.getElementById('ai-openai-key')?.value || '',
         openai_model: document.getElementById('ai-openai-model')?.value || 'gpt-4o-mini',
         anthropic_key: document.getElementById('ai-anthropic-key')?.value || '',
         anthropic_model: document.getElementById('ai-anthropic-model')?.value || 'claude-3-5-sonnet-20241022',
-        featured_model: 'jonprompter/Rechly-DE-3B',
+        featured_model: customModel || 'jonprompter/rechly-de-3b',
+        ollama_url: `https://ollama.com/${customModel || 'jonprompter/rechly-de-3b'}`,
+        hf_url: RECHLY_MODEL_FAMILY[detectedTier]?.hfUrl || 'https://huggingface.co/jonprompter/rechly-de-3b',
       };
 
       const isCloud = selectedAiProvider === 'openai' || selectedAiProvider === 'anthropic';
@@ -3003,6 +3390,11 @@
 
     function showAiSettingsModal() {
       showView('settings');
+      selectAiTab('ollama');
+      setTimeout(() => {
+        const el = document.getElementById('ai-model-selector') || document.getElementById('ai-tab-content-ollama');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
     }
 
     // Modal Helpers
@@ -3040,7 +3432,7 @@
     const ONB_STEPS = [
       { id: 'welcome', label: 'Willkommen' },
       { id: 'privacy', label: 'Datenschutz & Berechtigungen' },
-      { id: 'components', label: 'KI & Komponenten' },
+      { id: 'components', label: 'KI-Modell & Hardware' },
       { id: 'company', label: 'Firmendaten' },
       { id: 'done', label: 'Fertig' },
     ];
@@ -3086,11 +3478,17 @@
     async function showOnboarding() {
       const ai = currentStore.aiSettings || {};
       const prev = currentStore.onboarding;
-      const info = await window.rechly.getAppInfo();
+      const [info, profile] = await Promise.all([
+        window.rechly.getAppInfo(),
+        window.rechly.getSystemProfile(),
+      ]);
       const cloudProvider = ai.active_provider === 'openai' || ai.active_provider === 'anthropic';
+      const initialTier = ai.selected_tier || profile?.recommendedTier || '3b';
       onb = {
         step: 0,
         info,
+        systemProfile: profile,
+        selectedTier: initialTier,
         storageConsent: Boolean(prev),
         cloudOptIn: prev ? Boolean(prev.cloud_ai_opt_in) : false,
         aiChoice: prev && cloudProvider && prev.cloud_ai_opt_in ? ai.active_provider : 'ollama',
@@ -3099,6 +3497,7 @@
         ollama: null,
         launching: false,
         pull: null,
+        pullTier: null,
         removeSamples: !prev,
         company: companyForOnboarding(currentStore.company || {}),
       };
@@ -3201,14 +3600,26 @@
 
     async function onbRefreshOllama() {
       const host = currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
-      const [install, status] = await Promise.all([window.rechly.detectOllama(), window.rechly.checkOllama(host)]);
-      onb.ollama = {
-        // A reachable server counts as installed even if we didn't find the app (e.g. custom install path).
-        installed: install.installed || status.connected,
-        connected: Boolean(status.connected),
-        hasModel: Boolean(status.hasFeaturedModel),
-        error: status.error,
-      };
+      const [install, status, profile] = await Promise.all([
+        window.rechly.detectOllama(),
+        window.rechly.checkOllama(host),
+        onb?.systemProfile ? Promise.resolve(onb.systemProfile) : window.rechly.getSystemProfile(),
+      ]);
+      if (onb) {
+        onb.systemProfile = profile;
+        if (!onb.selectedTier) {
+          onb.selectedTier = currentStore.aiSettings?.selected_tier || profile?.recommendedTier || '3b';
+        }
+        onb.ollama = {
+          // A reachable server counts as installed even if we didn't find the app (e.g. custom install path).
+          installed: install.installed || status.connected,
+          connected: Boolean(status.connected),
+          installedTiers: status.installedTiers || { '3b': false, '1.5b': false, '0.5b': false },
+          activeTier: status.activeTier || onb.selectedTier,
+          hasModel: Boolean(status.hasFeaturedModel),
+          error: status.error,
+        };
+      }
       if (onbStepId() === 'components') renderOnboarding();
     }
 
@@ -3231,23 +3642,53 @@
       await onbRefreshOllama();
     }
 
-    async function onbPullModel() {
-      const ai = currentStore.aiSettings || {};
-      onb.pull = { status: 'Starte Download…', completed: 0, total: 0 };
+    async function onbActivateTier(tierId) {
+      if (!onb) return;
+      onb.selectedTier = tierId;
+      await window.rechly.setActiveTier(tierId);
+      currentStore = await window.rechly.getStore();
+      updateAiStatusPill();
+      showToast(`${RECHLY_MODEL_FAMILY[tierId].name} aktiviert!`);
+      await onbRefreshOllama();
+    }
+
+    async function onbPullTierModel(tierId) {
+      const tier = RECHLY_MODEL_FAMILY[tierId];
+      if (!tier || !onb) return;
+      onb.selectedTier = tierId;
+      onb.pullTier = tierId;
+      onb.pull = { status: 'Starte Download…', completed: 0, total: 0, percent: 0 };
       renderOnboarding();
+
       const unsubscribe = window.rechly.onPullProgress(p => {
         onb.pull = { ...onb.pull, ...p };
-        const bar = document.getElementById('onb-pull-bar');
-        const label = document.getElementById('onb-pull-label');
-        if (bar && p.total) bar.style.width = `${Math.round((p.completed || 0) / p.total * 100)}%`;
-        if (label) label.innerText = p.total ? `${p.status} – ${formatBytes(p.completed)} / ${formatBytes(p.total)}` : p.status;
+        const pct = p.percent ?? (p.total ? Math.round((p.completed || 0) / p.total * 100) : 0);
+        const bar = document.getElementById(`onb-pull-bar-${tierId}`);
+        const label = document.getElementById(`onb-pull-label-${tierId}`);
+        const pctLabel = document.getElementById(`onb-pull-pct-${tierId}`);
+        if (bar) bar.style.width = `${pct}%`;
+        if (pctLabel) pctLabel.innerText = `${pct}%`;
+        if (label) {
+          label.innerText = p.total
+            ? `${formatBytes(p.completed)} / ${formatBytes(p.total)} • ${pct}%`
+            : p.status;
+        }
       });
-      const res = await window.rechly.pullModel(ai.ollama_host || 'http://localhost:11434', ai.ollama_model || 'jonprompter/Rechly-DE-3B');
+
+      const res = await window.rechly.pullModel(currentStore.aiSettings?.ollama_host || 'http://localhost:11434', tier.modelIdentifier);
       unsubscribe();
       onb.pull = null;
-      if (res.success) showToast('KI-Modell installiert');
+      onb.pullTier = null;
+
+      if (res.success) {
+        await window.rechly.setActiveTier(tierId);
+        currentStore = await window.rechly.getStore();
+        showToast(`${tier.name} installiert & aktiviert!`);
+        updateAiStatusPill();
+      } else {
+        onbError(`Download fehlgeschlagen: ${res.error}`);
+      }
       await onbRefreshOllama();
-      if (!res.success) onbError(`Download fehlgeschlagen: ${res.error}`);
     }
 
     function onbSelectAi(choice) {
@@ -3273,47 +3714,128 @@
         onbRefreshOllama();
       }
       const o = onb.ollama;
+      const profile = onb.systemProfile;
       const cloudDisabled = !onb.cloudOptIn;
       const choices = [
-        ['ollama', '🖥️ Lokale KI', 'Empfohlen. Rechly-DE-3B läuft über Ollama auf Ihrem Gerät. Kostenlos, kein Datenabfluss.'],
+        ['ollama', '🖥️ Lokale KI (Ollama)', 'Empfohlen. Läuft direkt auf deinem Rechner. 100% DSGVO-konform, kein Datenabfluss.'],
         ['openai', '⚡ OpenAI', 'Cloud. Benötigt einen API-Key.'],
         ['anthropic', '🧠 Anthropic Claude', 'Cloud. Benötigt einen API-Key.'],
       ];
 
       let detail = '';
       if (onb.aiChoice === 'ollama') {
-        const row = (state, title, sub, action = '') =>
-          `<li><span class="state">${state}</span><div class="text">${title}<small>${sub}</small></div>${action}</li>`;
+        let runtimeRow = '';
         if (!o) {
-          detail = `<p class="onb-hint">⏳ Prüfe installierte Komponenten…</p>`;
-        } else {
-          const installRow = o.installed
-            ? row('✅', '<b>Ollama installiert</b>', 'Laufzeitumgebung für lokale KI-Modelle.')
-            : row('⬜', '<b>Ollama installieren</b>', 'Kostenlos für macOS, Windows und Linux. Nach der Installation hier auf „Erneut prüfen“ klicken.',
-                `<a class="btn btn-primary btn-sm" href="https://ollama.com/download" target="_blank">Herunterladen ↗</a>`);
-          const runRow = o.connected
-            ? row('✅', '<b>Ollama läuft</b>', esc(currentStore.aiSettings?.ollama_host || 'http://localhost:11434'))
-            : row(o.installed ? '⬜' : '·', '<b>Ollama starten</b>', o.installed ? 'Der lokale KI-Dienst ist installiert, aber nicht gestartet.' : 'Verfügbar nach der Installation.',
-                o.installed ? `<button class="btn btn-primary btn-sm" ${onb.launching ? 'disabled' : ''} onclick="onbLaunchOllama()">${onb.launching ? '⏳ Starte…' : 'Starten'}</button>` : '');
-          let modelRow;
-          if (o.hasModel) {
-            modelRow = row('✅', '<b>KI-Modell Rechly-DE-3B</b>', 'Installiert und einsatzbereit.');
-          } else if (onb.pull) {
-            const pct = onb.pull.total ? Math.round(onb.pull.completed / onb.pull.total * 100) : 0;
-            modelRow = `<li><span class="state">⏳</span><div class="text"><b>KI-Modell wird heruntergeladen…</b>
-              <small id="onb-pull-label">${esc(onb.pull.status)}</small>
-              <div class="onb-progress"><div id="onb-pull-bar" style="width:${pct}%"></div></div></div></li>`;
-          } else {
-            modelRow = row(o.connected ? '⬜' : '·', '<b>KI-Modell Rechly-DE-3B laden</b>', 'Einmaliger Download von mehreren GB über Ollama.',
-              o.connected ? `<button class="btn btn-primary btn-sm" onclick="onbPullModel()">Herunterladen</button>` : '');
-          }
-          detail = `
-            <ul class="onb-checklist">${installRow}${runRow}${modelRow}</ul>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
-              <span class="onb-hint">Ohne KI-Modell funktioniert die Schnellerfassung mit dem eingebauten Regel-Parser. Sie können die KI jederzeit unter „Einstellungen & KI“ nachrüsten.</span>
-              <button class="btn btn-secondary btn-sm" style="flex-shrink:0; margin-left:12px;" onclick="onb.ollama = null; renderOnboarding();">🔄 Erneut prüfen</button>
-            </div>`;
+          runtimeRow = `<p class="onb-hint" style="margin-bottom:12px;">⏳ Prüfe installierte Komponenten…</p>`;
+        } else if (!o.installed) {
+          runtimeRow = `
+            <div style="background:#fffbeb; border:1px solid #fef3c7; border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <b>Ollama installieren</b>
+                <div style="font-size:12px; color:#92400e; margin-top:2px;">Ollama ist erforderlich, um lokale KI-Modelle auszuführen.</div>
+              </div>
+              <a class="btn btn-primary btn-sm" href="https://ollama.com/download" target="_blank">Herunterladen ↗</a>
+            </div>
+          `;
+        } else if (!o.connected) {
+          runtimeRow = `
+            <div style="background:#fffbeb; border:1px solid #fef3c7; border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <b>Ollama starten</b>
+                <div style="font-size:12px; color:#92400e; margin-top:2px;">Der lokale KI-Dienst ist installiert, aber aktuell offline.</div>
+              </div>
+              <button class="btn btn-primary btn-sm" ${onb.launching ? 'disabled' : ''} onclick="onbLaunchOllama()">${onb.launching ? '⏳ Starte…' : 'Dienst starten'}</button>
+            </div>
+          `;
         }
+
+        const recommendedTierObj = RECHLY_MODEL_FAMILY[profile?.recommendedTier || '3b'];
+        const hwBanner = `
+          <div class="hw-banner">
+            <div>
+              💻 Erkanntes System: <b>${esc(profile?.cpuModel || 'Prozessor')}</b> • <b>${profile?.totalRamGb ?? '?'} GB RAM</b> • Empfohlen: <span class="hw-badge-rec">⭐ ${esc(recommendedTierObj.name)}</span>
+              <div style="font-size:11.5px; margin-top:3px; color:#15803d;">${esc(profile?.recommendationReason || '')}</div>
+            </div>
+          </div>
+        `;
+
+        const selectedTier = onb.selectedTier || profile?.recommendedTier || '3b';
+        const tierCards = `
+          <div class="tier-grid">
+            ${Object.values(RECHLY_MODEL_FAMILY).map(tier => {
+              const isSelected = tier.id === selectedTier;
+              const isRecommended = profile?.recommendedTier === tier.id;
+              const isInstalled = Boolean(o?.connected && o.installedTiers?.[tier.id]);
+              const isPulling = Boolean(onb.pull && onb.pullTier === tier.id);
+              const isActive = (currentStore.aiSettings?.selected_tier === tier.id || currentStore.aiSettings?.ollama_model === tier.modelIdentifier);
+
+              let actionHtml = '';
+              if (isPulling) {
+                const pct = onb.pull.percent ?? (onb.pull.total ? Math.round((onb.pull.completed || 0) / onb.pull.total * 100) : 0);
+                actionHtml = `
+                  <div class="tier-pull-progress">
+                    <div class="tier-pull-label">
+                      <span id="onb-pull-label-${tier.id}" style="font-size:10.5px;">${onb.pull.total ? `${formatBytes(onb.pull.completed)} / ${formatBytes(onb.pull.total)} • ${pct}%` : onb.pull.status}</span>
+                      <span id="onb-pull-pct-${tier.id}">${pct}%</span>
+                    </div>
+                    <div class="tier-pull-bar-wrap"><div id="onb-pull-bar-${tier.id}" class="tier-pull-bar" style="width:${pct}%"></div></div>
+                  </div>
+                `;
+              } else if (isInstalled) {
+                actionHtml = `
+                  <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                    <span style="color:#15803d; font-weight:700; font-size:12px;">✅ Installiert</span>
+                    ${isActive
+                      ? '<span class="badge" style="background:#dcfce7; color:#15803d; font-weight:700;">🟢 Aktiv</span>'
+                      : `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); onbActivateTier('${tier.id}')">Aktivieren</button>`}
+                  </div>
+                `;
+              } else {
+                actionHtml = `
+                  <button class="btn btn-primary btn-sm" style="width:100%;" ${!o?.connected ? 'disabled title="Ollama starten"' : ''} onclick="event.stopPropagation(); onbPullTierModel('${tier.id}')">
+                    📥 Herunterladen (${tier.downloadSize})
+                  </button>
+                `;
+              }
+
+              return `
+                <div class="tier-card ${isSelected ? 'selected' : ''} ${isInstalled && isActive ? 'active-model' : ''}" onclick="onb.selectedTier = '${tier.id}'; renderOnboarding();">
+                  <div class="tier-card-header">
+                    <div>
+                      <div class="tier-card-title">
+                        <input type="radio" name="onb-tier-sel" ${isSelected ? 'checked' : ''} style="cursor:pointer;" onchange="onb.selectedTier = '${tier.id}'; renderOnboarding();">
+                        <span>${esc(tier.name)}</span>
+                      </div>
+                      ${isRecommended ? '<span class="hw-badge-rec" style="margin-top:4px;">⭐ Empfohlen für dein Gerät</span>' : ''}
+                    </div>
+                    <span class="tier-badge-tag tag-${tier.id.replace('.', '')}">${tier.tag}</span>
+                  </div>
+                  <div class="tier-badge-highlight">${esc(tier.badge)}</div>
+                  <div class="tier-meta">
+                    <div class="tier-meta-item">📐 <b>${esc(tier.paramSize)}</b></div>
+                    <div class="tier-meta-item">💾 Download: <b>${esc(tier.downloadSize)}</b></div>
+                    <div class="tier-meta-item">🧠 RAM: <b>${esc(tier.ramRequired)}</b></div>
+                  </div>
+                  <div class="tier-desc">${esc(tier.description)}</div>
+                  <div class="tier-rec-hw"><b>Geeignet für:</b> ${esc(tier.recommendedFor)}</div>
+                  <div class="tier-actions">
+                    ${actionHtml}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        detail = `
+          ${runtimeRow}
+          ${hwBanner}
+          ${tierCards}
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+            <span class="onb-hint">Tipp: Du kannst das Modell auch später jederzeit unter „Einstellungen & KI“ mit 1 Klick wechseln oder nachladen.</span>
+            <button class="btn btn-secondary btn-sm" style="flex-shrink:0;" onclick="onb.ollama = null; onbRefreshOllama();">🔄 Erneut prüfen</button>
+          </div>
+        `;
       } else {
         const label = onb.aiChoice === 'openai' ? 'OpenAI API-Key (sk-…)' : 'Anthropic API-Key (sk-ant-…)';
         detail = `
@@ -3328,8 +3850,8 @@
       }
 
       return `
-        <div class="onb-title">KI & benötigte Komponenten</div>
-        <div class="onb-lead">Für die KI-Schnellerfassung (Text-zu-Rechnung) brauchen Sie eine KI. Alles andere in Rechly funktioniert auch ohne.</div>
+        <div class="onb-title">KI-Modell & Hardware</div>
+        <div class="onb-lead">Wähle das passende KI-Modell für dein System. Dank der optimierten Rechly-Modellfamilie läuft die Rechnungs-KI direkt auf deinem Computer.</div>
         <div class="onb-choices">
           ${choices.map(([id, title, text]) => {
             const disabled = id !== 'ollama' && cloudDisabled;
@@ -3401,8 +3923,11 @@
 
     function renderOnbDone() {
       const o = onb.ollama;
+      const activeTierId = currentStore.aiSettings?.selected_tier || onb.selectedTier || '3b';
+      const activeTierObj = RECHLY_MODEL_FAMILY[activeTierId] || RECHLY_MODEL_FAMILY['3b'];
+      const isInstalled = Boolean(o?.installedTiers?.[activeTierId] || o?.hasModel);
       const aiText = onb.aiChoice === 'ollama'
-        ? (o?.hasModel ? 'Lokale KI Rechly-DE-3B ist einsatzbereit.' : 'Lokale KI noch nicht vollständig eingerichtet – der Regel-Parser springt ein.')
+        ? (isInstalled ? `Lokale KI ${activeTierObj.name} ist einsatzbereit.` : `Lokale KI (${activeTierObj.name}) noch nicht geladen – der Regel-Parser springt ein.`)
         : `${onb.aiChoice === 'openai' ? 'OpenAI' : 'Anthropic Claude'} (Cloud) ist ausgewählt.`;
       const hasSamples = (currentStore.invoices || []).some(i => i.id === 'inv-sample-1') || (currentStore.clients || []).some(c => c.id === 'client-sample-1');
       return `
@@ -3411,7 +3936,7 @@
         <ul class="onb-checklist">
           <li><span class="state">✅</span><div class="text"><b>Lokaler Tresor</b><small>${esc(onb.info?.vaultPath || '')}</small></div></li>
           <li><span class="state">${onb.cloudOptIn ? '🌐' : '🔒'}</span><div class="text"><b>Cloud-KI ${onb.cloudOptIn ? 'erlaubt' : 'nicht erlaubt'}</b><small>${onb.cloudOptIn ? 'Änderbar unter „Einstellungen & KI“.' : 'Es verlassen keine Rechnungsdaten Ihr Gerät.'}</small></div></li>
-          <li><span class="state">${onb.aiChoice !== 'ollama' || o?.hasModel ? '✅' : '⚠️'}</span><div class="text"><b>KI-Schnellerfassung</b><small>${aiText}</small></div></li>
+          <li><span class="state">${onb.aiChoice !== 'ollama' || isInstalled ? '✅' : '⚠️'}</span><div class="text"><b>KI-Schnellerfassung</b><small>${aiText}</small></div></li>
           <li><span class="state">✅</span><div class="text"><b>${esc(onb.company.name)}</b><small>${esc(onb.company.address_line1)}, ${esc(onb.company.postal_code)} ${esc(onb.company.city)}</small></div></li>
         </ul>
         ${hasSamples ? `
@@ -3425,8 +3950,13 @@
 
     async function onbSaveAiChoice() {
       const update = { active_provider: onb.aiChoice };
-      if (onb.aiChoice === 'openai') update.openai_key = onb.cloudKey.openai;
-      if (onb.aiChoice === 'anthropic') update.anthropic_key = onb.cloudKey.anthropic;
+      if (onb.aiChoice === 'ollama' && onb.selectedTier) {
+        await window.rechly.setActiveTier(onb.selectedTier);
+      } else if (onb.aiChoice === 'openai') {
+        update.openai_key = onb.cloudKey.openai;
+      } else if (onb.aiChoice === 'anthropic') {
+        update.anthropic_key = onb.cloudKey.anthropic;
+      }
       currentStore.aiSettings = await window.rechly.saveAiSettings(update);
     }
 

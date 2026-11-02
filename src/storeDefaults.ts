@@ -117,13 +117,14 @@ export const getDefaultStore = (): StoreData => ({
     aiSettings: {
         active_provider: "ollama",
         ollama_host: "http://localhost:11434",
-        ollama_model: "jonprompter/Rechly-DE-3B",
+        ollama_model: "jonprompter/rechly-de-3b",
+        selected_tier: "3b",
         openai_key: "",
         openai_model: "gpt-4o-mini",
         anthropic_key: "",
         anthropic_model: "claude-3-5-sonnet-20241022",
-        featured_model: "jonprompter/Rechly-DE-3B",
-        ollama_url: "https://ollama.com/jonprompter/Rechly-DE-3B",
+        featured_model: "jonprompter/rechly-de-3b",
+        ollama_url: "https://ollama.com/jonprompter/rechly-de-3b",
         hf_url: "https://huggingface.co/jonprompter/rechly-de-3b",
     },
 });

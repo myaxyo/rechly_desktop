@@ -119,6 +119,11 @@ export function validateStore(raw: unknown): StoreData {
     !["ollama", "openai", "anthropic"].includes(data.aiSettings.active_provider)
   )
     fail("KI-Anbieter ungültig.");
+  if (
+    data.aiSettings.selected_tier !== undefined &&
+    !["3b", "1.5b", "0.5b"].includes(data.aiSettings.selected_tier)
+  )
+    fail("KI-Modellstufe ungültig.");
   for (const name of collectionNames) {
     const ids = new Set<string>();
     for (const row of rowsOf(data, name)) {

@@ -107,10 +107,83 @@ export interface Expense {
 
 export type AiProvider = "ollama" | "openai" | "anthropic";
 
+export type ModelTierId = "3b" | "1.5b" | "0.5b";
+
+export interface ModelTier {
+    id: "3b" | "1.5b" | "0.5b";
+    name: string;
+    tag: string;
+    modelIdentifier: string; // Ollama pull identifier
+    paramSize: string;
+    downloadSize: string;
+    ramRequired: string;
+    badge: string;
+    description: string;
+    recommendedFor: string;
+    hfUrl: string;
+    minRamGb: number;
+}
+
+export const RECHLY_MODEL_FAMILY: Record<ModelTierId, ModelTier> = {
+    "3b": {
+        id: "3b",
+        name: "Rechly-DE-3B (Flagship)",
+        tag: "Flagship",
+        modelIdentifier: "jonprompter/rechly-de-3b",
+        paramSize: "3B Parameter",
+        downloadSize: "1.93 GB",
+        ramRequired: "~2.5 GB RAM",
+        badge: "Maximale Präzision (100% Benchmark)",
+        description: "Vollständige deutsche Steuer- & GoBD-Prüfung, komplexe XRechnung/ZUGFeRD-Parsing-Fälle und DATEV-Kontierung.",
+        recommendedFor: "Apple Silicon (M1–M4), Workstations, PCs mit ≥ 8 GB RAM",
+        hfUrl: "https://huggingface.co/jonprompter/rechly-de-3b",
+        minRamGb: 8,
+    },
+    "1.5b": {
+        id: "1.5b",
+        name: "Rechly-DE-1.5B (Slim)",
+        tag: "Slim",
+        modelIdentifier: "jonprompter/rechly-de-1.5b",
+        paramSize: "1.5B Parameter",
+        downloadSize: "986 MB",
+        ramRequired: "~1.1 GB RAM",
+        badge: "Ausgewogen & Schnell",
+        description: "Optimiert für Standard-Rechnungen, UStG-Pflichtangaben und DATEV SKR03/04 Kontierung.",
+        recommendedFor: "Laptops, Intel MacBooks, PCs mit 4–8 GB RAM, 1 GB VPS",
+        hfUrl: "https://huggingface.co/jonprompter/rechly-de-1.5b",
+        minRamGb: 4,
+    },
+    "0.5b": {
+        id: "0.5b",
+        name: "Rechly-DE-0.5B (Nano)",
+        tag: "Nano",
+        modelIdentifier: "jonprompter/rechly-de-0.5b",
+        paramSize: "0.5B Parameter",
+        downloadSize: "398 MB",
+        ramRequired: "~512 MB RAM",
+        badge: "Ultra-Leicht & Sparsam",
+        description: "Extrem sparsam im Arbeitsspeicher, blitzschnelle Antwortzeiten für Basis-Rechnungserfassung.",
+        recommendedFor: "Ältere Geräte, Thin Clients, Micro-Instanzen, RAM < 4 GB",
+        hfUrl: "https://huggingface.co/jonprompter/rechly-de-0.5b",
+        minRamGb: 2,
+    },
+};
+
+export interface SystemProfile {
+    totalRamGb: number;
+    arch: string;
+    platform: string;
+    cpuModel: string;
+    isAppleSilicon: boolean;
+    recommendedTier: "3b" | "1.5b" | "0.5b";
+    recommendationReason: string;
+}
+
 export interface AiSettings {
     active_provider: AiProvider;
     ollama_host: string;
     ollama_model: string;
+    selected_tier?: "3b" | "1.5b" | "0.5b";
     openai_key: string;
     openai_model: string;
     anthropic_key: string;
@@ -118,6 +191,18 @@ export interface AiSettings {
     featured_model: string;
     ollama_url: string;
     hf_url: string;
+}
+
+export interface OllamaStatus {
+    connected: boolean;
+    models?: string[];
+    installedTiers: Record<"3b" | "1.5b" | "0.5b", boolean>;
+    activeTier?: "3b" | "1.5b" | "0.5b";
+    hasFeaturedModel?: boolean;
+    featuredModelName?: string;
+    ollamaUrl?: string;
+    hfUrl?: string;
+    error?: string;
 }
 
 export interface OnboardingState {
@@ -168,6 +253,7 @@ export interface OllamaPullProgress {
     status: string;
     completed?: number;
     total?: number;
+    percent?: number;
 }
 
 /** Fields the renderer may send when creating or updating a record. */

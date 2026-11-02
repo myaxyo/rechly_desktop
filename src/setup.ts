@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { OllamaInstallInfo } from "./types";
+import type { OllamaInstallInfo, SystemProfile } from "./types";
 
 export const OLLAMA_DOWNLOAD_URL = "https://ollama.com/download";
 
@@ -71,4 +71,47 @@ export async function launchOllama(): Promise<{ success: boolean; error?: string
     } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : String(err) };
     }
+}
+
+export interface SystemProfileInput {
+    totalmem?: () => number;
+    arch?: string;
+    platform?: string;
+    cpus?: () => { model: string }[];
+}
+
+export function getSystemProfile(input?: SystemProfileInput): SystemProfile {
+    const totalMemBytes = input?.totalmem ? input.totalmem() : os.totalmem();
+    const totalRamGb = Math.round(totalMemBytes / (1024 ** 3));
+    const arch = input?.arch ?? process.arch;
+    const platform = input?.platform ?? process.platform;
+    const cpus = input?.cpus ? input.cpus() : os.cpus();
+    const cpuModel = cpus[0]?.model || "Unbekannter Prozessor";
+    const isAppleSilicon = platform === "darwin" && arch === "arm64";
+
+    let recommendedTier: "3b" | "1.5b" | "0.5b";
+    let recommendationReason: string;
+
+    if (isAppleSilicon || totalRamGb >= 8) {
+        recommendedTier = "3b";
+        recommendationReason = isAppleSilicon
+            ? "Apple Silicon mit Unified Memory erkannt – Flagship-Modell läuft mit voller GPU-Beschleunigung."
+            : `${totalRamGb} GB RAM verfügbar (≥ 8 GB) – Ausreichend Speicher für das Flagship-Modell.`;
+    } else if (totalRamGb >= 4) {
+        recommendedTier = "1.5b";
+        recommendationReason = `${totalRamGb} GB RAM erkannt (4–8 GB) – Rechly-DE-1.5B (Slim) bietet die ideale Balance aus Geschwindigkeit und Speicherbedarf.`;
+    } else {
+        recommendedTier = "0.5b";
+        recommendationReason = `${totalRamGb} GB RAM erkannt (< 4 GB) – Rechly-DE-0.5B (Nano) ist ultra-ressourcensparend und läuft auch auf Geräten mit geringem Arbeitsspeicher.`;
+    }
+
+    return {
+        totalRamGb,
+        arch,
+        platform,
+        cpuModel,
+        isAppleSilicon,
+        recommendedTier,
+        recommendationReason,
+    };
 }

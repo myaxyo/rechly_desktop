@@ -25,21 +25,30 @@ import store from "./store";
 import { BackupSelection } from "./backupService";
 import { checkPassword } from "./backupCrypto";
 import { generateXRechnungXML, generateDatevExport } from "./eRechnung";
-import { checkOllama, testOpenAi, testAnthropic, parseInvoiceDraft, pullOllamaModel } from "./ai";
-import { detectOllama, launchOllama } from "./setup";
-import type {
-    AiSettings,
-    AppInfo,
-    Client,
-    Company,
-    CompleteOnboardingRequest,
-    Draft,
-    Expense,
-    ExportResult,
-    Invoice,
-    OnboardingState,
-    Offer,
-    Product,
+import {
+    checkOllama,
+    testOpenAi,
+    testAnthropic,
+    parseInvoiceDraft,
+    pullOllamaModel,
+    deleteOllamaModel,
+} from "./ai";
+import { detectOllama, launchOllama, getSystemProfile } from "./setup";
+import {
+    RECHLY_MODEL_FAMILY,
+    type AiSettings,
+    type AppInfo,
+    type Client,
+    type Company,
+    type CompleteOnboardingRequest,
+    type Draft,
+    type Expense,
+    type ExportResult,
+    type Invoice,
+    type ModelTierId,
+    type OnboardingState,
+    type Offer,
+    type Product,
 } from "./types";
 
 /** Records created by the default vault so first-time users can try the app. */
@@ -524,7 +533,33 @@ ipcMain.handle("expenses:delete", (_e, id: string) => {
 // AI & Cloud Integration (Local Ollama & Cloud OpenAI / Anthropic Claude)
 ipcMain.handle("ai:getSettings", () => store.getAiSettings());
 ipcMain.handle("ai:saveSettings", (_e, settings: Partial<AiSettings>) => store.saveAiSettings(settings));
-ipcMain.handle("ai:checkOllama", (_e, host?: string) => checkOllama(host));
+ipcMain.handle("ai:checkOllama", (_e, host?: string) => {
+    const settings = store.getAiSettings();
+    const effectiveHost = host || settings.ollama_host;
+    return checkOllama(effectiveHost, settings.selected_tier || settings.ollama_model);
+});
+ipcMain.handle("ai:getInstalledTiers", async () => {
+    const host = store.getAiSettings().ollama_host || "http://localhost:11434";
+    const status = await checkOllama(host);
+    return status.installedTiers;
+});
+ipcMain.handle("ai:setActiveTier", (_e, tierId: ModelTierId) => {
+    if (!RECHLY_MODEL_FAMILY[tierId]) {
+        throw new Error(`Ungültige Modellstufe: ${tierId}`);
+    }
+    const tier = RECHLY_MODEL_FAMILY[tierId];
+    store.saveAiSettings({
+        selected_tier: tierId,
+        ollama_model: tier.modelIdentifier,
+        featured_model: tier.modelIdentifier,
+        hf_url: tier.hfUrl,
+    });
+    return true;
+});
+ipcMain.handle("ai:deleteModel", async (_e, modelIdentifier: string) => {
+    const host = store.getAiSettings().ollama_host || "http://localhost:11434";
+    return deleteOllamaModel(host, modelIdentifier);
+});
 ipcMain.handle("ai:testOpenAi", (_e, key: string, model?: string) => testOpenAi(key, model));
 ipcMain.handle("ai:testAnthropic", (_e, key: string, model?: string) => testAnthropic(key, model));
 ipcMain.handle(
@@ -546,6 +581,7 @@ ipcMain.handle("app:getInfo", (): AppInfo => ({
     platform: process.platform,
     vaultPath: store.getVaultPath(),
 }));
+ipcMain.handle("setup:getSystemProfile", () => getSystemProfile());
 ipcMain.handle("setup:detectOllama", () => detectOllama());
 ipcMain.handle("setup:launchOllama", () => launchOllama());
 ipcMain.handle("ai:pullModel", (event, host?: string, model?: string) =>

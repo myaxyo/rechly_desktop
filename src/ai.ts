@@ -9,7 +9,16 @@
 
 import * as http from "node:http";
 import * as https from "node:https";
-import type { AiSettings, Client, OllamaPullProgress } from "./types";
+import {
+    type AiSettings,
+    type Client,
+    type ModelTierId,
+    type OllamaPullProgress,
+    type OllamaStatus,
+    RECHLY_MODEL_FAMILY,
+} from "./types";
+
+export type { OllamaStatus } from "./types";
 
 type ClientRef = Pick<Client, "id" | "name">;
 
@@ -55,16 +64,6 @@ interface RequestOptions {
     headers?: Record<string, string>;
 }
 
-export interface OllamaStatus {
-    connected: boolean;
-    models?: string[];
-    hasFeaturedModel?: boolean;
-    featuredModelName?: string;
-    ollamaUrl?: string;
-    hfUrl?: string;
-    error?: string;
-}
-
 export interface ConnectionTestResult {
     success: boolean;
     message?: string;
@@ -74,10 +73,31 @@ export interface ConnectionTestResult {
 const errorMessage = (err: unknown): string =>
     err instanceof Error ? err.message : String(err);
 
-const DEFAULT_OLLAMA_HOST = "http://localhost:11434";
-export const FEATURED_MODEL = "jonprompter/Rechly-DE-3B";
-export const OLLAMA_URL = "https://ollama.com/jonprompter/Rechly-DE-3B";
-export const HF_URL = "https://huggingface.co/jonprompter/rechly-de-3b";
+export const DEFAULT_OLLAMA_HOST = "http://localhost:11434";
+export const FEATURED_MODEL = RECHLY_MODEL_FAMILY["3b"].modelIdentifier;
+export const OLLAMA_URL = `https://ollama.com/${FEATURED_MODEL}`;
+export const HF_URL = RECHLY_MODEL_FAMILY["3b"].hfUrl;
+
+export function matchModelToTier(name: string): ModelTierId | undefined {
+    if (!name) return undefined;
+    const lower = name.toLowerCase().trim();
+    if (lower === "3b" || lower === "1.5b" || lower === "0.5b") {
+        return lower as ModelTierId;
+    }
+    for (const tierId of ["3b", "1.5b", "0.5b"] as const) {
+        const id = RECHLY_MODEL_FAMILY[tierId].modelIdentifier.toLowerCase();
+        if (
+            lower === id ||
+            lower === `${id}:latest` ||
+            lower.startsWith(`${id}:`) ||
+            lower.includes(`rechly-de-${tierId}`) ||
+            lower.includes(`rechly-${tierId}`)
+        ) {
+            return tierId;
+        }
+    }
+    return undefined;
+}
 
 function makeHttpRequest(
     urlString: string,
@@ -88,12 +108,19 @@ function makeHttpRequest(
         try {
             const parsed = new URL(urlString);
             const client = parsed.protocol === "https:" ? https : http;
+            const payload = postData
+                ? (typeof postData === "string" ? postData : JSON.stringify(postData))
+                : null;
+            const headers: Record<string, string> = { ...(options.headers || {}) };
+            if (payload && !headers["Content-Length"]) {
+                headers["Content-Length"] = String(Buffer.byteLength(payload));
+            }
             const reqOptions: http.RequestOptions = {
                 hostname: parsed.hostname,
                 port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
                 path: parsed.pathname + parsed.search,
                 method: options.method || "GET",
-                headers: options.headers || {},
+                headers,
                 timeout: 15000,
             };
 
@@ -113,8 +140,8 @@ function makeHttpRequest(
                 reject(new Error("Timeout bei der Verbindung zur KI-Schnittstelle (15s)"));
             });
 
-            if (postData) {
-                req.write(typeof postData === "string" ? postData : JSON.stringify(postData));
+            if (payload) {
+                req.write(payload);
             }
             req.end();
         } catch (err) {
@@ -125,31 +152,78 @@ function makeHttpRequest(
 
 // ─── 1. Ollama (Local) ────────────────────────────────────────────────────────
 
-export async function checkOllama(host: string = DEFAULT_OLLAMA_HOST): Promise<OllamaStatus> {
+export async function checkOllama(
+    host: string = DEFAULT_OLLAMA_HOST,
+    activeTierOrModel?: string
+): Promise<OllamaStatus> {
+    const defaultInstalledTiers: Record<ModelTierId, boolean> = {
+        "3b": false,
+        "1.5b": false,
+        "0.5b": false,
+    };
+
     try {
         const res = await makeHttpRequest(`${host}/api/tags`);
         if (res.status === 200) {
-            const data = JSON.parse(res.body) as { models?: { name: string }[] };
-            const models = (data.models || []).map((m) => m.name);
-            const hasFeatured = models.some(
-                (m) =>
-                    m.toLowerCase().includes("rechly") ||
-                    m.toLowerCase() === FEATURED_MODEL.toLowerCase()
-            );
+            const data = JSON.parse(res.body) as { models?: { name?: string; model?: string }[] };
+            const models = (data.models || []).map((m) => m.name || m.model || "").filter(Boolean);
+
+            const installedTiers: Record<ModelTierId, boolean> = {
+                "3b": false,
+                "1.5b": false,
+                "0.5b": false,
+            };
+
+            for (const tierId of ["3b", "1.5b", "0.5b"] as const) {
+                const targetId = RECHLY_MODEL_FAMILY[tierId].modelIdentifier.toLowerCase();
+                installedTiers[tierId] = models.some((m) => {
+                    const lower = m.toLowerCase();
+                    return (
+                        lower === targetId ||
+                        lower === `${targetId}:latest` ||
+                        lower.startsWith(`${targetId}:`) ||
+                        lower.includes(`rechly-de-${tierId}`) ||
+                        lower.includes(`rechly-${tierId}`)
+                    );
+                });
+            }
+
+            const determinedActiveTier =
+                (activeTierOrModel ? matchModelToTier(activeTierOrModel) : undefined) ||
+                (installedTiers["3b"] ? "3b" : installedTiers["1.5b"] ? "1.5b" : installedTiers["0.5b"] ? "0.5b" : undefined);
+
+            const hasFeatured =
+                installedTiers["3b"] ||
+                installedTiers["1.5b"] ||
+                installedTiers["0.5b"] ||
+                models.some((m) => m.toLowerCase().includes("rechly"));
+
             return {
                 connected: true,
                 models,
+                installedTiers,
+                activeTier: determinedActiveTier,
                 hasFeaturedModel: hasFeatured,
                 featuredModelName: FEATURED_MODEL,
                 ollamaUrl: OLLAMA_URL,
                 hfUrl: HF_URL,
             };
         }
-        return { connected: false, error: `HTTP ${res.status}` };
+        return {
+            connected: false,
+            installedTiers: defaultInstalledTiers,
+            error: `HTTP ${res.status}`,
+            hasFeaturedModel: false,
+            featuredModelName: FEATURED_MODEL,
+            ollamaUrl: OLLAMA_URL,
+            hfUrl: HF_URL,
+        };
     } catch (err) {
         return {
             connected: false,
+            installedTiers: defaultInstalledTiers,
             error: errorMessage(err),
+            hasFeaturedModel: false,
             featuredModelName: FEATURED_MODEL,
             ollamaUrl: OLLAMA_URL,
             hfUrl: HF_URL,
@@ -272,7 +346,16 @@ export function pullOllamaModel(
                             const msg = JSON.parse(line) as OllamaPullProgress & { error?: string };
                             if (msg.error) return finish({ success: false, error: msg.error });
                             lastStatus = msg.status;
-                            onProgress({ status: msg.status, completed: msg.completed, total: msg.total });
+                            const percent =
+                                msg.total && msg.total > 0
+                                    ? Math.min(100, Math.max(0, Math.round(((msg.completed || 0) / msg.total) * 100)))
+                                    : undefined;
+                            onProgress({
+                                status: msg.status,
+                                completed: msg.completed,
+                                total: msg.total,
+                                percent,
+                            });
                         } catch {
                             // ignore malformed progress lines
                         }
@@ -292,6 +375,44 @@ export function pullOllamaModel(
         req.write(body);
         req.end();
     });
+}
+
+/**
+ * Deletes a model from Ollama's local storage to free disk space.
+ */
+export async function deleteOllamaModel(
+    host: string = DEFAULT_OLLAMA_HOST,
+    modelIdentifier: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const res = await makeHttpRequest(
+            `${host}/api/delete`,
+            {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+            },
+            { model: modelIdentifier }
+        );
+        if (res.status === 200 || res.status === 204) {
+            return { success: true };
+        }
+        if (!modelIdentifier.includes(":")) {
+            const retryRes = await makeHttpRequest(
+                `${host}/api/delete`,
+                {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                },
+                { model: `${modelIdentifier}:latest` }
+            );
+            if (retryRes.status === 200 || retryRes.status === 204) {
+                return { success: true };
+            }
+        }
+        return { success: false, error: `Ollama HTTP ${res.status}: ${res.body}` };
+    } catch (err) {
+        return { success: false, error: errorMessage(err) };
+    }
 }
 
 // ─── 2. OpenAI Cloud API ──────────────────────────────────────────────────────
@@ -628,13 +749,16 @@ export async function parseInvoiceDraft(
                 aiSettings.anthropic_model
             );
         } else {
-            // Ollama default (featuring jonprompter/Rechly-DE-3B)
+            const targetOllamaModel =
+                aiSettings.ollama_model ||
+                (aiSettings.selected_tier ? RECHLY_MODEL_FAMILY[aiSettings.selected_tier]?.modelIdentifier : undefined) ||
+                FEATURED_MODEL;
             result = await parseWithOllama(
                 promptText,
                 clients,
                 isSmallBusiness,
                 aiSettings.ollama_host || DEFAULT_OLLAMA_HOST,
-                aiSettings.ollama_model || FEATURED_MODEL
+                targetOllamaModel
             );
         }
 

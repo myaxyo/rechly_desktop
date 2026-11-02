@@ -7,9 +7,11 @@ import type {
     Expense,
     CompleteOnboardingRequest,
     Invoice,
+    ModelTierId,
     Offer,
     OllamaPullProgress,
     Product,
+    SystemProfile,
 } from "./types";
 
 const api = {
@@ -88,10 +90,15 @@ const api = {
         isSmallBusiness: boolean
     ) => ipcRenderer.invoke("ai:parseDraft", prompt, clients, isSmallBusiness),
 
-    // First-run setup assistant
+    // First-run setup assistant & Hardware
     getAppInfo: () => ipcRenderer.invoke("app:getInfo"),
+    getSystemProfile: (): Promise<SystemProfile> => ipcRenderer.invoke("setup:getSystemProfile"),
     detectOllama: () => ipcRenderer.invoke("setup:detectOllama"),
     launchOllama: () => ipcRenderer.invoke("setup:launchOllama"),
+    getInstalledTiers: (): Promise<Record<ModelTierId, boolean>> => ipcRenderer.invoke("ai:getInstalledTiers"),
+    setActiveTier: (tierId: ModelTierId): Promise<boolean> => ipcRenderer.invoke("ai:setActiveTier", tierId),
+    deleteModel: (modelIdentifier: string): Promise<{ success: boolean; error?: string }> =>
+        ipcRenderer.invoke("ai:deleteModel", modelIdentifier),
     pullModel: (host?: string, model?: string) => ipcRenderer.invoke("ai:pullModel", host, model),
     onPullProgress: (callback: (progress: OllamaPullProgress) => void) => {
         const listener = (_e: IpcRendererEvent, progress: OllamaPullProgress) => callback(progress);
