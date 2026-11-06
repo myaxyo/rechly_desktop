@@ -26,6 +26,35 @@ import { BackupSelection } from "./backupService";
 import { checkPassword } from "./backupCrypto";
 import { generateXRechnungXML, generateDatevExport } from "./eRechnung";
 import {
+    MIGRATION_SOURCES,
+    CLIENT_FIELD_DEFINITIONS,
+    PRODUCT_FIELD_DEFINITIONS,
+    INVOICE_FIELD_DEFINITIONS,
+    EXPENSE_FIELD_DEFINITIONS,
+    autoDetectColumnMapping,
+    createRechlyBackupBundle,
+    decodeFileBuffer,
+    executeMigrationImport,
+    extractXmlFromPdf,
+    generateSampleCsvTemplate,
+    mapRowsToClients,
+    mapRowsToExpenses,
+    mapRowsToInvoices,
+    mapRowsToProducts,
+    normalizeExpenseCategory,
+    parseCsvTextToRows,
+    parseEInvoiceXmlForMigration,
+    type MigrationEntityType,
+    type MigrationImportPayload,
+    type MigrationImportResult,
+    type NormalizedMigrationClient,
+    type NormalizedMigrationExpense,
+    type NormalizedMigrationInvoice,
+    type NormalizedMigrationProduct,
+    type ParsedMigrationEInvoice,
+    type RechlyBackupBundle,
+} from "./migration";
+import {
     checkOllama,
     testOpenAi,
     testAnthropic,
@@ -664,6 +693,259 @@ ipcMain.handle("export:xrechnung", async (_e, invoiceId: string): Promise<Export
 });
 
 ipcMain.handle("export:datev", exportDatevHandler);
+
+// ─── Migration & Portable Web ⇄ Desktop Backup ("Move to Rechly") ───────────
+ipcMain.handle("migration:getConfig", () => ({
+    sources: MIGRATION_SOURCES,
+    fieldDefinitions: {
+        clients: CLIENT_FIELD_DEFINITIONS,
+        products: PRODUCT_FIELD_DEFINITIONS,
+        invoices: INVOICE_FIELD_DEFINITIONS,
+        expenses: EXPENSE_FIELD_DEFINITIONS,
+    },
+}));
+
+ipcMain.handle("migration:parseCsv", (_e, payload: { fileName: string; buffer: Uint8Array | ArrayBuffer }) => {
+    const csvText = decodeFileBuffer(payload.buffer);
+    const parsedCsv = parseCsvTextToRows(csvText);
+    const mapping = autoDetectColumnMapping(parsedCsv.headers, parsedCsv.detectedEntityType);
+    return {
+        fileName: payload.fileName,
+        headers: parsedCsv.headers,
+        rows: parsedCsv.rows,
+        detectedSource: parsedCsv.detectedSource,
+        entityType: parsedCsv.detectedEntityType,
+        mapping,
+    };
+});
+
+ipcMain.handle("migration:parseJsonBackup", (_e, payload: { fileName: string; buffer: Uint8Array | ArrayBuffer }) => {
+    const text = decodeFileBuffer(payload.buffer);
+    const parsed = JSON.parse(text) as RechlyBackupBundle;
+    if (
+        parsed &&
+        (parsed.rechlyBackupVersion ||
+            Array.isArray(parsed.clients) ||
+            Array.isArray(parsed.invoices))
+    ) {
+        return { valid: true, bundle: parsed };
+    }
+    return { valid: false };
+});
+
+ipcMain.handle(
+    "migration:autoMapColumns",
+    (_e, headers: string[], entityType: Exclude<MigrationEntityType, "full_backup">) =>
+        autoDetectColumnMapping(headers, entityType),
+);
+
+ipcMain.handle(
+    "migration:computePreview",
+    (
+        _e,
+        payload: {
+            csvFiles: Array<{
+                entityType: Exclude<MigrationEntityType, "full_backup">;
+                rows: Record<string, string>[];
+                mapping: Record<string, string>;
+            }>;
+            eInvoices: ParsedMigrationEInvoice[];
+            eInvoiceMode: "outgoing" | "incoming";
+            backupBundle: RechlyBackupBundle | null;
+        },
+    ) => {
+        const clients: NormalizedMigrationClient[] = [];
+        const products: NormalizedMigrationProduct[] = [];
+        const invoices: NormalizedMigrationInvoice[] = [];
+        const expenses: NormalizedMigrationExpense[] = [];
+
+        for (const csv of payload.csvFiles || []) {
+            if (csv.entityType === "clients") {
+                clients.push(...mapRowsToClients(csv.rows, csv.mapping));
+            } else if (csv.entityType === "products") {
+                products.push(...mapRowsToProducts(csv.rows, csv.mapping));
+            } else if (csv.entityType === "invoices") {
+                invoices.push(...mapRowsToInvoices(csv.rows, csv.mapping));
+            } else if (csv.entityType === "expenses") {
+                expenses.push(...mapRowsToExpenses(csv.rows, csv.mapping));
+            }
+        }
+
+        for (const einv of payload.eInvoices || []) {
+            if (payload.eInvoiceMode === "outgoing") {
+                if (einv.buyer?.name && einv.buyer.name !== "Unbekannt") {
+                    clients.push(einv.buyer);
+                }
+                invoices.push({
+                    invoice_number: einv.invoiceNumber,
+                    issue_date: einv.issueDate,
+                    due_date: einv.dueDate,
+                    status: "paid",
+                    client_name: einv.buyer?.name || "Importierter Kunde",
+                    client_email: einv.buyer?.email,
+                    client_address: einv.buyer?.address_line1,
+                    client_postal_code: einv.buyer?.postal_code,
+                    client_city: einv.buyer?.city,
+                    client_country: einv.buyer?.country,
+                    client_vat_id: einv.buyer?.vat_id,
+                    client_leitweg_id: einv.buyer?.leitweg_id,
+                    subtotal: einv.subtotal,
+                    total_vat: einv.totalVat,
+                    total_gross: einv.totalGross,
+                    items: einv.items,
+                });
+            } else {
+                const desc =
+                    einv.items.map((i) => i.description).join(", ") ||
+                    `Rechnung ${einv.invoiceNumber}`;
+                expenses.push({
+                    date: einv.issueDate,
+                    vendor_name: einv.seller?.name || "Lieferant",
+                    description: desc.slice(0, 240),
+                    category: normalizeExpenseCategory("", desc),
+                    amount_net: einv.subtotal,
+                    vat_rate_percent: einv.taxRatePercent,
+                    vat_amount: einv.totalVat,
+                    amount_gross: einv.totalGross,
+                    payment_method: "bank_transfer",
+                    invoice_number: einv.invoiceNumber,
+                });
+            }
+        }
+
+        const backupBundle = payload.backupBundle;
+        if (backupBundle) {
+            if (Array.isArray(backupBundle.clients)) clients.push(...backupBundle.clients);
+            if (Array.isArray(backupBundle.products)) products.push(...backupBundle.products);
+            if (Array.isArray(backupBundle.invoices)) invoices.push(...backupBundle.invoices);
+            if (Array.isArray(backupBundle.expenses)) expenses.push(...backupBundle.expenses);
+        }
+
+        const offersCount = backupBundle?.offers?.length || 0;
+        const hasCompany = Boolean(backupBundle?.company && (backupBundle.company as any).name);
+
+        return {
+            clients,
+            products,
+            invoices,
+            expenses,
+            offersCount,
+            hasCompany,
+            totalItems:
+                clients.length +
+                products.length +
+                invoices.length +
+                expenses.length +
+                offersCount,
+        };
+    },
+);
+
+ipcMain.handle(
+    "migration:parseEInvoice",
+    (_e, files: Array<{ fileName: string; buffer: Uint8Array | ArrayBuffer }>) => {
+        const parsedInvoices: ParsedMigrationEInvoice[] = [];
+        const failedFiles: Array<{ fileName: string; reason: string }> = [];
+
+        for (const file of files || []) {
+            const name = file.fileName || "Unbekannt";
+            const lower = name.toLowerCase();
+            try {
+                const buf = Buffer.from(
+                    file.buffer instanceof Uint8Array
+                        ? file.buffer
+                        : new Uint8Array(file.buffer),
+                );
+                let xmlContent: string | null = null;
+
+                if (lower.endsWith(".pdf")) {
+                    xmlContent = extractXmlFromPdf(buf);
+                    if (!xmlContent) {
+                        failedFiles.push({
+                            fileName: name,
+                            reason: "Keine eingebettete ZUGFeRD / Factur-X XML-Struktur in dieser PDF gefunden.",
+                        });
+                        continue;
+                    }
+                } else {
+                    xmlContent = buf.toString("utf8");
+                }
+
+                const parsed = parseEInvoiceXmlForMigration(xmlContent);
+                if (!parsed) {
+                    failedFiles.push({
+                        fileName: name,
+                        reason: "XML ist keine gültige XRechnung (UBL / CII).",
+                    });
+                    continue;
+                }
+
+                parsedInvoices.push(parsed);
+            } catch {
+                failedFiles.push({
+                    fileName: name,
+                    reason: "Datei konnte nicht gelesen werden.",
+                });
+            }
+        }
+
+        return { invoices: parsedInvoices, failedFiles };
+    },
+);
+
+ipcMain.handle("migration:exportBackupJson", async (): Promise<ExportResult> => {
+    if (!mainWindow) return { success: false };
+    const bundle = createRechlyBackupBundle(store.getAll());
+    const dateStamp = new Date().toISOString().slice(0, 10);
+
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: "Rechly Komplett-Backup (.json) speichern",
+        defaultPath: `rechly-backup-${dateStamp}.json`,
+        filters: [{ name: "Rechly Backup JSON", extensions: ["json"] }],
+    });
+
+    if (canceled || !filePath) return { success: false };
+
+    fs.writeFileSync(filePath, JSON.stringify(bundle, null, 2), "utf8");
+    shell.showItemInFolder(filePath);
+    return { success: true, filePath };
+});
+
+ipcMain.handle(
+    "migration:downloadSampleCsv",
+    async (_e, entityType: Exclude<MigrationEntityType, "full_backup">): Promise<ExportResult> => {
+        if (!mainWindow) return { success: false };
+        const csvContent = "\uFEFF" + generateSampleCsvTemplate(entityType);
+
+        const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+            title: `Muster-CSV (${entityType}) speichern`,
+            defaultPath: `rechly-muster-${entityType}.csv`,
+            filters: [{ name: "CSV-Datei", extensions: ["csv"] }],
+        });
+
+        if (canceled || !filePath) return { success: false };
+
+        fs.writeFileSync(filePath, csvContent, "utf8");
+        shell.showItemInFolder(filePath);
+        return { success: true, filePath };
+    },
+);
+
+ipcMain.handle(
+    "migration:import",
+    (_e, payload: MigrationImportPayload): MigrationImportResult => {
+        return store.transaction((draft) => {
+            const { result, updatedStore } = executeMigrationImport(draft, payload);
+            draft.company = updatedStore.company;
+            draft.clients = updatedStore.clients;
+            draft.products = updatedStore.products;
+            draft.invoices = updatedStore.invoices;
+            draft.offers = updatedStore.offers;
+            draft.expenses = updatedStore.expenses;
+            return result;
+        });
+    },
+);
 ipcMain.handle("updater:check", async (): Promise<AppUpdateInfo> => {
     return checkGitHubReleaseUpdate(app.getVersion());
 });

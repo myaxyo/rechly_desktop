@@ -147,6 +147,27 @@ const api = {
         ipcRenderer.on("updater:progress", listener);
         return () => ipcRenderer.removeListener("updater:progress", listener);
     },
+
+    // Move to Rechly — Data Migration & Web ⇄ Desktop Backup
+    getMigrationConfig: () => ipcRenderer.invoke("migration:getConfig"),
+    parseMigrationCsv: (payload: { fileName: string; buffer: Uint8Array | ArrayBuffer }) =>
+        ipcRenderer.invoke("migration:parseCsv", payload),
+    parseMigrationJsonBackup: (payload: { fileName: string; buffer: Uint8Array | ArrayBuffer }) =>
+        ipcRenderer.invoke("migration:parseJsonBackup", payload),
+    autoMapMigrationColumns: (
+        headers: string[],
+        entityType: "clients" | "products" | "invoices" | "expenses",
+    ) => ipcRenderer.invoke("migration:autoMapColumns", headers, entityType),
+    computeMigrationPreview: (payload: unknown) =>
+        ipcRenderer.invoke("migration:computePreview", payload),
+    parseMigrationEInvoices: (
+        files: Array<{ fileName: string; buffer: Uint8Array | ArrayBuffer }>,
+    ) => ipcRenderer.invoke("migration:parseEInvoice", files),
+    exportRechlyBackupJson: () => ipcRenderer.invoke("migration:exportBackupJson"),
+    downloadSampleCsv: (entityType: "clients" | "products" | "invoices" | "expenses") =>
+        ipcRenderer.invoke("migration:downloadSampleCsv", entityType),
+    executeMigrationImport: (payload: unknown) =>
+        ipcRenderer.invoke("migration:import", payload),
 };
 
 /** Type of `window.rechly` in the renderer. */

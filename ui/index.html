@@ -1121,6 +1121,9 @@
       <div class="nav-item" id="nav-datev" onclick="showView('datev')">
         <div class="nav-left"><span class="icon">🏛️</span> DATEV Export</div>
       </div>
+      <div class="nav-item" id="nav-migration" onclick="showView('migration')">
+        <div class="nav-left"><span class="icon">🔄</span> Daten-Umzug & Import</div>
+      </div>
       <div class="nav-item" id="nav-tools" onclick="showView('tools')">
         <div class="nav-left"><span class="icon">🧮</span> Offline Rechner</div>
       </div>
@@ -1734,6 +1737,7 @@
       else if (viewId === 'offers') renderOffersView(container);
       else if (viewId === 'expenses') renderExpensesView(container);
       else if (viewId === 'datev') renderDatevView(container);
+      else if (viewId === 'migration') renderMigrationView(container);
       else if (viewId === 'tools') renderToolsView(container);
       else if (viewId === 'settings') { renderSettingsView(container); StorageUI.renderStatus(); }
     }
@@ -1799,7 +1803,7 @@
         <select aria-label="Rechnungen sortieren" onchange="invoiceSort=this.value; renderInvoicesView(document.getElementById('content-container'))">${[['newest','Zuletzt erstellt'],['due','Fälligkeit aufsteigend'],['amount','Betrag absteigend']].map(([v,l])=>`<option value="${v}" ${invoiceSort===v?'selected':''}>${l}</option>`).join('')}</select></div>
         <p class="result-count" role="status">${invoices.length} von ${all.length} Rechnungen${term ? ` · Suche: „${esc(term)}“` : ''}</p>
         <div class="table-scroll"><table><thead><tr><th>Rechnung / Kunde</th><th>Datum</th><th>Fällig</th><th class="numeric">Betrag</th><th>Status</th><th>Aktionen</th></tr></thead><tbody>
-        ${invoices.map(i=>`<tr><td><button class="text-button" onclick="editInvoice('${i.id}')">${esc(i.invoice_number || 'Ohne Nummer')}</button><span class="cell-sub">${esc(clients.find(c=>c.id===i.client_id)?.name || 'Unbekannter Kunde')}</span></td><td>${dateLabel(i.issue_date)}</td><td class="${isOverdue(i)?'overdue-text':''}">${dateLabel(i.due_date)}${isOverdue(i)?'<span class="cell-sub">Überfällig</span>':''}</td><td class="numeric">${money(i.total_gross)}</td><td>${invoiceStatusSelect(i)}</td><td><div class="row-actions"><button class="btn btn-secondary btn-sm" onclick="previewInvoice('${i.id}')">PDF</button><button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${i.id}')">XML</button><button class="btn btn-danger-outline btn-sm" aria-label="Rechnung ${esc(i.invoice_number)} löschen" onclick="deleteInvoice('${i.id}')">Löschen</button></div></td></tr>`).join('') || `<tr><td colspan="6"><div class="empty-state"><h3>${all.length?'Keine passenden Rechnungen':'Ihre erste Rechnung beginnt hier'}</h3><p>${all.length?'Ändern Sie den Suchbegriff oder setzen Sie die Filter zurück.':'Erfassen Sie Ihre Leistungen und behalten Sie Zahlungen im Blick.'}</p><button class="btn btn-secondary" onclick="${all.length?"openInvoiceFilter('all')":"createNewInvoice()"}">${all.length?'Filter zurücksetzen':'Rechnung erstellen'}</button></div></td></tr>`}
+        ${invoices.map(i=>`<tr><td><button class="text-button" onclick="editInvoice('${i.id}')">${esc(i.invoice_number || 'Ohne Nummer')}</button><span class="cell-sub">${esc(clients.find(c=>c.id===i.client_id)?.name || 'Unbekannter Kunde')}</span></td><td>${dateLabel(i.issue_date)}</td><td class="${isOverdue(i)?'overdue-text':''}">${dateLabel(i.due_date)}${isOverdue(i)?'<span class="cell-sub">Überfällig</span>':''}</td><td class="numeric">${money(i.total_gross)}</td><td>${invoiceStatusSelect(i)}</td><td><div class="row-actions"><button class="btn btn-secondary btn-sm" onclick="previewInvoice('${i.id}')">PDF</button><button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${i.id}')">XRechnung (XML)</button><button class="btn btn-danger-outline btn-sm" aria-label="Rechnung ${esc(i.invoice_number)} löschen" onclick="deleteInvoice('${i.id}')">Löschen</button></div></td></tr>`).join('') || `<tr><td colspan="6"><div class="empty-state"><h3>${all.length?'Keine passenden Rechnungen':'Ihre erste Rechnung beginnt hier'}</h3><p>${all.length?'Ändern Sie den Suchbegriff oder setzen Sie die Filter zurück.':'Erfassen Sie Ihre Leistungen und behalten Sie Zahlungen im Blick.'}</p><button class="btn btn-secondary" onclick="${all.length?"openInvoiceFilter('all')":"createNewInvoice()"}">${all.length?'Filter zurücksetzen':'Rechnung erstellen'}</button></div></td></tr>`}
         </tbody></table></div></div>`;
     }
 
@@ -1872,7 +1876,13 @@
             <div class="page-title">${titleText}</div>
             <div class="page-subtitle">${subtitleText}</div>
           </div>
-          <button class="btn btn-secondary" onclick="showView('${backView}')">Zurück zur Übersicht</button>
+          <div style="display:flex; gap:8px; align-items:center;">
+            ${isEditing && !isOffer && inv ? `
+              <button class="btn btn-secondary" onclick="previewInvoice('${inv.id}')">🖨️ PDF Vorschau</button>
+              <button class="btn btn-secondary" onclick="exportXRechnung('${inv.id}')">📄 XRechnung (XML)</button>
+            ` : ''}
+            <button class="btn btn-secondary" onclick="showView('${backView}')">Zurück zur Übersicht</button>
+          </div>
         </div>
 
         <!-- AI Text-to-Invoice Bar -->
@@ -2599,6 +2609,7 @@
           <div style="display:flex; align-items:center; gap:8px;">
             <button class="btn btn-primary" onclick="window.print()">🖨️ Jetzt Drucken (A4)</button>
             <button class="btn btn-secondary" onclick="window.rechly.exportPdf('${inv.id}')">Als PDF speichern</button>
+            ${kind === 'invoice' ? `<button class="btn btn-secondary" onclick="exportXRechnung('${inv.id}')">📄 XRechnung (XML)</button>` : ''}
           </div>
           
           <div style="display:flex; align-items:center; gap:6px; background:#f1f5f9; padding:4px 8px; border-radius:8px;">
@@ -2654,7 +2665,10 @@
             <div class="page-title">Kundenstamm (Lokal)</div>
             <div class="page-subtitle">Verwalte deine Geschäftskunden und E-Rechnungs-Empfänger.</div>
           </div>
-          <button class="btn btn-primary" onclick="showNewClientModal()">+ Neuer Kunde</button>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" onclick="openMigrationWizard('lexoffice')">🔄 Kunden importieren</button>
+            <button class="btn btn-primary" onclick="showNewClientModal()">+ Neuer Kunde</button>
+          </div>
         </div>
         <div class="card">
           <table>
@@ -3065,6 +3079,594 @@
       `;
     }
 
+    // ─── View 7b: Move to Rechly — Daten-Umzug & Komplett-Import / Backup ───
+    let migConfig = null;
+    let migState = {
+      selectedSource: 'lexoffice',
+      csvFiles: [],
+      eInvoices: [],
+      eInvoiceMode: 'outgoing',
+      backupBundle: null,
+      skipDuplicates: true,
+      parsingFiles: false,
+      importing: false,
+      activePreviewTab: 'clients',
+      openMappings: {},
+      preview: {
+        clients: [],
+        products: [],
+        invoices: [],
+        expenses: [],
+        offersCount: 0,
+        hasCompany: false,
+        totalItems: 0,
+      },
+      importResult: null,
+    };
+
+    function openMigrationWizard(sourceId = 'lexoffice') {
+      migState.selectedSource = sourceId;
+      showView('migration');
+    }
+
+    async function ensureMigrationConfig() {
+      if (!migConfig && window.rechly?.getMigrationConfig) {
+        migConfig = await window.rechly.getMigrationConfig();
+      }
+      return migConfig;
+    }
+
+    async function refreshMigrationPreview() {
+      if (!window.rechly?.computeMigrationPreview) return;
+      migState.preview = await window.rechly.computeMigrationPreview({
+        csvFiles: migState.csvFiles.map(c => ({
+          entityType: c.entityType,
+          rows: c.rows,
+          mapping: c.mapping,
+        })),
+        eInvoices: migState.eInvoices,
+        eInvoiceMode: migState.eInvoiceMode,
+        backupBundle: migState.backupBundle,
+      });
+      if (migState.preview.clients.length > 0) migState.activePreviewTab = 'clients';
+      else if (migState.preview.products.length > 0) migState.activePreviewTab = 'products';
+      else if (migState.preview.invoices.length > 0) migState.activePreviewTab = 'invoices';
+      else if (migState.preview.expenses.length > 0) migState.activePreviewTab = 'expenses';
+    }
+
+    async function exportFullRechlyBackupJson() {
+      if (!window.rechly?.exportRechlyBackupJson) return;
+      try {
+        const res = await window.rechly.exportRechlyBackupJson();
+        if (res.success) {
+          showToast('Komplett-Backup (.json) wurde gespeichert!');
+        }
+      } catch (err) {
+        showToast('Backup konnte nicht erstellt werden: ' + err.message, 'error');
+      }
+    }
+
+    async function downloadMigrationSampleCsv(entityType) {
+      if (!window.rechly?.downloadSampleCsv) return;
+      const res = await window.rechly.downloadSampleCsv(entityType);
+      if (res?.success) {
+        showToast(`Muster-CSV (${entityType}) gespeichert!`);
+      }
+    }
+
+    async function handleMigrationFilesSelected(fileList) {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+      migState.parsingFiles = true;
+      migState.importResult = null;
+      renderMigrationView(document.getElementById('content-container'));
+
+      const eInvoicePayloads = [];
+      try {
+        for (const file of files) {
+          const lower = (file.name || '').toLowerCase();
+          const buffer = new Uint8Array(await file.arrayBuffer());
+
+          if (lower.endsWith('.json')) {
+            const parsed = await window.rechly.parseMigrationJsonBackup({
+              fileName: file.name,
+              buffer,
+            });
+            if (parsed?.valid && parsed.bundle) {
+              migState.backupBundle = parsed.bundle;
+              migState.selectedSource = 'rechly_backup';
+              showToast(`Rechly Backup-Datei „${file.name}“ geladen.`);
+            } else {
+              showToast(`JSON-Datei „${file.name}“ hat kein bekanntes Rechly-Backup-Format.`, 'error');
+            }
+            continue;
+          }
+
+          if (lower.endsWith('.xml') || lower.endsWith('.pdf')) {
+            eInvoicePayloads.push({ fileName: file.name, buffer });
+            continue;
+          }
+
+          const parsedCsv = await window.rechly.parseMigrationCsv({
+            fileName: file.name,
+            buffer,
+          });
+          if (!parsedCsv || !parsedCsv.rows || parsedCsv.rows.length === 0) {
+            showToast(`Datei „${file.name}“ enthält keine lesbaren Datenzeilen.`, 'error');
+            continue;
+          }
+          migState.csvFiles.push({
+            id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            fileName: file.name,
+            headers: parsedCsv.headers,
+            rows: parsedCsv.rows,
+            detectedSource: parsedCsv.detectedSource,
+            entityType: parsedCsv.entityType,
+            mapping: parsedCsv.mapping,
+          });
+        }
+
+        if (eInvoicePayloads.length > 0) {
+          const data = await window.rechly.parseMigrationEInvoices(eInvoicePayloads);
+          if (Array.isArray(data?.invoices) && data.invoices.length > 0) {
+            migState.eInvoices.push(...data.invoices);
+            migState.selectedSource = 'einvoice';
+            showToast(`${data.invoices.length} E-Rechnung(en) erfolgreich analysiert.`);
+          }
+          if (Array.isArray(data?.failedFiles) && data.failedFiles.length > 0) {
+            for (const fail of data.failedFiles) {
+              showToast(`${fail.fileName}: ${fail.reason}`, 'error');
+            }
+          }
+        }
+
+        await refreshMigrationPreview();
+      } catch (err) {
+        showToast('Datei konnte nicht verarbeitet werden: ' + err.message, 'error');
+      } finally {
+        migState.parsingFiles = false;
+        renderMigrationView(document.getElementById('content-container'));
+      }
+    }
+
+    async function changeMigCsvEntityType(entryId, newType) {
+      const entry = migState.csvFiles.find(e => e.id === entryId);
+      if (!entry) return;
+      entry.entityType = newType;
+      entry.mapping = await window.rechly.autoMapMigrationColumns(entry.headers, newType);
+      await refreshMigrationPreview();
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    async function changeMigColumnMapping(entryId, fieldKey, csvHeader) {
+      const entry = migState.csvFiles.find(e => e.id === entryId);
+      if (!entry) return;
+      if (!csvHeader) delete entry.mapping[fieldKey];
+      else entry.mapping[fieldKey] = csvHeader;
+      await refreshMigrationPreview();
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    async function removeMigCsvFile(entryId) {
+      migState.csvFiles = migState.csvFiles.filter(e => e.id !== entryId);
+      await refreshMigrationPreview();
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    async function setMigEInvoiceMode(mode) {
+      migState.eInvoiceMode = mode;
+      await refreshMigrationPreview();
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    function toggleMigMappingOpen(entryId) {
+      migState.openMappings[entryId] = !migState.openMappings[entryId];
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    function resetMigrationWizard() {
+      migState.csvFiles = [];
+      migState.eInvoices = [];
+      migState.backupBundle = null;
+      migState.importResult = null;
+      migState.preview = {
+        clients: [],
+        products: [],
+        invoices: [],
+        expenses: [],
+        offersCount: 0,
+        hasCompany: false,
+        totalItems: 0,
+      };
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    async function executeMigrationNow() {
+      const p = migState.preview;
+      if (p.totalItems === 0 && !p.hasCompany) {
+        showToast('Keine Datensätze zum Importieren vorhanden.', 'error');
+        return;
+      }
+      migState.importing = true;
+      renderMigrationView(document.getElementById('content-container'));
+      try {
+        const result = await window.rechly.executeMigrationImport({
+          skipDuplicates: migState.skipDuplicates,
+          company: migState.backupBundle?.company || null,
+          clients: p.clients,
+          products: p.products,
+          invoices: p.invoices,
+          expenses: p.expenses,
+          offers: migState.backupBundle?.offers || [],
+        });
+        migState.importResult = result;
+        currentStore = await window.rechly.getStore();
+        updateSidebarCompany();
+        updateBadges();
+        const totalInserted =
+          result.clients.inserted +
+          result.products.inserted +
+          result.invoices.inserted +
+          result.expenses.inserted +
+          result.offers.inserted;
+        showToast(`Umzug abgeschlossen! ${totalInserted} Datensätze wurden importiert.`);
+      } catch (err) {
+        showToast('Import fehlgeschlagen: ' + err.message, 'error');
+      } finally {
+        migState.importing = false;
+        renderMigrationView(document.getElementById('content-container'));
+      }
+    }
+
+    async function renderMigrationView(container) {
+      const cfg = await ensureMigrationConfig();
+      const sources = cfg?.sources || [];
+      const fieldDefsMap = cfg?.fieldDefinitions || {};
+      const activeGuide = sources.find(s => s.id === migState.selectedSource) || sources[0] || {
+        id: 'lexoffice',
+        name: 'Lexware Office (lexoffice)',
+        stepsDe: [],
+        tipsDe: '',
+      };
+      const p = migState.preview;
+
+      let previewTableHtml = '';
+      if (migState.activePreviewTab === 'clients') {
+        if (p.clients.length === 0) {
+          previewTableHtml = '<div style="padding:24px; text-align:center; color:#64748b;">Noch keine Kunden geladen</div>';
+        } else {
+          previewTableHtml = `
+            <table>
+              <thead><tr><th>Name / Firma</th><th>Ansprechpartner</th><th>Adresse</th><th>E-Mail</th><th>USt-IdNr. / Leitweg-ID</th></tr></thead>
+              <tbody>
+                ${p.clients.slice(0, 25).map(r => `
+                  <tr>
+                    <td><b>${esc(r.name)}</b></td>
+                    <td>${esc(r.contact_person || '—')}</td>
+                    <td>${esc(r.address_line1)}, ${esc(r.postal_code)} ${esc(r.city)}</td>
+                    <td>${esc(r.email || '—')}</td>
+                    <td>${esc(r.vat_id || r.leitweg_id || '—')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+      } else if (migState.activePreviewTab === 'products') {
+        if (p.products.length === 0) {
+          previewTableHtml = '<div style="padding:24px; text-align:center; color:#64748b;">Noch keine Produkte geladen</div>';
+        } else {
+          previewTableHtml = `
+            <table>
+              <thead><tr><th>Bezeichnung</th><th>Beschreibung</th><th>Nettopreis</th><th>MwSt.</th><th>Einheit</th></tr></thead>
+              <tbody>
+                ${p.products.slice(0, 25).map(r => `
+                  <tr>
+                    <td><b>${esc(r.name)}</b></td>
+                    <td>${esc(r.description || '—')}</td>
+                    <td>${Number(r.price || 0).toFixed(2)} €</td>
+                    <td>${esc(r.tax_rate_percent)} %</td>
+                    <td>${esc(r.unit_of_measure)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+      } else if (migState.activePreviewTab === 'invoices') {
+        if (p.invoices.length === 0) {
+          previewTableHtml = '<div style="padding:24px; text-align:center; color:#64748b;">Noch keine Rechnungen geladen</div>';
+        } else {
+          previewTableHtml = `
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:12px; color:#1e40af; margin-bottom:10px;">
+              ℹ️ <b>Kunden-Automatik aktiv:</b> Falls ein Rechnungsempfänger noch nicht in deiner Kundenliste existiert, legt Rechly ihn beim Import automatisch an.
+            </div>
+            <table>
+              <thead><tr><th>Rechnungs-Nr.</th><th>Datum</th><th>Kunde</th><th>Netto</th><th>MwSt.</th><th>Brutto</th><th>Status</th></tr></thead>
+              <tbody>
+                ${p.invoices.slice(0, 25).map(r => `
+                  <tr>
+                    <td><b>${esc(r.invoice_number)}</b></td>
+                    <td>${esc(r.issue_date)}</td>
+                    <td>${esc(r.client_name)}</td>
+                    <td>${Number(r.subtotal || 0).toFixed(2)} €</td>
+                    <td>${Number(r.total_vat || 0).toFixed(2)} €</td>
+                    <td><b>${Number(r.total_gross || 0).toFixed(2)} €</b></td>
+                    <td><span class="badge" style="background:#e0f2fe; color:#0369a1;">${esc(r.status)}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+      } else if (migState.activePreviewTab === 'expenses') {
+        if (p.expenses.length === 0) {
+          previewTableHtml = '<div style="padding:24px; text-align:center; color:#64748b;">Noch keine Ausgaben geladen</div>';
+        } else {
+          previewTableHtml = `
+            <table>
+              <thead><tr><th>Datum</th><th>Lieferant</th><th>Beschreibung</th><th>Kategorie</th><th>Netto</th><th>Brutto</th></tr></thead>
+              <tbody>
+                ${p.expenses.slice(0, 25).map(r => `
+                  <tr>
+                    <td>${esc(r.date)}</td>
+                    <td><b>${esc(r.vendor_name)}</b></td>
+                    <td>${esc(r.description)}</td>
+                    <td><span class="badge" style="background:#f1f5f9; color:#334155;">${esc(r.category)}</span></td>
+                    <td>${Number(r.amount_net || 0).toFixed(2)} €</td>
+                    <td><b>${Number(r.amount_gross || 0).toFixed(2)} €</b></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+      }
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-title">Daten-Umzug & Komplett-Import</div>
+            <div class="page-subtitle">Wechsle in wenigen Minuten von Lexware Office, sevdesk, FastBill, DATEV oder Rechly Web Cloud zu Rechly Desktop.</div>
+          </div>
+        </div>
+
+        <!-- Top Banner: Full Account Backup & Web <-> Desktop Portability -->
+        <div class="card" style="background: linear-gradient(135deg, #eef2ff 0%, #ffffff 55%, #f0f9ff 100%); border: 1px solid #c7d2fe;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                <span class="badge" style="background:#dbeafe; color:#1d4ed8; font-weight:700;">Web ⇄ Desktop</span>
+                <span style="font-weight:700; font-size:15px; color:#0f172a;">100% Datenhoheit & Komplett-Backup</span>
+              </div>
+              <p style="font-size:13px; color:#475569; margin:0; max-width:720px; line-height:1.45;">
+                Sichere deinen gesamten Datenbestand (Firmendaten, Kunden, Produkte, Rechnungen, Angebote & Ausgaben) mit einem Klick oder ziehe nahtlos zwischen Rechly Cloud und der lokalen Rechly Desktop-App um.
+              </p>
+            </div>
+            <button class="btn btn-primary" onclick="exportFullRechlyBackupJson()">
+              ☁️ Komplett-Backup herunterladen (.json)
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 1: Source System Selector -->
+        <div class="card">
+          <div class="card-title">🔄 1. Quelle wählen: Von welchem Programm möchtest du wechseln?</div>
+          <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-bottom:16px;">
+            ${sources.map(source => {
+              const active = migState.selectedSource === source.id;
+              return `
+                <div onclick="migState.selectedSource = '${source.id}'; renderMigrationView(document.getElementById('content-container'));"
+                     style="border: 2px solid ${active ? '#2563eb' : '#e2e8f0'}; background: ${active ? '#eff6ff' : '#ffffff'}; border-radius: 10px; padding: 12px 14px; cursor: pointer; transition: all 0.15s ease;">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px; margin-bottom:6px;">
+                    <span style="font-weight:700; font-size:13px; color:#0f172a;">${esc(source.name)}</span>
+                    <span class="badge" style="background:${active ? '#dbeafe' : '#f1f5f9'}; color:${active ? '#1d4ed8' : '#475569'}; font-size:10px;">${esc(source.badge)}</span>
+                  </div>
+                  <div style="font-size:11.5px; color:#64748b; line-height:1.35;">${esc(source.subtitle)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+              <b style="font-size:13px; color:#0f172a;">So exportierst du deine Daten aus ${esc(activeGuide.name)}:</b>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="downloadMigrationSampleCsv('clients')">⬇️ Muster Kunden.csv</button>
+                <button class="btn btn-secondary btn-sm" onclick="downloadMigrationSampleCsv('products')">⬇️ Muster Produkte.csv</button>
+                <button class="btn btn-secondary btn-sm" onclick="downloadMigrationSampleCsv('invoices')">⬇️ Muster Rechnungen.csv</button>
+                <button class="btn btn-secondary btn-sm" onclick="downloadMigrationSampleCsv('expenses')">⬇️ Muster Ausgaben.csv</button>
+              </div>
+            </div>
+            <ol style="padding-left:20px; margin:0; font-size:13px; color:#334155; line-height:1.65;">
+              ${(activeGuide.stepsDe || []).map(step => `<li>${esc(step)}</li>`).join('')}
+            </ol>
+            <div style="margin-top:10px; font-size:12px; color:#2563eb; font-weight:600;">
+              💡 ${esc(activeGuide.tipsDe || '')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Upload & Preview -->
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div class="card-title" style="margin-bottom:0;">📂 2. Dateien hochladen & Vorschau prüfen</div>
+            ${(migState.csvFiles.length > 0 || migState.eInvoices.length > 0 || migState.backupBundle) ? `
+              <button class="btn btn-secondary btn-sm" onclick="resetMigrationWizard()">🔄 Auswahl zurücksetzen</button>
+            ` : ''}
+          </div>
+
+          <input type="file" id="mig-file-input" multiple accept=".csv,.txt,.xml,.pdf,.json" style="display:none;"
+                 onchange="handleMigrationFilesSelected(this.files)">
+
+          <div id="mig-dropzone"
+               onclick="document.getElementById('mig-file-input').click()"
+               ondragover="event.preventDefault(); this.style.borderColor='#2563eb'; this.style.background='#eff6ff';"
+               ondragleave="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';"
+               ondrop="event.preventDefault(); this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc'; handleMigrationFilesSelected(event.dataTransfer.files);"
+               style="border: 2px dashed #cbd5e1; border-radius: 12px; padding: 28px 20px; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.15s ease;">
+            <div style="font-size:32px; margin-bottom:6px;">📥</div>
+            <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:4px;">
+              ${migState.parsingFiles
+                ? 'Dateien werden analysiert…'
+                : 'CSV-, XRechnung- (.xml), ZUGFeRD- (.pdf) oder Backup-Dateien (.json) hierher ziehen'}
+            </div>
+            <div style="font-size:12px; color:#64748b; margin-bottom:12px;">
+              Du kannst mehrere Dateien gleichzeitig auswählen (z. B. Kunden.csv + Artikel.csv + Rechnungen.csv oder mehrere E-Rechnungen).
+            </div>
+            <button class="btn btn-primary btn-sm" type="button">Dateien auswählen</button>
+          </div>
+
+          <!-- Loaded CSV Files & Column Mapping Inspector -->
+          ${migState.csvFiles.length > 0 ? `
+            <div style="margin-top:20px;">
+              <div style="font-weight:700; font-size:14px; margin-bottom:10px;">Geladene CSV-Dateien & Spalten-Zuordnung</div>
+              ${migState.csvFiles.map(entry => {
+                const defs = fieldDefsMap[entry.entityType] || [];
+                const isOpen = Boolean(migState.openMappings[entry.id]);
+                return `
+                  <div style="border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px; margin-bottom:10px; background:#ffffff;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <span>📊 <b>${esc(entry.fileName)}</b></span>
+                        <span class="badge" style="background:#e0e7ff; color:#3730a3;">${entry.rows.length} Zeilen</span>
+                        ${entry.detectedSource !== 'generic' ? `<span class="badge" style="background:#f3e8ff; color:#6b21a8;">${esc(entry.detectedSource.toUpperCase())} erkannt</span>` : ''}
+                      </div>
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:12px; color:#64748b;">Datentyp:</span>
+                        <select onchange="changeMigCsvEntityType('${entry.id}', this.value)" style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px;">
+                          <option value="clients" ${entry.entityType === 'clients' ? 'selected' : ''}>Kunden / Kontakte</option>
+                          <option value="products" ${entry.entityType === 'products' ? 'selected' : ''}>Produkte / Leistungen</option>
+                          <option value="invoices" ${entry.entityType === 'invoices' ? 'selected' : ''}>Ausgangsrechnungen</option>
+                          <option value="expenses" ${entry.entityType === 'expenses' ? 'selected' : ''}>Ausgaben / Belege</option>
+                        </select>
+                        <button class="btn btn-secondary btn-sm" style="color:#ef4444;" onclick="removeMigCsvFile('${entry.id}')">✕</button>
+                      </div>
+                    </div>
+                    <div style="margin-top:8px;">
+                      <button class="btn btn-secondary btn-sm" onclick="toggleMigMappingOpen('${entry.id}')">
+                        ⚙️ Spalten-Zuordnung ${isOpen ? 'ausblenden' : 'prüfen / anpassen'} (${Object.keys(entry.mapping).length} Spalten automatisch erkannt)
+                      </button>
+                      ${isOpen ? `
+                        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid #f1f5f9;">
+                          ${defs.map(field => `
+                            <div class="form-group" style="gap:4px;">
+                              <label style="font-size:11px;">${esc(field.labelDe)}</label>
+                              <select onchange="changeMigColumnMapping('${entry.id}', '${field.key}', this.value)" style="padding:5px 8px; font-size:12px;">
+                                <option value="">— Nicht zugeordnet —</option>
+                                ${entry.headers.map(h => `<option value="${esc(h)}" ${entry.mapping[field.key] === h ? 'selected' : ''}>${esc(h)}</option>`).join('')}
+                              </select>
+                            </div>
+                          `).join('')}
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+
+          <!-- Loaded E-Invoices Mode Switcher -->
+          ${migState.eInvoices.length > 0 ? `
+            <div style="margin-top:16px; border:1px solid #c7d2fe; background:#eef2ff; border-radius:10px; padding:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <div>
+                <b>📄 ${migState.eInvoices.length} E-Rechnungen (XRechnung / ZUGFeRD) geladen</b>
+                <div style="font-size:12px; color:#475569;">Wie sollen diese E-Rechnungen importiert werden?</div>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-sm ${migState.eInvoiceMode === 'outgoing' ? 'btn-primary' : 'btn-secondary'}" onclick="setMigEInvoiceMode('outgoing')">Als eigene Ausgangsrechnungen (+ Kunden)</button>
+                <button class="btn btn-sm ${migState.eInvoiceMode === 'incoming' ? 'btn-primary' : 'btn-secondary'}" onclick="setMigEInvoiceMode('incoming')">Als Eingangsrechnungen (Ausgaben)</button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Loaded Full Backup Banner -->
+          ${migState.backupBundle ? `
+            <div style="margin-top:16px; border:1px solid #bae6fd; background:#f0f9ff; border-radius:10px; padding:14px;">
+              <b style="color:#0369a1;">✅ Rechly Komplett-Backup vom ${new Date(migState.backupBundle.exportedAt || Date.now()).toLocaleDateString('de-DE')} bereit zur Wiederherstellung</b>
+              <div style="font-size:12px; color:#0c4a6e; margin-top:4px;">
+                Enthält ${migState.backupBundle.clients?.length || 0} Kunden, ${migState.backupBundle.products?.length || 0} Produkte, ${migState.backupBundle.invoices?.length || 0} Rechnungen, ${migState.backupBundle.offers?.length || 0} Angebote und ${migState.backupBundle.expenses?.length || 0} Ausgaben.
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Live Data Preview -->
+          ${(p.totalItems > 0 || p.hasCompany) ? `
+            <div style="margin-top:20px; padding-top:16px; border-top:1px solid #e2e8f0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+                <div>
+                  <div style="font-weight:700; font-size:15px;">Live-Vorschau der erkannten Daten</div>
+                  <div style="font-size:12px; color:#64748b;">Prüfe vor dem Import deine erkannten Kunden, Produkte, Rechnungen und Ausgaben.</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                  <label style="font-size:12px; font-weight:600; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="checkbox" ${migState.skipDuplicates ? 'checked' : ''} onchange="migState.skipDuplicates = this.checked">
+                    Duplikate automatisch überspringen (Empfohlen)
+                  </label>
+                  <button class="btn btn-primary" ${migState.importing ? 'disabled' : ''} onclick="executeMigrationNow()">
+                    🚀 ${migState.importing ? 'Importiere…' : `Jetzt ${p.totalItems} Datensätze importieren`}
+                  </button>
+                </div>
+              </div>
+
+              <div class="ai-tabs" style="margin-bottom:12px;">
+                <button class="ai-tab-btn ${migState.activePreviewTab === 'clients' ? 'active' : ''}" onclick="migState.activePreviewTab='clients'; renderMigrationView(document.getElementById('content-container'))">
+                  👥 Kunden (${p.clients.length})
+                </button>
+                <button class="ai-tab-btn ${migState.activePreviewTab === 'products' ? 'active' : ''}" onclick="migState.activePreviewTab='products'; renderMigrationView(document.getElementById('content-container'))">
+                  📦 Produkte (${p.products.length})
+                </button>
+                <button class="ai-tab-btn ${migState.activePreviewTab === 'invoices' ? 'active' : ''}" onclick="migState.activePreviewTab='invoices'; renderMigrationView(document.getElementById('content-container'))">
+                  📄 Rechnungen (${p.invoices.length})
+                </button>
+                <button class="ai-tab-btn ${migState.activePreviewTab === 'expenses' ? 'active' : ''}" onclick="migState.activePreviewTab='expenses'; renderMigrationView(document.getElementById('content-container'))">
+                  🧾 Ausgaben (${p.expenses.length})
+                </button>
+              </div>
+
+              ${previewTableHtml}
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Step 3: Import Result Breakdown -->
+        ${migState.importResult ? `
+          <div class="card" style="border: 2px solid #86efac; background: #f0fdf4;">
+            <div style="font-weight:800; font-size:16px; color:#14532d; margin-bottom:4px;">✅ Daten-Umzug erfolgreich abgeschlossen!</div>
+            <p style="font-size:13px; color:#166534; margin-bottom:14px;">Deine Daten wurden in deinen lokalen Rechly-Arbeitsbereich übernommen:</p>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-bottom:14px;">
+              <div style="background:#ffffff; border:1px solid #bbf7d0; border-radius:8px; padding:12px;">
+                <div style="font-size:11px; color:#64748b;">Kunden</div>
+                <div style="font-size:18px; font-weight:800; color:#15803d;">+${migState.importResult.clients.inserted}</div>
+                <div style="font-size:11px; color:#94a3b8;">${migState.importResult.clients.skipped} Duplikate übersprungen</div>
+              </div>
+              <div style="background:#ffffff; border:1px solid #bbf7d0; border-radius:8px; padding:12px;">
+                <div style="font-size:11px; color:#64748b;">Produkte</div>
+                <div style="font-size:18px; font-weight:800; color:#15803d;">+${migState.importResult.products.inserted}</div>
+                <div style="font-size:11px; color:#94a3b8;">${migState.importResult.products.skipped} Duplikate übersprungen</div>
+              </div>
+              <div style="background:#ffffff; border:1px solid #bbf7d0; border-radius:8px; padding:12px;">
+                <div style="font-size:11px; color:#64748b;">Rechnungen</div>
+                <div style="font-size:18px; font-weight:800; color:#15803d;">+${migState.importResult.invoices.inserted}</div>
+                <div style="font-size:11px; color:#94a3b8;">${migState.importResult.invoices.skipped} Duplikate übersprungen</div>
+              </div>
+              <div style="background:#ffffff; border:1px solid #bbf7d0; border-radius:8px; padding:12px;">
+                <div style="font-size:11px; color:#64748b;">Ausgaben</div>
+                <div style="font-size:18px; font-weight:800; color:#15803d;">+${migState.importResult.expenses.inserted}</div>
+                <div style="font-size:11px; color:#94a3b8;">${migState.importResult.expenses.skipped} Duplikate übersprungen</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-primary btn-sm" onclick="showView('clients')">Zu den Kunden</button>
+              <button class="btn btn-secondary btn-sm" onclick="showView('invoices')">Zu den Rechnungen</button>
+              <button class="btn btn-secondary btn-sm" onclick="showView('expenses')">Zu den Ausgaben</button>
+            </div>
+          </div>
+        ` : ''}
+      `;
+    }
+
     // ─── View 8: Offline Tools & Rechner ───
     function renderToolsView(container) {
       container.innerHTML = `
@@ -3293,6 +3895,18 @@
               <b>✨ Minimal</b>
               <div style="font-size:12px; color:#64748b; margin-top:4px;">Viel Weißraum, dezente Haarlinien-Trenner, puristische Eleganz.</div>
             </label>
+          </div>
+        </div>
+
+        <!-- Move to Rechly: Web <-> Desktop Backup & Competitor Migration -->
+        <div class="card" style="border: 1px solid #c7d2fe; background: linear-gradient(135deg, #eef2ff 0%, #ffffff 100%);">
+          <div class="card-title">🔄 Daten-Umzug & Komplett-Backup (Web ⇄ Desktop)</div>
+          <p style="font-size:13px; color:#475569; margin-bottom:14px;">
+            Importiere Kunden, Produkte, Rechnungen und Ausgaben aus <b>Lexware Office, sevdesk, FastBill, DATEV, XRechnung/ZUGFeRD</b> oder ziehe mit 1 Klick zwischen <b>Rechly Cloud (Web)</b> und <b>Rechly Desktop</b> um.
+          </p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="showView('migration')">🔄 Daten-Umzug & Import-Assistent öffnen</button>
+            <button class="btn btn-secondary" onclick="exportFullRechlyBackupJson()">☁️ Komplett-Backup herunterladen (.json)</button>
           </div>
         </div>
 
