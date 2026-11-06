@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import type {
     AiSettings,
+    AppUpdateInfo,
+    AppUpdateProgress,
     Client,
     Company,
     Draft,
@@ -127,6 +129,23 @@ const api = {
         const listener = () => callback();
         ipcRenderer.on("backup:requestExport", listener);
         return () => ipcRenderer.removeListener("backup:requestExport", listener);
+    },
+
+    // In-App Auto-Updater
+    checkForUpdates: (): Promise<AppUpdateInfo> => ipcRenderer.invoke("updater:check"),
+    downloadUpdate: (downloadUrl: string): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+        ipcRenderer.invoke("updater:download", downloadUrl),
+    installUpdate: (targetPath?: string): Promise<{ success: boolean; error?: string }> =>
+        ipcRenderer.invoke("updater:install", targetPath),
+    onUpdateStatus: (callback: (info: AppUpdateInfo) => void) => {
+        const listener = (_e: any, info: AppUpdateInfo) => callback(info);
+        ipcRenderer.on("updater:status", listener);
+        return () => ipcRenderer.removeListener("updater:status", listener);
+    },
+    onUpdateProgress: (callback: (progress: AppUpdateProgress) => void) => {
+        const listener = (_e: any, progress: AppUpdateProgress) => callback(progress);
+        ipcRenderer.on("updater:progress", listener);
+        return () => ipcRenderer.removeListener("updater:progress", listener);
     },
 };
 

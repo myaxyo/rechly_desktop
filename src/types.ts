@@ -264,3 +264,22 @@ export interface ExportResult {
     filePath?: string;
     error?: string;
 }
+
+export interface AppUpdateInfo {
+    available: boolean;
+    currentVersion: string;
+    latestVersion?: string;
+    releaseName?: string;
+    releaseNotes?: string;
+    releaseDate?: string;
+    releaseUrl?: string;
+    downloadUrl?: string;
+    error?: string;
+}
+
+export interface AppUpdateProgress {
+    percent: number;
+    bytesPerSecond: number;
+    transferred: number;
+    total: number;
+}

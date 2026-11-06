@@ -106,6 +106,27 @@
       color: #6b21a8;
       border-color: #e9d5ff;
     }
+    .update-pill {
+      background: #10b981;
+      color: #ffffff;
+      border: 1px solid #059669;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+      animation: pulse-update 2.5s infinite ease-in-out;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      transition: background 0.15s, transform 0.15s;
+    }
+    .update-pill:hover {
+      background: #059669;
+      transform: translateY(-1px);
+    }
+    @keyframes pulse-update {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+      50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+    }
 
     .titlebar-right {
       display: flex;
@@ -1043,6 +1064,9 @@
       <span id="ai-model-indicator" class="badge ai-pill" onclick="showAiSettingsModal()" title="Klicken für KI-Konfiguration (Ollama, OpenAI, Claude)">
         ⚪ Lade KI...
       </span>
+      <span id="update-indicator" class="badge update-pill" style="display:none;" onclick="openUpdateModal()" title="Neues Update verfügbar">
+        🚀 Update verfügbar
+      </span>
     </div>
 
     <div class="titlebar-right">
@@ -1122,6 +1146,33 @@
   </div>
 
   <!-- ─── Modals ─── -->
+
+  <!-- Auto-Update Modal -->
+  <div class="modal-backdrop" id="modal-update" style="display:none;">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title" id="update-modal-title">🚀 Neues Update verfügbar</div>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-update')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="update-modal-info" style="font-size: 13px; line-height: 1.5; color: var(--text-color);"></div>
+        <div id="update-progress-container" style="display:none; margin-top: 14px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px; color:#475569;">
+            <span id="update-progress-label">Wird heruntergeladen...</span>
+            <span id="update-progress-pct" style="font-weight:600;">0%</span>
+          </div>
+          <div style="background:#e2e8f0; border-radius:6px; height:8px; overflow:hidden;">
+            <div id="update-progress-bar" style="background:#10b981; width:0%; height:100%; transition:width 0.2s ease;"></div>
+          </div>
+          <div id="update-progress-speed" style="font-size:11px; color:#64748b; margin-top:4px;"></div>
+        </div>
+      </div>
+      <div class="modal-footer" id="update-modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-update')">Später</button>
+        <button class="btn btn-primary" id="btn-update-action" onclick="handleUpdateAction()">Jetzt aktualisieren</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Client Creation Modal -->
   <div class="modal-backdrop" id="modal-client">
@@ -1387,7 +1438,168 @@
         updateBadges();
         showView('business');
         updateAiStatusPill();
+        setupAutoUpdater();
         if (!currentStore.onboarding) await showOnboarding();
+      }
+    }
+
+    // ─── Auto-Updater UI Logic ───
+    let currentAppUpdate = null;
+    let updateDownloadState = 'idle'; // 'idle' | 'downloading' | 'downloaded'
+
+    function setupAutoUpdater() {
+      if (!window.rechly || !window.rechly.onUpdateStatus) return;
+
+      window.rechly.onUpdateStatus((info) => {
+        if (info && info.available) {
+          currentAppUpdate = info;
+          showUpdateIndicator(info);
+        }
+      });
+
+      window.rechly.onUpdateProgress((p) => {
+        updateDownloadState = 'downloading';
+        const progContainer = document.getElementById('update-progress-container');
+        if (progContainer) progContainer.style.display = 'block';
+
+        const bar = document.getElementById('update-progress-bar');
+        const pct = document.getElementById('update-progress-pct');
+        const spd = document.getElementById('update-progress-speed');
+        const btn = document.getElementById('btn-update-action');
+
+        if (bar) bar.style.width = `${p.percent}%`;
+        if (pct) pct.innerText = `${p.percent}%`;
+        if (spd) {
+          const mbTransferred = (p.transferred / (1024 * 1024)).toFixed(1);
+          const mbTotal = p.total > 0 ? (p.total / (1024 * 1024)).toFixed(1) : '?';
+          const mbSec = (p.bytesPerSecond / (1024 * 1024)).toFixed(2);
+          spd.innerText = `${mbTransferred} MB / ${mbTotal} MB (${mbSec} MB/s)`;
+        }
+        if (btn) {
+          btn.disabled = true;
+          btn.innerText = `Wird geladen (${p.percent}%)…`;
+        }
+      });
+    }
+
+    function showUpdateIndicator(info) {
+      const pill = document.getElementById('update-indicator');
+      if (!pill) return;
+      pill.style.display = 'inline-flex';
+      pill.innerHTML = `🚀 <b>Update v${esc(info.latestVersion)}</b>`;
+      pill.title = `Klicken, um Update v${esc(info.latestVersion)} zu installieren`;
+    }
+
+    function openUpdateModal() {
+      if (!currentAppUpdate) return;
+      const modal = document.getElementById('modal-update');
+      const title = document.getElementById('update-modal-title');
+      const info = document.getElementById('update-modal-info');
+      const btn = document.getElementById('btn-update-action');
+
+      if (title) title.innerText = `🚀 Update v${currentAppUpdate.latestVersion || ''} verfügbar`;
+
+      let notesHtml = '';
+      if (currentAppUpdate.releaseNotes) {
+        notesHtml = `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px 12px; margin-top:10px; max-height:160px; overflow-y:auto; font-size:12px; font-family:monospace; white-space:pre-wrap;">${esc(currentAppUpdate.releaseNotes)}</div>`;
+      }
+
+      if (info) {
+        info.innerHTML = `
+          <p style="margin-bottom:8px;">Eine neue Version von <b>Rechly Desktop</b> ist bereit zur Installation:</p>
+          <ul style="margin:0 0 10px 18px; padding:0; font-size:12px; color:#475569;">
+            <li><b>Aktuelle Version:</b> v${esc(currentAppUpdate.currentVersion)}</li>
+            <li><b>Neue Version:</b> <span style="color:#10b981; font-weight:700;">v${esc(currentAppUpdate.latestVersion)}</span></li>
+          </ul>
+          ${notesHtml}
+          <p style="margin-top:10px; font-size:11px; color:#64748b;">
+            💡 Ihre lokalen Daten und Rechnungen bleiben bei diesem Update zu 100% unverändert erhalten.
+          </p>
+        `;
+      }
+
+      if (btn) {
+        if (updateDownloadState === 'downloaded') {
+          btn.disabled = false;
+          btn.innerText = '🚀 Jetzt neu starten & installieren';
+        } else if (updateDownloadState === 'downloading') {
+          btn.disabled = true;
+          btn.innerText = 'Wird heruntergeladen…';
+        } else {
+          btn.disabled = false;
+          btn.innerText = 'Jetzt aktualisieren';
+        }
+      }
+
+      if (modal) modal.style.display = 'flex';
+    }
+
+    async function handleUpdateAction() {
+      const btn = document.getElementById('btn-update-action');
+      if (updateDownloadState === 'downloaded') {
+        if (btn) btn.disabled = true;
+        await window.rechly.installUpdate();
+        return;
+      }
+
+      if (!currentAppUpdate || !currentAppUpdate.downloadUrl) {
+        if (currentAppUpdate?.releaseUrl) {
+          window.open(currentAppUpdate.releaseUrl, '_blank');
+        }
+        return;
+      }
+
+      updateDownloadState = 'downloading';
+      document.getElementById('update-progress-container').style.display = 'block';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Lade herunter…';
+      }
+
+      try {
+        const res = await window.rechly.downloadUpdate(currentAppUpdate.downloadUrl);
+        if (res.success) {
+          updateDownloadState = 'downloaded';
+          document.getElementById('update-progress-label').innerText = '✅ Download abgeschlossen';
+          document.getElementById('update-progress-speed').innerText = 'Bereit zur Installation.';
+          if (btn) {
+            btn.disabled = false;
+            btn.innerText = '🚀 Jetzt neu starten & installieren';
+          }
+          showToast('Update heruntergeladen! Klicken Sie auf "Installieren", um die Aktualisierung abzuschließen.', 'success');
+        } else {
+          updateDownloadState = 'idle';
+          if (btn) {
+            btn.disabled = false;
+            btn.innerText = 'Erneut versuchen';
+          }
+          showToast(`Fehler beim Download: ${res.error}`, 'error');
+        }
+      } catch (err) {
+        updateDownloadState = 'idle';
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = 'Erneut versuchen';
+        }
+        showToast(`Fehler: ${err.message}`, 'error');
+      }
+    }
+
+    async function manualCheckForUpdates() {
+      showToast('Suche nach Updates auf GitHub…');
+      try {
+        const update = await window.rechly.checkForUpdates();
+        if (update.available) {
+          currentAppUpdate = update;
+          showUpdateIndicator(update);
+          openUpdateModal();
+        } else if (update.error) {
+          showToast(`Hinweis: ${update.error}`, 'warning');
+        } else {
+          showToast(`Sie nutzen bereits die neueste Version (v${update.currentVersion})!`, 'success');
+        }
+      } catch (err) {
+        showToast(`Updatesuche fehlgeschlagen: ${err.message}`, 'error');
       }
     }
 
@@ -2918,6 +3130,7 @@
             <div class="page-subtitle">Firmendaten pflegen und KI-Anbieter (Lokal vs. Cloud) konfigurieren.</div>
           </div>
           <div style="display:flex; gap:10px;">
+            <button class="btn btn-secondary" onclick="manualCheckForUpdates()">🔄 Nach Updates suchen</button>
             <button class="btn btn-secondary" onclick="showOnboarding()">🚀 Einrichtungsassistent</button>
             <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
           </div>

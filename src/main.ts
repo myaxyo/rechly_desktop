@@ -34,10 +34,13 @@ import {
     deleteOllamaModel,
 } from "./ai";
 import { detectOllama, launchOllama, getSystemProfile } from "./setup";
+import { checkGitHubReleaseUpdate, downloadUpdateAsset, installDownloadedUpdate } from "./updater";
 import {
     RECHLY_MODEL_FAMILY,
     type AiSettings,
     type AppInfo,
+    type AppUpdateInfo,
+    type AppUpdateProgress,
     type Client,
     type Company,
     type CompleteOnboardingRequest,
@@ -661,6 +664,19 @@ ipcMain.handle("export:xrechnung", async (_e, invoiceId: string): Promise<Export
 });
 
 ipcMain.handle("export:datev", exportDatevHandler);
+ipcMain.handle("updater:check", async (): Promise<AppUpdateInfo> => {
+    return checkGitHubReleaseUpdate(app.getVersion());
+});
+ipcMain.handle("updater:download", async (_e, downloadUrl: string) => {
+    return downloadUpdateAsset(downloadUrl, (progress) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("updater:progress", progress);
+        }
+    });
+});
+ipcMain.handle("updater:install", async (_e, targetPath?: string) => {
+    return installDownloadedUpdate(targetPath);
+});
 ipcMain.handle("backup:export", (_e, password: string) => exportBackupHandler(password));
 
 ipcMain.handle("storage:info", () => storageFailure
@@ -710,6 +726,18 @@ app.whenReady().then(() => {
     checkCalendarReminders();
     const reminderTimer = setInterval(checkCalendarReminders, 30000);
     app.once("before-quit", () => clearInterval(reminderTimer));
+
+    // Non-intrusive background update check after window displays
+    setTimeout(async () => {
+        try {
+            const update = await checkGitHubReleaseUpdate(app.getVersion());
+            if (update.available && mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send("updater:status", update);
+            }
+        } catch {
+            // Background check fails silently
+        }
+    }, 4000);
 
 });
 

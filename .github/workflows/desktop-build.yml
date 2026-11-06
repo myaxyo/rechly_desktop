@@ -90,7 +90,7 @@ jobs:
         shell: bash
         run: |
           mkdir release-files
-          find release-artifacts -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' \) -exec cp {} release-files/ \;
+          find release-artifacts -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' -o -name '*.yml' -o -name '*.blockmap' \) -exec cp {} release-files/ \;
           test "$(find release-files -name '*.exe' | wc -l)" -eq 1
           test "$(find release-files -name '*.dmg' | wc -l)" -eq 2
           cd release-files
