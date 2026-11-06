@@ -158,6 +158,7 @@ export function generateXRechnungXML(
           <ram:CityName>${escapeXml(company.city || "")}</ram:CityName>
           <ram:CountryID>${countryCode(company.country)}</ram:CountryID>
         </ram:PostalTradeAddress>
+        ${company.email ? `<ram:URIUniversalCommunication><ram:URIID schemeID="EM">${escapeXml(company.email)}</ram:URIID></ram:URIUniversalCommunication>` : (company.vat_id ? `<ram:URIUniversalCommunication><ram:URIID schemeID="9930">${escapeXml(company.vat_id.replace(/\s+/g, ""))}</ram:URIID></ram:URIUniversalCommunication>` : "")}
         ${company.vat_id ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">${escapeXml(company.vat_id)}</ram:ID></ram:SpecifiedTaxRegistration>` : ""}
         ${company.tax_number ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="FC">${escapeXml(company.tax_number)}</ram:ID></ram:SpecifiedTaxRegistration>` : ""}
       </ram:SellerTradeParty>
@@ -170,7 +171,7 @@ export function generateXRechnungXML(
           <ram:CityName>${escapeXml(client.city || "")}</ram:CityName>
           <ram:CountryID>${countryCode(client.country)}</ram:CountryID>
         </ram:PostalTradeAddress>
-        ${client.email ? `<ram:URIUniversalCommunication><ram:URIID schemeID="EM">${escapeXml(client.email)}</ram:URIID></ram:URIUniversalCommunication>` : ""}
+        ${client.email ? `<ram:URIUniversalCommunication><ram:URIID schemeID="EM">${escapeXml(client.email)}</ram:URIID></ram:URIUniversalCommunication>` : (client.leitweg_id ? `<ram:URIUniversalCommunication><ram:URIID schemeID="0204">${escapeXml(client.leitweg_id)}</ram:URIID></ram:URIUniversalCommunication>` : (client.vat_id ? `<ram:URIUniversalCommunication><ram:URIID schemeID="9930">${escapeXml(client.vat_id.replace(/\s+/g, ""))}</ram:URIID></ram:URIUniversalCommunication>` : ""))}
         ${client.vat_id ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">${escapeXml(client.vat_id)}</ram:ID></ram:SpecifiedTaxRegistration>` : ""}
       </ram:BuyerTradeParty>
     </ram:ApplicableHeaderTradeAgreement>

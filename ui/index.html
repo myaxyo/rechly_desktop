@@ -3041,6 +3041,9 @@
             <div class="form-group"><label>Straße & Hausnummer</label><input type="text" id="set-addr" value="${comp.address_line1 || ''}"></div>
             <div class="form-group"><label>PLZ</label><input type="text" id="set-plz" value="${comp.postal_code || ''}"></div>
             <div class="form-group"><label>Stadt</label><input type="text" id="set-city" value="${comp.city || ''}"></div>
+            <div class="form-group"><label>Land (ISO-Code)</label><input type="text" id="set-country" value="${comp.country || 'DE'}" placeholder="DE"></div>
+            <div class="form-group"><label>E-Mail-Adresse (BT-34)</label><input type="email" id="set-email" value="${comp.email || ''}" placeholder="rechnung@meine-firma.de"></div>
+            <div class="form-group"><label>Telefon</label><input type="tel" id="set-phone" value="${comp.phone || ''}"></div>
             <div class="form-group"><label>USt-IdNr.</label><input type="text" id="set-vat" value="${comp.vat_id || ''}"></div>
             <div class="form-group"><label>Steuernummer</label><input type="text" id="set-tax" value="${comp.tax_number || ''}"></div>
             <div class="form-group"><label>IBAN</label><input type="text" id="set-iban" value="${comp.bank_iban || ''}"></div>
@@ -3332,6 +3335,9 @@
         address_line1: document.getElementById('set-addr').value,
         postal_code: document.getElementById('set-plz').value,
         city: document.getElementById('set-city').value,
+        country: document.getElementById('set-country')?.value.trim() || currentStore.company?.country || 'DE',
+        email: document.getElementById('set-email')?.value.trim() || currentStore.company?.email || '',
+        phone: document.getElementById('set-phone')?.value.trim() || currentStore.company?.phone || '',
         vat_id: document.getElementById('set-vat').value,
         tax_number: document.getElementById('set-tax').value,
         bank_iban: document.getElementById('set-iban').value,
