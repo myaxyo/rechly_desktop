@@ -115,6 +115,8 @@ export function validateStore(raw: unknown): StoreData {
   )
     fail("Kleinunternehmer-Einstellung ungültig.");
   fields(data.aiSettings, Object.keys(getDefaultStore().aiSettings));
+  if (data.company.show_payment_qr !== undefined && typeof data.company.show_payment_qr !== "boolean")
+    fail("Zahlungs-QR-Einstellung ungültig.");
   if (
     !["ollama", "openai", "anthropic"].includes(data.aiSettings.active_provider)
   )

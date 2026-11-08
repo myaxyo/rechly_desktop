@@ -138,3 +138,25 @@ test('generateDatevExport outputs valid EXTF 700 header and SKR03 transaction ro
     assert.ok(csv.includes('1190,00;"S";"EUR";10000;8400;'));
     assert.ok(csv.includes('"RE-2026-001"'));
 });
+
+test('discounted prices, explicit zero VAT and mixed rates agree with line totals', () => {
+    const xml = generateXRechnungXML({ ...mockInvoice, subtotal: 240, total_vat: 20.6, total_gross: 260.6, items: [
+        { description: 'Discounted', quantity: 2, price: 50, discount_percent: 10, tax_rate_percent: 19 },
+        { description: 'Reduced', quantity: 1, price: 50, tax_rate_percent: 7 },
+        { description: 'Zero', quantity: 1, price: 100, tax_rate_percent: 0 },
+    ] }, mockCompany, mockClient);
+    assert.match(xml, /<ram:ChargeAmount>45\.000000<\/ram:ChargeAmount>/);
+    assert.match(xml, /<ram:LineTotalAmount>90\.00<\/ram:LineTotalAmount>/);
+    const settlement = xml.slice(xml.indexOf('<ram:ApplicableHeaderTradeSettlement>'));
+    assert.equal((settlement.match(/<ram:ApplicableTradeTax>/g) || []).length, 3);
+    assert.match(settlement, /<ram:CalculatedAmount>17\.10<\/ram:CalculatedAmount>/);
+    assert.match(settlement, /<ram:CalculatedAmount>3\.50<\/ram:CalculatedAmount>/);
+    assert.match(settlement, /<ram:CategoryCode>Z<\/ram:CategoryCode>/);
+    assert.match(settlement, /<ram:RateApplicablePercent>0<\/ram:RateApplicablePercent>/);
+});
+
+test('small business export explains its VAT exemption', () => {
+    const xml = generateXRechnungXML({ ...mockInvoice, total_vat: 0, total_gross: 1000 }, { ...mockCompany, is_small_business: true }, mockClient);
+    assert.match(xml, /<ram:ExemptionReason>Gemäß § 19 UStG/);
+    assert.match(xml, /<ram:CategoryCode>E<\/ram:CategoryCode>/);
+});

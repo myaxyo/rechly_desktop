@@ -76,10 +76,30 @@ export function generateXRechnungXML(
             ? `<ram:SpecifiedTradePaymentTerms>${termsText ? `<ram:Description>${escapeXml(termsText)}</ram:Description>` : ""}${dueDate ? `<ram:DueDateDateTime><udt:DateTimeString format="102">${dueDate}</udt:DateTimeString></ram:DueDateDateTime>` : ""}</ram:SpecifiedTradePaymentTerms>`
             : "";
 
+    // Match web export semantics: discounted net prices and one tax group per rate.
+    const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+    const groups = new Map<number, { net: number; tax: number }>();
+    for (const item of invoice.items || []) {
+        const rate = company.is_small_business ? 0 : (item.tax_rate_percent ?? 0);
+        const net = round(item.quantity * item.price * (1 - (item.discount_percent ?? 0) / 100));
+        const group = groups.get(rate) || { net: 0, tax: 0 };
+        group.net = round(group.net + net);
+        group.tax = round(group.tax + round(net * rate / 100));
+        groups.set(rate, group);
+    }
+    const headerTaxXml = [...groups].map(([rate, group]) => `<ram:ApplicableTradeTax>
+        <ram:CalculatedAmount>${group.tax.toFixed(2)}</ram:CalculatedAmount>
+        <ram:TypeCode>VAT</ram:TypeCode>
+        ${company.is_small_business ? '<ram:ExemptionReason>Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.</ram:ExemptionReason>' : ''}
+        <ram:BasisAmount>${group.net.toFixed(2)}</ram:BasisAmount>
+        <ram:CategoryCode>${company.is_small_business ? 'E' : rate === 0 ? 'Z' : 'S'}</ram:CategoryCode>
+        <ram:RateApplicablePercent>${rate}</ram:RateApplicablePercent>
+      </ram:ApplicableTradeTax>`).join('\n');
+
     // Line items
     const lineItemsXml = (invoice.items || []).map((item, index) => {
-        const lineNet = item.quantity * item.price * (1 - (item.discount_percent || 0) / 100);
-        const vatRate = company.is_small_business ? 0 : (item.tax_rate_percent || 19);
+        const lineNet = round(item.quantity * item.price * (1 - (item.discount_percent || 0) / 100));
+        const vatRate = company.is_small_business ? 0 : (item.tax_rate_percent ?? 0);
         const vatCategory = company.is_small_business ? "E" : (vatRate === 0 ? "Z" : "S");
 
         return `
@@ -92,11 +112,11 @@ export function generateXRechnungXML(
       </ram:SpecifiedTradeProduct>
       <ram:SpecifiedLineTradeAgreement>
         <ram:NetPriceProductTradePrice>
-          <ram:ChargeAmount>${item.price.toFixed(2)}</ram:ChargeAmount>
+          <ram:ChargeAmount>${(item.price * (1 - (item.discount_percent ?? 0) / 100)).toFixed(6)}</ram:ChargeAmount>
         </ram:NetPriceProductTradePrice>
       </ram:SpecifiedLineTradeAgreement>
       <ram:SpecifiedLineTradeDelivery>
-        <ram:BilledQuantity unitCode="${unitCode(item.unit_of_measure)}">${item.quantity.toFixed(2)}</ram:BilledQuantity>
+        <ram:BilledQuantity unitCode="${unitCode(item.unit_of_measure)}">${item.quantity}</ram:BilledQuantity>
       </ram:SpecifiedLineTradeDelivery>
       <ram:SpecifiedLineTradeSettlement>
         <ram:ApplicableTradeTax>
@@ -193,13 +213,7 @@ export function generateXRechnungXML(
       <ram:PaymentReference>${escapeXml(invoice.invoice_number)}</ram:PaymentReference>
       <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
       ${paymentMeansXml}
-      <ram:ApplicableTradeTax>
-        <ram:CalculatedAmount>${(invoice.total_vat || 0).toFixed(2)}</ram:CalculatedAmount>
-        <ram:TypeCode>VAT</ram:TypeCode>
-        <ram:BasisAmount>${(invoice.subtotal || 0).toFixed(2)}</ram:BasisAmount>
-        <ram:CategoryCode>${company.is_small_business ? "E" : "S"}</ram:CategoryCode>
-        <ram:RateApplicablePercent>${company.is_small_business ? 0 : 19}</ram:RateApplicablePercent>
-      </ram:ApplicableTradeTax>
+      ${headerTaxXml}
       ${paymentTermsXml}
 
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>

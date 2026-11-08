@@ -2295,7 +2295,7 @@
                 Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
               </div>` : `
               <div style="display: flex; justify-content: space-between; font-size: 9.5pt; color: #475569; margin-bottom: 6px;">
-                <span>Umsatzsteuer (19%):</span>
+                <span>Umsatzsteuer:</span>
                 <span style="font-weight: 600;">${(inv.total_vat || 0).toFixed(2)} €</span>
               </div>`}
               <div style="display: flex; justify-content: space-between; font-size: 13pt; font-weight: 800; color: #0f172a; border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; padding: 6px 0; margin-top: 6px;">
@@ -2422,7 +2422,7 @@
                 § 19 UStG: Keine Ausweisung von MwSt.
               </div>` : `
               <div style="display: flex; justify-content: space-between; font-size: 9.5pt; color: #475569; margin-bottom: 8px;">
-                <span>MwSt. (19%):</span>
+                <span>MwSt.:</span>
                 <span style="font-weight: 600;">${(inv.total_vat || 0).toFixed(2)} €</span>
               </div>`}
               <div style="display: flex; justify-content: space-between; align-items: center; background: #2563eb; color: #ffffff; padding: 10px 12px; border-radius: 6px; margin-top: 6px;">
@@ -2515,7 +2515,7 @@
               </div>
               ${comp.is_small_business ? '' : `
               <div style="display: flex; justify-content: space-between; font-size: 9pt; color: #64748b; padding: 4px 0;">
-                <span>MwSt. (19%)</span>
+                <span>MwSt.</span>
                 <span style="color: #0f172a;">${(inv.total_vat || 0).toFixed(2)} €</span>
               </div>`}
               <div style="display: flex; justify-content: space-between; font-size: 14pt; font-weight: 600; color: #0f172a; border-top: 1px solid #0f172a; padding: 10px 0 0 0; margin-top: 6px;">
@@ -2549,7 +2549,16 @@
       previewDocument('offer', id);
     }
 
-    function previewDocument(kind, id) {
+    function invoicePositionAmount(item) {
+      return (item.quantity || 0) * (item.price || 0) * (1 - (item.discount_percent || 0) / 100);
+    }
+    function invoicePositionDescription(item, company) {
+      const detail = [item.discount_percent ? `${Number(item.discount_percent)}% Rabatt` : '', company.is_small_business ? '' : `${Number(item.tax_rate_percent ?? 0)}% USt.`].filter(Boolean).join(' · ');
+      return `${esc(item.description || '')}${detail ? `<br><small>${detail}</small>` : ''}`;
+    }
+    let paymentPreviewVersion = 0;
+    async function previewDocument(kind, id) {
+      const version = ++paymentPreviewVersion;
       activePreviewInvoiceId = id;
       activePreviewKind = kind;
       printLabels = PRINT_LABELS[kind];
@@ -2571,10 +2580,10 @@
         const modernItems = (inv.items || []).map((it, idx) => `
           <tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 1 ? 'background: #f8fafc;' : ''}">
             <td style="padding: 10px 12px; text-align: center; color: #64748b;">${idx + 1}</td>
-            <td style="padding: 10px 12px;"><b>${it.description || ''}</b></td>
+            <td style="padding: 10px 12px;"><b>${invoicePositionDescription(it, comp)}</b></td>
             <td style="padding: 10px 12px; text-align: right;">${it.quantity} ${it.unit_of_measure || ''}</td>
             <td style="padding: 10px 12px; text-align: right;">${(it.price || 0).toFixed(2)} €</td>
-            <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: #0f172a;">${((it.quantity || 0) * (it.price || 0)).toFixed(2)} €</td>
+            <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: #0f172a;">${invoicePositionAmount(it).toFixed(2)} €</td>
           </tr>
         `).join('');
         templateHtml = getModernInvoiceHtml(inv, comp, client, modernItems);
@@ -2582,10 +2591,10 @@
         const minimalItems = (inv.items || []).map((it, idx) => `
           <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 12px 0; color: #94a3b8;">${idx + 1}</td>
-            <td style="padding: 12px 0; font-weight: 500;">${it.description || ''}</td>
+            <td style="padding: 12px 0; font-weight: 500;">${invoicePositionDescription(it, comp)}</td>
             <td style="padding: 12px 0; text-align: right; color: #64748b;">${it.quantity} ${it.unit_of_measure || ''}</td>
             <td style="padding: 12px 0; text-align: right; color: #64748b;">${(it.price || 0).toFixed(2)} €</td>
-            <td style="padding: 12px 0; text-align: right; font-weight: 500;">${((it.quantity || 0) * (it.price || 0)).toFixed(2)} €</td>
+            <td style="padding: 12px 0; text-align: right; font-weight: 500;">${invoicePositionAmount(it).toFixed(2)} €</td>
           </tr>
         `).join('');
         templateHtml = getMinimalInvoiceHtml(inv, comp, client, minimalItems);
@@ -2594,15 +2603,30 @@
         const classicItems = (inv.items || []).map((it, idx) => `
           <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="padding: 10px 6px; text-align: center; color: #64748b;">${idx + 1}</td>
-            <td style="padding: 10px 6px;"><b>${it.description || ''}</b></td>
+            <td style="padding: 10px 6px;"><b>${invoicePositionDescription(it, comp)}</b></td>
             <td style="padding: 10px 6px; text-align: right;">${it.quantity} ${it.unit_of_measure || ''}</td>
             <td style="padding: 10px 6px; text-align: right;">${(it.price || 0).toFixed(2)} €</td>
-            <td style="padding: 10px 6px; text-align: right; font-weight: 600;">${((it.quantity || 0) * (it.price || 0)).toFixed(2)} €</td>
+            <td style="padding: 10px 6px; text-align: right; font-weight: 600;">${invoicePositionAmount(it).toFixed(2)} €</td>
           </tr>
         `).join('');
         templateHtml = getClassicInvoiceHtml(inv, comp, client, classicItems);
       }
 
+      let paymentNotice = '';
+      if (kind === 'invoice' && comp.show_payment_qr && inv.status !== 'paid' && inv.total_gross > 0) {
+        // Clear the previous preview while local QR generation is pending.
+        document.getElementById('print-modal').style.display = 'none';
+        try {
+          const qr = await window.rechly.getInvoicePaymentQr(id);
+          if (qr) {
+            const payment = `<section class="invoice-payment-qr" style="display:flex;align-items:center;gap:18px;break-inside:avoid;margin:20px 0"><img src="${qr}" width="132" height="132" alt="GiroCode für die Überweisung"><div style="font-size:10pt"><b>Einfach per Banking-App bezahlen</b><p>GiroCode scannen und Überweisungsdaten prüfen.</p></div></section>`;
+            templateHtml = templateHtml.replace('<div class="print-footer-section"', payment + '<div class="print-footer-section"');
+          } else paymentNotice = '<p class="no-print" role="status">Kein GiroCode: Bitte Kontoinhaber, IBAN, BIC, Betrag und Rechnungsnummer in den Einstellungen bzw. der Rechnung prüfen.</p>';
+        } catch {
+          paymentNotice = '<p class="no-print" role="alert">Der GiroCode konnte nicht erstellt werden. Schließen Sie die Vorschau und versuchen Sie es erneut.</p>';
+        }
+      }
+      if (version !== paymentPreviewVersion) return;
       const sheet = document.getElementById('print-sheet-content');
       sheet.innerHTML = `
         <div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:16px; flex-wrap:wrap; gap:10px;">
@@ -2622,7 +2646,7 @@
           <button class="btn btn-secondary" onclick="closePrintModal()">Schließen ✕</button>
         </div>
 
-        ${templateHtml}
+        ${paymentNotice}${templateHtml}
       `;
 
       document.getElementById('print-modal').style.display = 'flex';
@@ -2639,6 +2663,7 @@
     }
 
     function closePrintModal() {
+      paymentPreviewVersion++;
       document.getElementById('print-modal').style.display = 'none';
     }
 
@@ -3898,6 +3923,11 @@
           </div>
         </div>
 
+        <div class="card">
+          <div class="card-title">Zahlungs-QR-Code (optional)</div>
+          <label><input type="checkbox" id="set-payment-qr" ${comp.show_payment_qr ? 'checked' : ''}> GiroCode auf unbezahlten Rechnungen anzeigen</label>
+          <p style="font-size:13px;color:#64748b;margin-top:10px">Kunden können die Überweisung in ihrer Banking-App vorausfüllen. Benötigt eine gültige IBAN und den Kontoinhaber als Firmenname. Die Erstellung erfolgt vollständig lokal; Angebote und bezahlte Rechnungen erhalten keinen Code.</p>
+        </div>
         <!-- Move to Rechly: Web <-> Desktop Backup & Competitor Migration -->
         <div class="card" style="border: 1px solid #c7d2fe; background: linear-gradient(135deg, #eef2ff 0%, #ffffff 100%);">
           <div class="card-title">🔄 Daten-Umzug & Komplett-Backup (Web ⇄ Desktop)</div>
@@ -4171,6 +4201,7 @@
         bank_bic: document.getElementById('set-bic').value,
         bank_name: document.getElementById('set-bank').value,
         is_small_business: document.getElementById('set-smallbiz').checked,
+        show_payment_qr: document.getElementById('set-payment-qr').checked,
         invoice_template: document.querySelector('input[name="set-tpl"]:checked')?.value || currentStore.company?.invoice_template || 'classic',
       };
 

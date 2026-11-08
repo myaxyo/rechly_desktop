@@ -21,6 +21,7 @@ export interface Company {
     payment_terms_default?: string;
     is_small_business?: boolean;
     invoice_template?: string;
+    show_payment_qr?: boolean;
 }
 
 export interface InvoiceItem {

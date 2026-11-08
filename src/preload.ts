@@ -43,6 +43,7 @@ const api = {
     saveCompany: (data: Company) => ipcRenderer.invoke("company:save", data),
 
     // Invoices
+    getInvoicePaymentQr: (id: string): Promise<string | null> => ipcRenderer.invoke("invoice:paymentQr", id),
     getInvoices: () => ipcRenderer.invoke("invoices:getAll"),
     createInvoice: (data: Draft<Invoice>) => ipcRenderer.invoke("invoices:create", data),
     updateInvoice: (id: string, data: Draft<Invoice>) =>

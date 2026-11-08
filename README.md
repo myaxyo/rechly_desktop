@@ -64,6 +64,10 @@ See the [1.2.1 changes](docs/RELEASE-1.2.1.md), [1.2.0 changes](docs/RELEASE-1.2
 
 ## Business Workspace
 
+Optional invoice payment QR codes and web/desktop parity changes are documented
+in [Web parity](docs/WEB-PARITY.md). Enable GiroCode explicitly in Settings;
+generation remains entirely local.
+
 The app now opens in a German-language business cockpit alongside the existing invoice workflows:
 
 - **Documents:** create business letters, meeting minutes and notes from editable templates, link them to projects, search their contents and export A4 PDF or UTF-8 text files.

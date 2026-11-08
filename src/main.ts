@@ -8,6 +8,7 @@ import { validateEvent, occurrences, exportCalendar, importCalendar, localStamp 
 import { collection, emptyBusiness, saveBusinessRecord, deleteBusinessRecord, documentHtml } from "./business";
 import { randomUUID } from "node:crypto";
 import { validateInvoice } from "./invoiceValidation";
+import { invoicePaymentQr } from "./invoicePayment";
 import {
     app,
     Notification,
@@ -643,6 +644,12 @@ ipcMain.handle("onboarding:complete", (_e, req: CompleteOnboardingRequest): Onbo
 });
 
 // Native Exports
+ipcMain.handle("invoice:paymentQr", async (_e, invoiceId: unknown) => {
+    if (typeof invoiceId !== "string") throw new Error("Ungültige Rechnung.");
+    const invoice = (store.get("invoices") || []).find(row => row.id === invoiceId);
+    if (!invoice) throw new Error("Rechnung nicht gefunden.");
+    return invoicePaymentQr(invoice, store.get("company") || {});
+});
 ipcMain.handle("export:pdf", async (_e, invoiceId: string): Promise<ExportResult> => {
     if (!mainWindow) return { success: false };
     const inv = (store.get("invoices") || []).find((i) => i.id === invoiceId);
