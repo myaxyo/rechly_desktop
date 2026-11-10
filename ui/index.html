@@ -1080,8 +1080,13 @@
     <!-- Sidebar -->
     <div class="sidebar">
       <div class="sidebar-header" onclick="showView('settings')">
-        <div class="company-name" id="sidebar-company-name">Meine Firma</div>
-        <div class="company-legal" id="sidebar-company-legal">Einzelunternehmen</div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <img id="sidebar-company-logo" src="" alt="Logo" style="display:none; width:34px; height:34px; border-radius:6px; object-fit:contain; background:#ffffff; border:1px solid rgba(255,255,255,0.15); flex-shrink:0;">
+          <div style="overflow:hidden;">
+            <div class="company-name" id="sidebar-company-name">Meine Firma</div>
+            <div class="company-legal" id="sidebar-company-legal">Einzelunternehmen</div>
+          </div>
+        </div>
       </div>
 
       <div class="nav-group-title">Arbeitsplatz</div>
@@ -1618,6 +1623,15 @@
 
     function updateSidebarCompany() {
       const c = currentStore.company || {};
+      const logoEl = document.getElementById('sidebar-company-logo');
+      if (logoEl) {
+        if (c.logo_base64) {
+          logoEl.src = c.logo_base64;
+          logoEl.style.display = 'block';
+        } else {
+          logoEl.style.display = 'none';
+        }
+      }
       document.getElementById('sidebar-company-name').innerText = c.name || 'Meine Firma';
       document.getElementById('sidebar-company-legal').innerText = c.legal_form || 'Einzelunternehmen';
     }
@@ -2228,6 +2242,7 @@
 
             <!-- Right: DIN Meta Information Block -->
             <div style="width: 38%; text-align: left; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 16px;">
+              ${comp.logo_base64 ? `<div style="margin-bottom: 12px; display: flex; align-items: center;"><img src="${comp.logo_base64}" alt="Firmenlogo" style="max-height: 52px; max-width: 100%; object-fit: contain; display: block;"></div>` : ''}
               <div style="font-size: 15pt; font-weight: 800; color: #0f172a; margin-bottom: 2px;">${comp.name || 'Meine Firma'}</div>
               <div style="font-size: 8.5pt; color: #64748b; margin-bottom: 12px;">${comp.legal_form || 'Unternehmen'}</div>
               
@@ -2346,9 +2361,12 @@
           
           <!-- Top Modern Header Banner -->
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px;">
-            <div>
-              <div style="font-size: 20pt; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">${comp.name || 'Meine Firma'}</div>
-              <div style="font-size: 9pt; color: #64748b; margin-top: 2px;">${comp.legal_form || 'Business'} • ${comp.city || ''}</div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+              ${comp.logo_base64 ? `<img src="${comp.logo_base64}" alt="Firmenlogo" style="max-height: 55px; max-width: 150px; object-fit: contain; display: block;">` : ''}
+              <div>
+                <div style="font-size: 20pt; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">${comp.name || 'Meine Firma'}</div>
+                <div style="font-size: 9pt; color: #64748b; margin-top: 2px;">${comp.legal_form || 'Business'} • ${comp.city || ''}</div>
+              </div>
             </div>
             <div style="text-align: right;">
               <div style="display: inline-block; background: #2563eb; color: #ffffff; font-weight: 800; font-size: 11pt; padding: 4px 12px; border-radius: 6px; letter-spacing: 0.5px; margin-bottom: 4px;">
@@ -2458,8 +2476,9 @@
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; font-size: 10pt; line-height: 1.5; padding: 10px 0;">
           
           <!-- Minimal Header -->
-          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 45px;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 45px;">
             <div>
+              ${comp.logo_base64 ? `<div style="margin-bottom: 12px;"><img src="${comp.logo_base64}" alt="Firmenlogo" style="max-height: 48px; max-width: 160px; object-fit: contain; display: block;"></div>` : ''}
               <div style="font-size: 24pt; font-weight: 300; letter-spacing: -0.5px; color: #0f172a;">${comp.name || 'Meine Firma'}</div>
               <div style="font-size: 9pt; color: #94a3b8; font-weight: 400; margin-top: 2px;">${comp.legal_form || ''}</div>
             </div>
@@ -3744,9 +3763,79 @@
       document.getElementById('calc-skonto-res').innerHTML = `Abzug: <b>${discount.toFixed(2)} €</b> | Zahlbetrag: <b>${(gross - discount).toFixed(2)} €</b>`;
     }
 
+    let currentSettingsLogo = null;
+
+    async function normalizeLogoFile(file) {
+      if (!file) throw new Error('Keine Datei ausgewählt.');
+      if (file.size > 5 * 1024 * 1024) throw new Error('Die Bilddatei ist zu groß (maximal 5 MB erlaubt).');
+      if (!file.type.startsWith('image/')) throw new Error('Bitte wählen Sie eine gültige Bilddatei (PNG, JPG, WebP) aus.');
+
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Die Bilddatei konnte nicht verarbeitet werden.'));
+        };
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const maxWidth = 600;
+          const width = img.naturalWidth || img.width;
+          const height = img.naturalHeight || img.height;
+          if (!width || !height) {
+            return reject(new Error('Ungültige Bildabmessungen.'));
+          }
+          const scale = Math.min(1, maxWidth / width);
+          const targetWidth = Math.max(1, Math.round(width * scale));
+          const targetHeight = Math.max(1, Math.round(height * scale));
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject(new Error('Canvas konnte nicht initialisiert werden.'));
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.src = url;
+      });
+    }
+
+    async function handleLogoFileSelect(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        const normalized = await normalizeLogoFile(file);
+        currentSettingsLogo = normalized;
+        const box = document.getElementById('settings-logo-preview-box');
+        if (box) {
+          box.innerHTML = `<img id="settings-logo-img" src="${normalized}" alt="Firmenlogo" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+        }
+        const removeBtn = document.getElementById('settings-logo-remove-btn');
+        if (removeBtn) removeBtn.style.display = 'inline-block';
+        showToast('Firmenlogo geladen. Klicken Sie auf "Speichern", um die Änderung zu sichern.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        event.target.value = '';
+      }
+    }
+
+    function handleRemoveLogo() {
+      currentSettingsLogo = null;
+      const box = document.getElementById('settings-logo-preview-box');
+      if (box) {
+        box.innerHTML = `<span id="settings-logo-placeholder" style="color:#94a3b8; font-size:12px; text-align:center;">Kein Logo hinterlegt</span>`;
+      }
+      const removeBtn = document.getElementById('settings-logo-remove-btn');
+      if (removeBtn) removeBtn.style.display = 'none';
+      showToast('Firmenlogo entfernt. Klicken Sie auf "Speichern", um die Änderung zu sichern.');
+    }
+
     // ─── View 9: Settings & AI Configuration ───
     function renderSettingsView(container) {
       const comp = currentStore.company || {};
+      currentSettingsLogo = comp.logo_base64 || null;
       const ai = currentStore.aiSettings || {};
       const activeProvider = ai.active_provider || 'ollama';
 
@@ -3869,6 +3958,27 @@
             <p style="font-size:11px; color:#64748b; margin-top:8px;">
               Ihr API-Schlüssel wird mit dem sicheren Betriebssystemspeicher geschützt und nur für Anfragen an Anthropic verwendet.
             </p>
+          </div>
+        </div>
+
+        <!-- Company Logo Card -->
+        <div class="card">
+          <div class="card-title">🖼️ Firmenlogo (Rechnungskopf)</div>
+          <p style="font-size:13px; color:#64748b; margin-bottom:14px;">
+            Laden Sie Ihr Firmenlogo hoch. Es wird automatisch in der Rechnungsvorschau und auf gedruckten PDFs (DIN 5008, Modern & Minimal) im Briefkopf dargestellt.
+          </p>
+          <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+            <div id="settings-logo-preview-box" style="width:200px; height:80px; border:2px dashed #cbd5e1; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#f8fafc; overflow:hidden; padding:6px;">
+              ${comp.logo_base64 ? `<img id="settings-logo-img" src="${comp.logo_base64}" alt="Firmenlogo" style="max-width:100%; max-height:100%; object-fit:contain;">` : `<span id="settings-logo-placeholder" style="color:#94a3b8; font-size:12px; text-align:center;">Kein Logo hinterlegt</span>`}
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <input type="file" id="settings-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;" onchange="handleLogoFileSelect(event)">
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('settings-logo-input').click()">📁 Logo auswählen</button>
+                <button type="button" id="settings-logo-remove-btn" class="btn btn-secondary btn-sm" style="color:#ef4444; ${comp.logo_base64 ? '' : 'display:none;'}" onclick="handleRemoveLogo()">✕ Logo entfernen</button>
+              </div>
+              <span style="font-size:11px; color:#94a3b8;">Format: PNG, JPG oder WebP (max. 5 MB). Wird automatisch für den Druck optimiert.</span>
+            </div>
           </div>
         </div>
 
@@ -4203,7 +4313,11 @@
         is_small_business: document.getElementById('set-smallbiz').checked,
         show_payment_qr: document.getElementById('set-payment-qr').checked,
         invoice_template: document.querySelector('input[name="set-tpl"]:checked')?.value || currentStore.company?.invoice_template || 'classic',
+        logo_base64: currentSettingsLogo || undefined,
       };
+      if (!currentSettingsLogo) {
+        delete updatedComp.logo_base64;
+      }
 
       const customModel = document.getElementById('ai-ollama-model')?.value || '';
       let detectedTier = currentStore.aiSettings?.selected_tier || '3b';
@@ -4336,6 +4450,7 @@
         is_small_business: false,
         payment_terms_default: comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.',
         invoice_template: comp.invoice_template || 'classic',
+        logo_base64: comp.logo_base64 || undefined,
       };
     }
 
@@ -4760,10 +4875,40 @@
           <span><b>Kleinunternehmerregelung (§ 19 UStG)</b> – Rechnungen ohne Umsatzsteuer ausstellen.</span>
         </label>
         <div class="form-group" style="margin-top:14px;">
+          <label>Firmenlogo (optional)</label>
+          <div style="display:flex; align-items:center; gap:16px; margin-top:4px;">
+            <div id="onb-logo-preview" style="width:140px; height:50px; border:1px dashed #cbd5e1; border-radius:6px; display:flex; align-items:center; justify-content:center; background:#f8fafc; padding:4px; overflow:hidden;">
+              ${c.logo_base64 ? `<img src="${c.logo_base64}" alt="Logo" style="max-width:100%; max-height:100%; object-fit:contain;">` : `<span style="font-size:11px; color:#94a3b8;">Kein Logo</span>`}
+            </div>
+            <div>
+              <input type="file" id="onb-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;" onchange="onbHandleLogoSelect(event)">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('onb-logo-input').click()">📁 Logo auswählen</button>
+              ${c.logo_base64 ? `<button type="button" class="btn btn-secondary btn-sm" style="color:#ef4444; margin-left:6px;" onclick="onbRemoveLogo()">✕</button>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:14px;">
           <label>Standard-Zahlungsbedingungen</label>
           <textarea id="onb-terms" rows="2">${esc(c.payment_terms_default)}</textarea>
         </div>
       `;
+    }
+
+    async function onbHandleLogoSelect(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        const normalized = await normalizeLogoFile(file);
+        onb.company.logo_base64 = normalized;
+        renderOnboarding();
+      } catch (err) {
+        document.getElementById('onb-error').innerText = err.message;
+      }
+    }
+
+    function onbRemoveLogo() {
+      delete onb.company.logo_base64;
+      renderOnboarding();
     }
 
     function onbCollectCompany() {

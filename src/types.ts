@@ -22,6 +22,7 @@ export interface Company {
     is_small_business?: boolean;
     invoice_template?: string;
     show_payment_qr?: boolean;
+    logo_base64?: string;
 }
 
 export interface InvoiceItem {

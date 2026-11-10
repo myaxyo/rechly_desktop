@@ -2700,6 +2700,8 @@ export function createRechlyBackupBundle(storeData: StoreData): RechlyBackupBund
               payment_terms_default: storeData.company.payment_terms_default || "",
               is_small_business: Boolean(storeData.company.is_small_business),
               invoice_template: storeData.company.invoice_template || "classic",
+              show_payment_qr: Boolean(storeData.company.show_payment_qr),
+              ...(storeData.company.logo_base64 ? { logo_base64: storeData.company.logo_base64 } : {}),
           }
         : null;
 
@@ -2914,7 +2916,13 @@ export function executeMigrationImport(
                 invoice_template: String(
                     comp.invoice_template || nextStore.company?.invoice_template || "classic",
                 ),
+                show_payment_qr: comp.show_payment_qr !== undefined ? Boolean(comp.show_payment_qr) : Boolean(nextStore.company?.show_payment_qr),
             };
+            if (typeof comp.logo_base64 === "string" && comp.logo_base64.startsWith("data:image/")) {
+                updatedComp.logo_base64 = comp.logo_base64;
+            } else if (nextStore.company?.logo_base64 && comp.logo_base64 !== null) {
+                updatedComp.logo_base64 = nextStore.company.logo_base64;
+            }
             nextStore.company = updatedComp;
             result.companyUpdated = true;
         }

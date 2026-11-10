@@ -108,6 +108,7 @@ export function validateStore(raw: unknown): StoreData {
     "bank_bic",
     "payment_terms_default",
     "invoice_template",
+    "logo_base64",
   ]);
   if (
     data.company.is_small_business !== undefined &&
