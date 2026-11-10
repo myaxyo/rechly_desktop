@@ -109,6 +109,12 @@ export function validateStore(raw: unknown): StoreData {
     "payment_terms_default",
     "invoice_template",
     "logo_base64",
+    "invoice_number_pattern",
+    "invoice_number_prefix",
+    "invoiceNumberPrefix",
+  ], [
+    "next_invoice_number",
+    "nextInvoiceNumber",
   ]);
   if (
     data.company.is_small_business !== undefined &&
@@ -159,6 +165,7 @@ export function validateStore(raw: unknown): StoreData {
           "due_date",
           "valid_until",
           "delivery_date",
+          "delivery_date_until",
           "payment_terms",
           "body",
           "recipient",
@@ -195,7 +202,7 @@ export function validateStore(raw: unknown): StoreData {
           if (!object(item)) fail("Ungültige Position.");
           fields(
             item,
-            ["id", "description", "unit_of_measure"],
+            ["id", "description", "unit_of_measure", "delivery_date", "delivery_date_until"],
             [
               "quantity",
               "price",
@@ -279,6 +286,24 @@ export function validateStore(raw: unknown): StoreData {
       typeof data.onboarding.cloud_ai_opt_in !== "boolean"
     )
       fail("Einrichtung unvollständig.");
+  }
+  if (data.invoiceTemplates !== undefined) {
+    if (!Array.isArray(data.invoiceTemplates))
+      fail("Rechnungsvorlagen sind keine Liste.");
+    for (const tpl of data.invoiceTemplates) {
+      if (!object(tpl) || typeof tpl.id !== "string" || typeof tpl.name !== "string")
+        fail("Rechnungsvorlage ungültig.");
+      fields(tpl, ["id", "name", "client_id", "notes", "payment_terms"], ["created_at"]);
+      if (!Array.isArray(tpl.items)) fail("Vorlage-Positionen sind keine Liste.");
+      for (const item of tpl.items) {
+        if (!object(item)) fail("Ungültige Vorlage-Position.");
+        fields(
+          item,
+          ["id", "description", "unit_of_measure", "delivery_date", "delivery_date_until"],
+          ["quantity", "price", "tax_rate_percent", "discount_percent", "total"],
+        );
+      }
+    }
   }
   const clients = new Set(data.clients.map((r) => r.id)),
     projects = new Set((data.business?.projects || []).map((r) => r.id)),

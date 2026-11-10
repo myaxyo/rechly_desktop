@@ -23,6 +23,11 @@ export interface Company {
     invoice_template?: string;
     show_payment_qr?: boolean;
     logo_base64?: string;
+    invoice_number_pattern?: string;
+    invoice_number_prefix?: string;
+    invoiceNumberPrefix?: string;
+    next_invoice_number?: number;
+    nextInvoiceNumber?: number;
 }
 
 export interface InvoiceItem {
@@ -33,6 +38,8 @@ export interface InvoiceItem {
     price: number;
     tax_rate_percent?: number;
     discount_percent?: number;
+    delivery_date?: string;
+    delivery_date_until?: string;
     total?: number;
 }
 
@@ -44,6 +51,7 @@ export interface Invoice {
     issue_date?: string;
     due_date?: string;
     delivery_date?: string;
+    delivery_date_until?: string;
     status?: string;
     notes?: string;
     payment_terms?: string;
@@ -53,6 +61,16 @@ export interface Invoice {
     total_gross?: number;
     created_at?: number;
     updated_at?: number;
+}
+
+export interface InvoiceTemplate {
+    id: string;
+    name: string;
+    client_id?: string | null;
+    items: InvoiceItem[];
+    notes?: string;
+    payment_terms?: string;
+    created_at?: number;
 }
 
 export interface Client {
@@ -229,6 +247,7 @@ export interface StoreData {
     products: Product[];
     offers: Offer[];
     expenses: Expense[];
+    invoiceTemplates?: InvoiceTemplate[];
     aiSettings: AiSettings;
     /** Missing until the first-run setup assistant has been completed. */
     onboarding?: OnboardingState;

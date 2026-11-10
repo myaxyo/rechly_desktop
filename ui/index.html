@@ -1430,6 +1430,7 @@
     let currentView = 'dashboard';
     let editingInvoiceId = null;
     let editingOfferId = null;
+    let invoiceDraftPrefill = null;
     let editorDocType = 'invoice';
     let editingClientId = null;
     let editingProductId = null;
@@ -1690,6 +1691,7 @@
     // ─── Navigation ───
     function createNewInvoice() {
       editingInvoiceId = null;
+      invoiceDraftPrefill = null;
       showView('create-invoice');
     }
 
@@ -1725,6 +1727,7 @@
     function showView(viewId) {
       if (viewId !== 'create-invoice') {
         editingInvoiceId = null;
+        invoiceDraftPrefill = null;
       }
       if (viewId !== 'create-offer') {
         editingOfferId = null;
@@ -1800,6 +1803,295 @@
           <div class="backup-note"><b>Ihre Daten bleiben bei Ihnen.</b><p>Erstellen Sie regelmäßig eine Sicherung auf einem separaten Laufwerk.</p><button class="btn btn-secondary btn-sm" onclick="showView('settings')">Sicherung & Einstellungen →</button></div></aside></div>`;
     }
 
+    // ─── Sequential Numbering & Template Helpers ───
+    function formatInvoiceNumberString(pattern, counter, date = new Date()) {
+      const p = (pattern || 'RE-{YYYY}-{###}').trim();
+      const year = date.getFullYear();
+      const yy = String(year).slice(-2);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+
+      let result = p
+        .replace(/\{YYYY\}/g, String(year))
+        .replace(/\{YY\}/g, yy)
+        .replace(/\{MM\}/g, month)
+        .replace(/\{DD\}/g, day);
+
+      const hashMatch = result.match(/\{(#+)\}/);
+      if (hashMatch) {
+        result = result.replace(hashMatch[0], String(counter).padStart(hashMatch[1].length, '0'));
+      } else if (/\{NR\}|\{COUNTER\}/i.test(result)) {
+        result = result.replace(/\{NR\}|\{COUNTER\}/gi, String(counter));
+      } else {
+        const sep = result.endsWith('-') || result.endsWith('/') ? '' : '-';
+        result = `${result}${sep}${String(counter).padStart(3, '0')}`;
+      }
+      return result;
+    }
+
+    function getCalculatedNextInvoiceNumber(date = new Date()) {
+      const comp = currentStore.company || {};
+      const pattern = (comp.invoice_number_pattern || comp.invoice_number_prefix || 'RE-{YYYY}-{###}').trim();
+      const year = date.getFullYear();
+      const yy = String(year).slice(-2);
+
+      let regexStr = pattern
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\\\{YYYY\\\}/g, String(year))
+        .replace(/\\\{YY\\\}/g, yy)
+        .replace(/\\\{MM\\\}/g, '\\d{2}')
+        .replace(/\\\{DD\\\}/g, '\\d{2}')
+        .replace(/\\\{#+\\\}/g, '(\\d+)')
+        .replace(/\\\{NR\\\}|\\\{COUNTER\\\}/gi, '(\\d+)');
+
+      if (!regexStr.includes('(\\d+)')) {
+        regexStr = `${regexStr}[-/]?(\\d+)`;
+      }
+      const regex = new RegExp(`^${regexStr}$`);
+
+      let maxExisting = 0;
+      for (const inv of (currentStore.invoices || [])) {
+        if (!inv.invoice_number) continue;
+        const m = inv.invoice_number.trim().match(regex);
+        if (m && m[1]) {
+          const val = parseInt(m[1], 10);
+          if (Number.isSafeInteger(val) && val > maxExisting) maxExisting = val;
+        }
+      }
+
+      const configuredCounter = comp.next_invoice_number || comp.nextInvoiceNumber || 1;
+      const nextCounter = Math.max(configuredCounter, maxExisting + 1);
+
+      return formatInvoiceNumberString(pattern, nextCounter, date);
+    }
+
+    function formatServicePeriod(start, end) {
+      if (!start && !end) return '';
+      if (start && end && start !== end) {
+        return `${dateLabel(start)} – ${dateLabel(end)}`;
+      }
+      return dateLabel(start || end);
+    }
+
+    async function duplicateInvoice(id) {
+      const source = (currentStore.invoices || []).find(inv => inv.id === id);
+      if (!source) {
+        showToast('Rechnung nicht gefunden.', 'error');
+        return;
+      }
+      editingInvoiceId = null;
+      editorDocType = 'invoice';
+
+      const nextNum = getCalculatedNextInvoiceNumber();
+      invoiceDraftPrefill = {
+        client_id: source.client_id || '',
+        invoice_number: nextNum,
+        issue_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        delivery_date: source.delivery_date || '',
+        delivery_date_until: source.delivery_date_until || '',
+        status: 'draft',
+        notes: source.notes || '',
+        payment_terms: source.payment_terms || currentStore.company?.payment_terms_default || '',
+        items: (source.items || []).map(it => ({
+          description: it.description || '',
+          quantity: it.quantity || 1,
+          unit_of_measure: it.unit_of_measure || 'Stunde',
+          price: it.price || 0,
+          tax_rate_percent: it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company?.is_small_business ? 0 : 19),
+          discount_percent: it.discount_percent || 0,
+          delivery_date: it.delivery_date || '',
+          delivery_date_until: it.delivery_date_until || '',
+        })),
+      };
+      showView('create-invoice');
+      showToast(`Rechnung ${source.invoice_number || ''} als neuer Entwurf dupliziert.`);
+    }
+
+    function showTemplateModal() {
+      const templates = currentStore.invoiceTemplates || [];
+      const existingModal = document.getElementById('template-modal-overlay');
+      if (existingModal) existingModal.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'template-modal-overlay';
+      modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.6); display:flex; align-items:center; justify-content:center; z-index:10000; padding:20px;';
+
+      const rows = templates.map(t => {
+        const client = (currentStore.clients || []).find(c => c.id === t.client_id);
+        const count = (t.items || []).length;
+        const totalEst = (t.items || []).reduce((sum, it) => sum + (it.quantity || 0) * (it.price || 0), 0);
+        return `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid #e2e8f0;">
+            <div>
+              <div style="font-weight:700; font-size:14px; color:#0f172a;">${esc(t.name)}</div>
+              <div style="font-size:12px; color:#64748b;">${client ? esc(client.name) + ' · ' : ''}${count} Position(en) · ca. ${money(totalEst)} netto</div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-primary btn-sm" onclick="createInvoiceFromTemplate('${t.id}')">Verwenden →</button>
+              <button class="btn btn-danger-outline btn-sm" onclick="deleteTemplate('${t.id}')">Löschen</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      modal.innerHTML = `
+        <div class="card" style="width:100%; max-width:550px; max-height:85vh; display:flex; flex-direction:column; padding:24px; background:#fff; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">📋 Rechnungsvorlagen</h3>
+            <button class="btn btn-secondary btn-sm" onclick="closeTemplateModal()">✕</button>
+          </div>
+          <p style="font-size:13px; color:#475569; margin:0 0 16px 0;">
+            Wählen Sie eine Vorlage aus, um direkt eine neue Rechnung mit vordefinierten Positionen und Kundendaten zu erstellen.
+          </p>
+          <div style="overflow-y:auto; flex:1; max-height:50vh; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:16px;">
+            ${templates.length ? rows : '<div style="padding:32px 16px; text-align:center; color:#94a3b8; font-size:13px;">Noch keine Vorlagen gespeichert.<br>Speichern Sie eine Vorlage direkt beim Erstellen einer Rechnung über den Button „💾 Als Vorlage speichern“.</div>'}
+          </div>
+          <div style="display:flex; justify-content:flex-end;">
+            <button class="btn btn-secondary" onclick="closeTemplateModal()">Schließen</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    function closeTemplateModal() {
+      const el = document.getElementById('template-modal-overlay');
+      if (el) el.remove();
+    }
+
+    async function deleteTemplate(tplId) {
+      if (!confirm('Möchten Sie diese Rechnungsvorlage wirklich löschen?')) return;
+      await window.rechly.deleteInvoiceTemplate(tplId);
+      currentStore = await window.rechly.getStore();
+      closeTemplateModal();
+      showTemplateModal();
+      showToast('Vorlage gelöscht.');
+    }
+
+    function createInvoiceFromTemplate(tplId) {
+      const templates = currentStore.invoiceTemplates || [];
+      const tpl = templates.find(t => t.id === tplId);
+      closeTemplateModal();
+      if (!tpl) return;
+
+      editingInvoiceId = null;
+      editorDocType = 'invoice';
+      const nextNum = getCalculatedNextInvoiceNumber();
+      invoiceDraftPrefill = {
+        client_id: tpl.client_id || '',
+        invoice_number: nextNum,
+        issue_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        delivery_date: '',
+        delivery_date_until: '',
+        status: 'draft',
+        notes: tpl.notes || '',
+        payment_terms: tpl.payment_terms || currentStore.company?.payment_terms_default || '',
+        items: (tpl.items || []).map(it => ({
+          description: it.description || '',
+          quantity: it.quantity || 1,
+          unit_of_measure: it.unit_of_measure || 'Stunde',
+          price: it.price || 0,
+          tax_rate_percent: it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company?.is_small_business ? 0 : 19),
+          discount_percent: it.discount_percent || 0,
+          delivery_date: it.delivery_date || '',
+          delivery_date_until: it.delivery_date_until || '',
+        })),
+      };
+      showView('create-invoice');
+      showToast(`Neue Rechnung aus Vorlage „${tpl.name}“ erstellt.`);
+    }
+
+    function applyInvoiceTemplate(tplId) {
+      if (!tplId) return;
+      const templates = currentStore.invoiceTemplates || [];
+      const tpl = templates.find(t => t.id === tplId);
+      if (!tpl) return;
+
+      if (tpl.client_id) {
+        const clientSelect = document.getElementById('inv-client');
+        if (clientSelect) clientSelect.value = tpl.client_id;
+      }
+      if (tpl.payment_terms) {
+        const termsInput = document.getElementById('inv-terms');
+        if (termsInput) termsInput.value = tpl.payment_terms;
+      }
+
+      const tbody = document.getElementById('inv-items-body');
+      if (tbody && Array.isArray(tpl.items) && tpl.items.length > 0) {
+        tbody.innerHTML = '';
+        for (const it of tpl.items) {
+          addInvoiceItemRow(
+            it.description || '',
+            it.quantity || 1,
+            it.unit_of_measure || 'Stunde',
+            it.price || 0,
+            it.tax_rate_percent !== undefined ? it.tax_rate_percent : 19,
+            it.delivery_date || '',
+            it.delivery_date_until || ''
+          );
+        }
+        calculateTotals();
+      }
+      showToast(`Vorlage „${tpl.name}“ angewendet.`);
+    }
+
+    async function saveCurrentAsTemplate() {
+      const rows = document.querySelectorAll('#inv-items-body tr');
+      if (!rows.length) {
+        showToast('Bitte fügen Sie mindestens eine Position hinzu.', 'error');
+        return;
+      }
+      const clientId = document.getElementById('inv-client')?.value || '';
+      const clientName = (currentStore.clients || []).find(c => c.id === clientId)?.name || '';
+      const defaultName = clientName ? `Vorlage für ${clientName}` : `Rechnungsvorlage ${new Date().toISOString().slice(0, 10)}`;
+      const name = prompt('Name für diese Rechnungsvorlage:', defaultName);
+      if (!name || !name.trim()) return;
+
+      const items = [];
+      rows.forEach(tr => {
+        const desc = tr.querySelector('.item-desc')?.value.trim();
+        const qty = parseFloat(tr.querySelector('.item-qty')?.value) || 1;
+        const unit = tr.querySelector('.item-unit')?.value.trim() || 'Stück';
+        const price = parseFloat(tr.querySelector('.item-price')?.value) || 0;
+        const vat = parseFloat(tr.querySelector('.item-vat')?.value) || 0;
+        const dDate = tr.querySelector('.item-delivery-date')?.value || undefined;
+        const dUntil = tr.querySelector('.item-delivery-until')?.value || undefined;
+        if (desc) {
+          items.push({
+            description: desc,
+            quantity: qty,
+            unit_of_measure: unit,
+            price,
+            tax_rate_percent: vat,
+            delivery_date: dDate,
+            delivery_date_until: dUntil,
+          });
+        }
+      });
+
+      const template = {
+        id: `tpl-${Date.now()}`,
+        name: name.trim(),
+        client_id: clientId || null,
+        items,
+        payment_terms: document.getElementById('inv-terms')?.value || '',
+        created_at: Date.now(),
+      };
+
+      await window.rechly.saveInvoiceTemplate(template);
+      currentStore = await window.rechly.getStore();
+      showToast(`Vorlage „${template.name}“ erfolgreich gespeichert!`);
+
+      const picker = document.getElementById('inv-template-picker');
+      if (picker) {
+        const templates = currentStore.invoiceTemplates || [];
+        picker.innerHTML = `<option value="">📋 Vorlage laden…</option>` +
+          templates.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+      }
+    }
+
     // ─── View 1: Invoices List ───
     let invoiceFilter = 'all';
     let invoiceSort = 'newest';
@@ -1811,13 +2103,13 @@
         const text = [i.invoice_number, clients.find(c=>c.id===i.client_id)?.name, ...(i.items || []).map(it=>it.description)].join(' ').toLocaleLowerCase('de');
         return (!term || text.includes(term)) && (invoiceFilter === 'all' || (invoiceFilter === 'overdue' ? isOverdue(i) : normalizeInvoiceStatus(i.status) === invoiceFilter));
       }).sort((a,b)=> invoiceSort === 'amount' ? (b.total_gross||0)-(a.total_gross||0) : invoiceSort === 'due' ? (a.due_date || '9999').localeCompare(b.due_date || '9999') : (b.created_at||0)-(a.created_at||0));
-      container.innerHTML = `<div class="page-header"><div><div class="eyebrow">DOKUMENTE</div><h1 class="page-title">Rechnungen</h1><p class="page-subtitle">Zahlungen verfolgen, Rechnungen bearbeiten und Dokumente exportieren.</p></div><button class="btn btn-primary" onclick="createNewInvoice()">+ Neue Rechnung</button></div>
+      container.innerHTML = `<div class="page-header"><div><div class="eyebrow">DOKUMENTE</div><h1 class="page-title">Rechnungen</h1><p class="page-subtitle">Zahlungen verfolgen, Rechnungen bearbeiten und Dokumente exportieren.</p></div><div style="display:flex; gap:8px;"><button class="btn btn-secondary" onclick="showTemplateModal()">📋 Aus Vorlage…</button><button class="btn btn-primary" onclick="createNewInvoice()">+ Neue Rechnung</button></div></div>
         <div class="card"><div class="invoice-toolbar"><div class="filter-tabs" role="group" aria-label="Rechnungsstatus">
         ${[['all','Alle'],['draft','Entwürfe'],['sent','Offen'],['overdue','Überfällig'],['paid','Bezahlt']].map(([v,l])=>`<button class="filter-tab ${invoiceFilter===v?'selected':''}" aria-pressed="${invoiceFilter===v}" onclick="invoiceFilter='${v}'; renderInvoicesView(document.getElementById('content-container'))">${l}</button>`).join('')}</div>
         <select aria-label="Rechnungen sortieren" onchange="invoiceSort=this.value; renderInvoicesView(document.getElementById('content-container'))">${[['newest','Zuletzt erstellt'],['due','Fälligkeit aufsteigend'],['amount','Betrag absteigend']].map(([v,l])=>`<option value="${v}" ${invoiceSort===v?'selected':''}>${l}</option>`).join('')}</select></div>
         <p class="result-count" role="status">${invoices.length} von ${all.length} Rechnungen${term ? ` · Suche: „${esc(term)}“` : ''}</p>
         <div class="table-scroll"><table><thead><tr><th>Rechnung / Kunde</th><th>Datum</th><th>Fällig</th><th class="numeric">Betrag</th><th>Status</th><th>Aktionen</th></tr></thead><tbody>
-        ${invoices.map(i=>`<tr><td><button class="text-button" onclick="editInvoice('${i.id}')">${esc(i.invoice_number || 'Ohne Nummer')}</button><span class="cell-sub">${esc(clients.find(c=>c.id===i.client_id)?.name || 'Unbekannter Kunde')}</span></td><td>${dateLabel(i.issue_date)}</td><td class="${isOverdue(i)?'overdue-text':''}">${dateLabel(i.due_date)}${isOverdue(i)?'<span class="cell-sub">Überfällig</span>':''}</td><td class="numeric">${money(i.total_gross)}</td><td>${invoiceStatusSelect(i)}</td><td><div class="row-actions"><button class="btn btn-secondary btn-sm" onclick="previewInvoice('${i.id}')">PDF</button><button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${i.id}')">XRechnung (XML)</button><button class="btn btn-danger-outline btn-sm" aria-label="Rechnung ${esc(i.invoice_number)} löschen" onclick="deleteInvoice('${i.id}')">Löschen</button></div></td></tr>`).join('') || `<tr><td colspan="6"><div class="empty-state"><h3>${all.length?'Keine passenden Rechnungen':'Ihre erste Rechnung beginnt hier'}</h3><p>${all.length?'Ändern Sie den Suchbegriff oder setzen Sie die Filter zurück.':'Erfassen Sie Ihre Leistungen und behalten Sie Zahlungen im Blick.'}</p><button class="btn btn-secondary" onclick="${all.length?"openInvoiceFilter('all')":"createNewInvoice()"}">${all.length?'Filter zurücksetzen':'Rechnung erstellen'}</button></div></td></tr>`}
+        ${invoices.map(i=>`<tr><td><button class="text-button" onclick="editInvoice('${i.id}')">${esc(i.invoice_number || 'Ohne Nummer')}</button><span class="cell-sub">${esc(clients.find(c=>c.id===i.client_id)?.name || 'Unbekannter Kunde')}</span></td><td>${dateLabel(i.issue_date)}</td><td class="${isOverdue(i)?'overdue-text':''}">${dateLabel(i.due_date)}${isOverdue(i)?'<span class="cell-sub">Überfällig</span>':''}</td><td class="numeric">${money(i.total_gross)}</td><td>${invoiceStatusSelect(i)}</td><td><div class="row-actions"><button class="btn btn-secondary btn-sm" onclick="previewInvoice('${i.id}')">PDF</button><button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${i.id}')">XRechnung (XML)</button><button class="btn btn-secondary btn-sm" title="Rechnung duplizieren" onclick="duplicateInvoice('${i.id}')">📋 Duplizieren</button><button class="btn btn-danger-outline btn-sm" aria-label="Rechnung ${esc(i.invoice_number)} löschen" onclick="deleteInvoice('${i.id}')">Löschen</button></div></td></tr>`).join('') || `<tr><td colspan="6"><div class="empty-state"><h3>${all.length?'Keine passenden Rechnungen':'Ihre erste Rechnung beginnt hier'}</h3><p>${all.length?'Ändern Sie den Suchbegriff oder setzen Sie die Filter zurück.':'Erfassen Sie Ihre Leistungen und behalten Sie Zahlungen im Blick.'}</p><button class="btn btn-secondary" onclick="${all.length?"openInvoiceFilter('all')":"createNewInvoice()"}">${all.length?'Filter zurücksetzen':'Rechnung erstellen'}</button></div></td></tr>`}
         </tbody></table></div></div>`;
     }
 
@@ -1833,14 +2125,24 @@
       const editingId = isOffer ? editingOfferId : editingInvoiceId;
       const isEditing = Boolean(editingId);
       const inv = isEditing ? ((isOffer ? currentStore.offers : currentStore.invoices) || []).find(d => d.id === editingId) : null;
+      const prefill = !isEditing && !isOffer ? invoiceDraftPrefill : null;
       const docLabel = isOffer ? 'Angebot' : 'Rechnung';
-      const docNumber = inv ? (isOffer ? inv.offer_number : inv.invoice_number) : '';
       const backView = isOffer ? 'offers' : 'invoices';
       const year = new Date().getFullYear();
       const prefix = `${isOffer ? 'AN' : 'RE'}-${year}-`;
       const numbers = ((isOffer ? currentStore.offers : currentStore.invoices) || []).map(d => isOffer ? d.offer_number : d.invoice_number).filter(n => n?.startsWith(prefix)).map(n => Number(n.slice(prefix.length))).filter(Number.isSafeInteger);
-      const defaultNumber = prefix + String(Math.max(0, ...numbers) + 1).padStart(3, '0');
-      const dueValue = inv ? (isOffer ? inv.valid_until : inv.due_date) : new Date(Date.now() + (isOffer ? 30 : 14) * 86400000).toISOString().slice(0, 10);
+      const defaultOfferNumber = `AN-${year}-` + String(Math.max(0, ...numbers) + 1).padStart(3, '0');
+      const calculatedInvoiceNumber = getCalculatedNextInvoiceNumber();
+      const defaultNumber = isOffer ? defaultOfferNumber : (prefill?.invoice_number || calculatedInvoiceNumber);
+      const docNumber = inv ? (isOffer ? inv.offer_number : inv.invoice_number) : (prefill?.invoice_number || defaultNumber);
+      const selectedClientId = inv ? inv.client_id : (prefill?.client_id || '');
+      const dueValue = inv ? (isOffer ? inv.valid_until : inv.due_date) : (prefill?.due_date || new Date(Date.now() + (isOffer ? 30 : 14) * 86400000).toISOString().slice(0, 10));
+      const issueDateValue = inv ? (inv.issue_date || '') : (prefill?.issue_date || new Date().toISOString().slice(0, 10));
+      const deliveryDateValue = inv ? (inv.delivery_date || '') : (prefill?.delivery_date || '');
+      const deliveryUntilValue = inv ? (inv.delivery_date_until || '') : (prefill?.delivery_date_until || '');
+      const termsValue = inv ? (inv.payment_terms || '') : (prefill?.payment_terms || (currentStore.company.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'));
+      const statusValue = inv ? inv.status : (prefill?.status || (isOffer ? 'draft' : 'sent'));
+
       const titleText = isEditing && inv ? `${docLabel} ${docNumber || ''} bearbeiten` : `${isOffer ? 'Neues Angebot' : 'Neue Rechnung'} erstellen`;
       const submitText = isEditing ? '💾 Änderungen speichern' : `${docLabel} speichern`;
       const subtitleText = isOffer
@@ -1850,7 +2152,7 @@
       const productOptions = products.map(pr => `<option value="${esc(pr.id)}">${esc(pr.name)} – ${(pr.price || 0).toFixed(2)} € / ${esc(pr.unit_of_measure || 'Stück')}</option>`).join('');
 
       const clients = currentStore.clients || [];
-      const clientOptions = clients.map(c => `<option value="${c.id}" ${inv && inv.client_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+      const clientOptions = clients.map(c => `<option value="${c.id}" ${selectedClientId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
       const aiSettings = currentStore.aiSettings || {};
       const activeProvider = aiSettings.active_provider || 'ollama';
       const aiLabel = activeProvider === 'openai'
@@ -1860,12 +2162,26 @@
         : `jonprompter/Rechly-DE-3B (100% Lokal)`;
 
       let initialItemRows = '';
-      if (inv && Array.isArray(inv.items) && inv.items.length > 0) {
-        initialItemRows = inv.items.map(it => `
+      const itemsSource = (inv && Array.isArray(inv.items) && inv.items.length > 0)
+        ? inv.items
+        : (prefill && Array.isArray(prefill.items) && prefill.items.length > 0)
+          ? prefill.items
+          : null;
+
+      if (itemsSource) {
+        initialItemRows = itemsSource.map(it => `
           <tr>
-            <td><input type="text" class="item-desc" value="${it.description || ''}" style="width:100%"></td>
+            <td>
+              <input type="text" class="item-desc" value="${esc(it.description || '')}" style="width:100%">
+              <div class="item-period-row" style="margin-top:4px; display:flex; align-items:center; gap:6px; font-size:11px; color:#64748b;">
+                <span>Leistungszeitraum (optional):</span>
+                <input type="date" class="item-delivery-date" value="${esc(it.delivery_date || '')}" title="Leistungsdatum von" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
+                <span>–</span>
+                <input type="date" class="item-delivery-until" value="${esc(it.delivery_date_until || '')}" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
+              </div>
+            </td>
             <td><input type="number" class="item-qty" value="${it.quantity || 1}" style="width:70px" oninput="calculateTotals()"></td>
-            <td><input type="text" class="item-unit" value="${it.unit_of_measure || 'Stunde'}" style="width:80px"></td>
+            <td><input type="text" class="item-unit" value="${esc(it.unit_of_measure || 'Stunde')}" style="width:80px"></td>
             <td><input type="number" class="item-price" value="${it.price || 0}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
             <td><input type="number" class="item-vat" value="${it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company.is_small_business ? 0 : 19)}" style="width:70px" oninput="calculateTotals()"></td>
             <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
@@ -1874,7 +2190,15 @@
       } else {
         initialItemRows = `
           <tr data-placeholder="1">
-            <td><input type="text" class="item-desc" value="Beratung und Konzeption" style="width:100%"></td>
+            <td>
+              <input type="text" class="item-desc" value="Beratung und Konzeption" style="width:100%">
+              <div class="item-period-row" style="margin-top:4px; display:flex; align-items:center; gap:6px; font-size:11px; color:#64748b;">
+                <span>Leistungszeitraum (optional):</span>
+                <input type="date" class="item-delivery-date" value="" title="Leistungsdatum von" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
+                <span>–</span>
+                <input type="date" class="item-delivery-until" value="" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
+              </div>
+            </td>
             <td><input type="number" class="item-qty" value="1" style="width:70px" oninput="calculateTotals()"></td>
             <td><input type="text" class="item-unit" value="Stunde" style="width:80px"></td>
             <td><input type="number" class="item-price" value="110" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
@@ -1883,6 +2207,9 @@
           </tr>
         `;
       }
+
+      const templatesList = currentStore.invoiceTemplates || [];
+      const templatePickerOptions = templatesList.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
 
       container.innerHTML = `
         <div class="page-header">
@@ -1894,6 +2221,7 @@
             ${isEditing && !isOffer && inv ? `
               <button class="btn btn-secondary" onclick="previewInvoice('${inv.id}')">🖨️ PDF Vorschau</button>
               <button class="btn btn-secondary" onclick="exportXRechnung('${inv.id}')">📄 XRechnung (XML)</button>
+              <button class="btn btn-secondary" onclick="duplicateInvoice('${inv.id}')">📋 Duplizieren</button>
             ` : ''}
             <button class="btn btn-secondary" onclick="showView('${backView}')">Zurück zur Übersicht</button>
           </div>
@@ -1925,19 +2253,39 @@
             </div>
             <div class="form-group">
               <label>${isOffer ? 'Angebotsdatum' : 'Rechnungsdatum'}</label>
-              <input type="date" id="inv-date" value="${inv ? (inv.issue_date || '') : new Date().toISOString().slice(0, 10)}">
+              <input type="date" id="inv-date" value="${issueDateValue}">
             </div>
             <div class="form-group">
               <label>${isOffer ? 'Gültig bis' : 'Fälligkeitsdatum'}</label>
               <input type="date" id="inv-due" value="${dueValue || ''}">
             </div>
+            ${!isOffer ? `
+            <div class="form-group">
+              <label>Leistungszeitraum von</label>
+              <input type="date" id="inv-delivery-date" value="${deliveryDateValue}" title="Liefer-/Leistungsdatum bzw. Beginn des Zeitraums">
+            </div>
+            <div class="form-group">
+              <label>Leistungszeitraum bis (optional)</label>
+              <input type="date" id="inv-delivery-until" value="${deliveryUntilValue}" title="Ende des Leistungszeitraums">
+            </div>
+            ` : ''}
             <div class="form-group">
               <label>Status</label>
-              <select id="inv-status">${isOffer ? offerStatusOptions(inv ? inv.status : 'draft') : invoiceStatusOptions(inv ? inv.status : 'sent')}</select>
+              <select id="inv-status">${isOffer ? offerStatusOptions(statusValue) : invoiceStatusOptions(statusValue)}</select>
             </div>
           </div>
 
-          <div style="margin: 20px 0 10px 0; font-weight:700; font-size:14px;">${isOffer ? 'Angebotspositionen' : 'Rechnungspositionen'}</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin: 20px 0 10px 0;">
+            <div style="font-weight:700; font-size:14px;">${isOffer ? 'Angebotspositionen' : 'Rechnungspositionen'}</div>
+            ${!isOffer ? `
+            <div style="display:flex; gap:8px; align-items:center;">
+              <select id="inv-template-picker" onchange="applyInvoiceTemplate(this.value); this.value='';" style="padding:4px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
+                <option value="">📋 Vorlage laden…</option>
+                ${templatePickerOptions}
+              </select>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="saveCurrentAsTemplate()">💾 Als Vorlage speichern</button>
+            </div>` : ''}
+          </div>
           <table id="inv-items-table">
             <thead>
               <tr>
@@ -1965,7 +2313,7 @@
 
           <div class="form-group" style="margin-top:20px;">
             <label>Zahlungsbedingungen</label>
-            <textarea id="inv-terms" rows="2">${inv ? (inv.payment_terms || '') : (currentStore.company.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.')}</textarea>
+            <textarea id="inv-terms" rows="2">${termsValue}</textarea>
           </div>
 
           <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; padding-top:16px; border-top:1px solid var(--border);">
@@ -1979,20 +2327,32 @@
           </div>
         </div>
       `;
+      invoiceDraftPrefill = null;
       calculateTotals();
     }
 
-    function addInvoiceItemRow(desc = '', qty = 1, unit = 'Stunde', price = 0, vat = 19) {
+    function addInvoiceItemRow(desc = '', qty = 1, unit = 'Stunde', price = 0, vat = 19, dDate = '', dUntil = '') {
       const tbody = document.getElementById('inv-items-body');
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><input type="text" class="item-desc" value="${esc(desc)}" style="width:100%"></td>
+        <td>
+          <input type="text" class="item-desc" value="${esc(desc)}" style="width:100%">
+          <div class="item-period-row" style="margin-top:4px; display:flex; align-items:center; gap:6px; font-size:11px; color:#64748b;">
+            <span>Leistungszeitraum (optional):</span>
+            <input type="date" class="item-delivery-date" value="${esc(dDate)}" title="Leistungsdatum von" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
+            <span>–</span>
+            <input type="date" class="item-delivery-until" value="${esc(dUntil)}" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
+          </div>
+        </td>
         <td><input type="number" class="item-qty" value="${esc(qty)}" style="width:70px" oninput="calculateTotals()"></td>
         <td><input type="text" class="item-unit" value="${esc(unit)}" style="width:80px"></td>
         <td><input type="number" class="item-price" value="${esc(price)}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
         <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : vat}" style="width:70px" oninput="calculateTotals()"></td>
         <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
       `;
+      tbody.appendChild(tr);
+      calculateTotals();
+    }
       tbody.appendChild(tr);
       calculateTotals();
     }
@@ -2083,6 +2443,19 @@
         || check('inv-due', 'Die Fälligkeit darf nicht vor dem Rechnungsdatum liegen.', v => /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= document.getElementById('inv-date').value);
       if (error) return error;
       const isOffer = editorDocType === 'offer';
+      if (!isOffer) {
+        const dStart = document.getElementById('inv-delivery-date')?.value?.trim();
+        const dEnd = document.getElementById('inv-delivery-until')?.value?.trim();
+        if (dStart && !/^\d{4}-\d{2}-\d{2}$/.test(dStart)) {
+          return { element: document.getElementById('inv-delivery-date'), message: 'Bitte geben Sie ein gültiges Leistungsdatum ein.' };
+        }
+        if (dEnd && !/^\d{4}-\d{2}-\d{2}$/.test(dEnd)) {
+          return { element: document.getElementById('inv-delivery-until'), message: 'Bitte geben Sie ein gültiges Enddatum für den Leistungszeitraum ein.' };
+        }
+        if (dStart && dEnd && dEnd < dStart) {
+          return { element: document.getElementById('inv-delivery-until'), message: 'Das Enddatum des Leistungszeitraums darf nicht vor dem Beginn liegen.' };
+        }
+      }
       const docs = (isOffer ? currentStore.offers : currentStore.invoices) || [];
       const number = document.getElementById('inv-num').value.trim();
       if (docs.some(d => d.id !== (isOffer ? editingOfferId : editingInvoiceId) && (isOffer ? d.offer_number : d.invoice_number) === number)) return {element:document.getElementById('inv-num'), message:'Diese Dokumentnummer ist bereits vergeben.'};
@@ -2118,15 +2491,29 @@
           const unit = tr.querySelector('.item-unit').value.trim() || 'Stück';
           const price = parseFloat(tr.querySelector('.item-price').value) || 0;
           const vat = parseFloat(tr.querySelector('.item-vat').value) || 0;
-          if (desc) items.push({ description: desc, quantity: qty, unit_of_measure: unit, price, tax_rate_percent: vat });
+          const itDDate = tr.querySelector('.item-delivery-date')?.value?.trim() || undefined;
+          const itDUntil = tr.querySelector('.item-delivery-until')?.value?.trim() || undefined;
+          if (desc) items.push({
+            description: desc,
+            quantity: qty,
+            unit_of_measure: unit,
+            price,
+            tax_rate_percent: vat,
+            delivery_date: itDDate,
+            delivery_date_until: itDUntil,
+          });
         });
 
         const totals = calculateTotals();
+        const deliveryDate = document.getElementById('inv-delivery-date')?.value?.trim() || undefined;
+        const deliveryDateUntil = document.getElementById('inv-delivery-until')?.value?.trim() || undefined;
         const invoiceData = {
           client_id: clientId,
           invoice_number: document.getElementById('inv-num').value.trim(),
           issue_date: document.getElementById('inv-date').value,
           due_date: document.getElementById('inv-due').value,
+          delivery_date: deliveryDate,
+          delivery_date_until: deliveryDateUntil,
           payment_terms: document.getElementById('inv-terms').value,
           items,
           subtotal: totals.subtotal,
@@ -2257,7 +2644,7 @@
                 </tr>
                 ${printLabels.showDelivery ? `<tr>
                   <td style="color: #64748b; padding: 2px 0;">Liefer-/Leistung:</td>
-                  <td style="text-align: right; padding: 2px 0;">${inv.delivery_date || inv.issue_date || '-'}</td>
+                  <td style="text-align: right; padding: 2px 0;">${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || inv.issue_date || '-'}</td>
                 </tr>` : ''}
                 <tr>
                   <td style="color: #64748b; padding: 2px 0;">${printLabels.due}:</td>
@@ -2402,7 +2789,7 @@
                 </div>
                 ${printLabels.showDelivery ? `<div>
                   <span style="color: #64748b; font-size: 8pt; display: block;">Liefer-/Leistung</span>
-                  <b>${inv.delivery_date || inv.issue_date || '-'}</b>
+                  <b>${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || inv.issue_date || '-'}</b>
                 </div>` : ''}
                 <div>
                   <span style="color: #64748b; font-size: 8pt; display: block;">Status</span>
@@ -2505,7 +2892,7 @@
             </div>
             ${printLabels.showDelivery ? `<div>
               <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">LEISTUNGSZEITRAUM</div>
-              <div style="font-weight: 600; color: #0f172a;">${inv.delivery_date || inv.issue_date || '-'}</div>
+              <div style="font-weight: 600; color: #0f172a;">${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || inv.issue_date || '-'}</div>
             </div>` : '<div></div>'}
           </div>
 
@@ -2573,7 +2960,9 @@
     }
     function invoicePositionDescription(item, company) {
       const detail = [item.discount_percent ? `${Number(item.discount_percent)}% Rabatt` : '', company.is_small_business ? '' : `${Number(item.tax_rate_percent ?? 0)}% USt.`].filter(Boolean).join(' · ');
-      return `${esc(item.description || '')}${detail ? `<br><small>${detail}</small>` : ''}`;
+      const period = formatServicePeriod(item.delivery_date, item.delivery_date_until);
+      const periodHtml = period ? `<br><small style="color: #64748b;">Leistungszeitraum: ${esc(period)}</small>` : '';
+      return `${esc(item.description || '')}${detail ? `<br><small>${detail}</small>` : ''}${periodHtml}`;
     }
     let paymentPreviewVersion = 0;
     async function previewDocument(kind, id) {
@@ -4008,6 +4397,34 @@
           </div>
         </div>
 
+        <!-- Invoice Numbering Sequence & Format -->
+        <div class="card" style="border: 1px solid #bfdbfe;">
+          <div class="card-title">🔢 Rechnungsnummernkreis & Format (GoBD-konform)</div>
+          <p style="font-size:13px; color:#475569; margin-bottom:14px;">
+            Lückenlose und einmalige Nummernvergabe gemäß GoBD und § 14 UStG. Passen Sie das Präfix, Datums-Platzhalter und den Zähler an.
+          </p>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nummern-Muster (Format-Muster)</label>
+              <input type="text" id="set-invoice-pattern" value="${esc(comp.invoice_number_pattern || comp.invoice_number_prefix || 'RE-{YYYY}-{###}')}" placeholder="RE-{YYYY}-{###}" oninput="updateSettingsPatternPreview()">
+              <small style="font-size:11px; color:#64748b; margin-top:4px; display:block;">
+                Mögliche Platzhalter: <code>{YYYY}</code> (Jahr 4-stellig), <code>{YY}</code> (Jahr 2-stellig), <code>{MM}</code> (Monat), <code>{DD}</code> (Tag), <code>{###}</code> (3-stelliger Zähler), <code>{####}</code> (4-stelliger Zähler).
+              </small>
+            </div>
+            <div class="form-group">
+              <label>Nächste Zählernummer</label>
+              <input type="number" id="set-next-invoice-num" min="1" step="1" value="${comp.next_invoice_number || comp.nextInvoiceNumber || 1}" oninput="updateSettingsPatternPreview()">
+              <small style="font-size:11px; color:#64748b; margin-top:4px; display:block;">
+                Zählerwert für die nächste neu erstellte Rechnung.
+              </small>
+            </div>
+          </div>
+          <div style="background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; padding:10px 14px; margin-top:10px; display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-size:13px; color:#1e40af; font-weight:600;">Vorschau der nächsten Rechnungsnummer:</span>
+            <code id="settings-pattern-preview" style="font-size:14px; font-weight:700; color:#1e3a8a;">RE-${new Date().getFullYear()}-001</code>
+          </div>
+        </div>
+
         <!-- Invoice Design Template -->
         <div class="card">
           <div class="card-title">🎨 Rechnungs-Design & Druckvorlage</div>
@@ -4064,6 +4481,15 @@
         </div>
       `;
       setTimeout(loadSettingsOllamaInfo, 0);
+      setTimeout(updateSettingsPatternPreview, 0);
+    }
+
+    function updateSettingsPatternPreview() {
+      const pattern = document.getElementById('set-invoice-pattern')?.value || 'RE-{YYYY}-{###}';
+      const counter = parseInt(document.getElementById('set-next-invoice-num')?.value, 10) || 1;
+      const preview = formatInvoiceNumberString(pattern, counter, new Date());
+      const el = document.getElementById('settings-pattern-preview');
+      if (el) el.innerText = preview;
     }
 
     let selectedAiProvider = 'ollama';
@@ -4312,6 +4738,9 @@
         bank_name: document.getElementById('set-bank').value,
         is_small_business: document.getElementById('set-smallbiz').checked,
         show_payment_qr: document.getElementById('set-payment-qr').checked,
+        invoice_number_pattern: document.getElementById('set-invoice-pattern')?.value.trim() || 'RE-{YYYY}-{###}',
+        next_invoice_number: parseInt(document.getElementById('set-next-invoice-num')?.value, 10) || 1,
+        nextInvoiceNumber: parseInt(document.getElementById('set-next-invoice-num')?.value, 10) || 1,
         invoice_template: document.querySelector('input[name="set-tpl"]:checked')?.value || currentStore.company?.invoice_template || 'classic',
         logo_base64: currentSettingsLogo || undefined,
       };

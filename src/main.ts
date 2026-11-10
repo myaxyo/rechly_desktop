@@ -65,6 +65,7 @@ import {
 } from "./ai";
 import { detectOllama, launchOllama, getSystemProfile } from "./setup";
 import { checkGitHubReleaseUpdate, downloadUpdateAsset, installDownloadedUpdate } from "./updater";
+import { getNextInvoiceNumber, advanceInvoiceNumberCounter } from "./invoiceNumbering";
 import {
     RECHLY_MODEL_FAMILY,
     type AiSettings,
@@ -78,6 +79,7 @@ import {
     type Expense,
     type ExportResult,
     type Invoice,
+    type InvoiceTemplate,
     type ModelTierId,
     type OnboardingState,
     type Offer,
@@ -395,6 +397,11 @@ ipcMain.handle("company:save", (_e, data: Company) => {
 
 // Invoices
 ipcMain.handle("invoices:getAll", () => store.get("invoices") || []);
+ipcMain.handle("invoices:getNextNumber", () => {
+    const company = store.get("company") || {};
+    const invoices = store.get("invoices") || [];
+    return getNextInvoiceNumber({ company, invoices });
+});
 ipcMain.handle("invoices:create", (_e, data: Draft<Invoice>) => {
     const invoices = store.get("invoices") || [];
     const newInvoice = validateInvoice({
@@ -404,6 +411,11 @@ ipcMain.handle("invoices:create", (_e, data: Draft<Invoice>) => {
     }, invoices, (store.get("clients") || []).map(c => c.id));
     invoices.unshift(newInvoice);
     store.set("invoices", invoices);
+
+    const company = store.get("company") || {};
+    if (newInvoice.invoice_number && advanceInvoiceNumberCounter(company, newInvoice.invoice_number)) {
+        store.set("company", company);
+    }
     return newInvoice;
 });
 ipcMain.handle("invoices:update", (_e, id: string, data: Draft<Invoice>) => {
@@ -418,6 +430,31 @@ ipcMain.handle("invoices:update", (_e, id: string, data: Draft<Invoice>) => {
 });
 ipcMain.handle("invoices:delete", (_e, id: string) => {
     store.transaction(draft => deleteInvoiceAndUnlink(draft, id));
+    return true;
+});
+
+// Invoice Templates
+ipcMain.handle("invoiceTemplates:getAll", () => store.get("invoiceTemplates") || []);
+ipcMain.handle("invoiceTemplates:save", (_e, data: InvoiceTemplate) => {
+    const templates = store.get("invoiceTemplates") || [];
+    const id = data.id || `tpl-${randomUUID()}`;
+    const idx = templates.findIndex((t) => t.id === id);
+    const item: InvoiceTemplate = {
+        ...data,
+        id,
+        created_at: data.created_at || Date.now(),
+    };
+    if (idx !== -1) {
+        templates[idx] = item;
+    } else {
+        templates.unshift(item);
+    }
+    store.set("invoiceTemplates", templates);
+    return item;
+});
+ipcMain.handle("invoiceTemplates:delete", (_e, id: string) => {
+    const templates = (store.get("invoiceTemplates") || []).filter((t) => t.id !== id);
+    store.set("invoiceTemplates", templates);
     return true;
 });
 
@@ -512,9 +549,14 @@ ipcMain.handle("offers:convert", (_e, id: string) => {
     if (!offer) return null;
 
     const invoices = store.get("invoices") || [];
+    const company = store.get("company") || {};
+    const nextNumber = getNextInvoiceNumber({ company, invoices });
+    advanceInvoiceNumberCounter(company, nextNumber);
+    store.set("company", company);
+
     const newInvoice: Invoice = {
         id: `inv-${Date.now()}`,
-        invoice_number: `RE-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+        invoice_number: nextNumber,
         client_id: offer.client_id,
         issue_date: new Date().toISOString().slice(0, 10),
         due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),

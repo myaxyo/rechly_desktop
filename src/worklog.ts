@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { StoreData, Invoice, Expense } from "./types";
 import { validateInvoice } from "./invoiceValidation";
+import { getNextInvoiceNumber } from "./invoiceNumbering";
 
 export interface TimeEntry {
   id: string;
@@ -137,22 +138,10 @@ export function stopTimer(
   return entry;
 }
 export function nextInvoiceNumber(
-  data: StoreData,
+  data: Pick<StoreData, "invoices" | "company">,
   year = new Date().getFullYear(),
 ): string {
-  const prefix = `RE-${year}-`;
-  const max = data.invoices.reduce((highest, i) => {
-    const number = i.invoice_number || "";
-    const suffix = number.slice(prefix.length);
-    return number.startsWith(prefix) &&
-      /^\d+$/.test(suffix) &&
-      Number.isSafeInteger(Number(suffix))
-      ? Math.max(highest, Number(suffix))
-      : highest;
-  }, 0);
-  if (max >= Number.MAX_SAFE_INTEGER - 1)
-    throw new Error("Rechnungsnummernkreis ist ausgeschöpft.");
-  return prefix + String(max + 1).padStart(3, "0");
+  return getNextInvoiceNumber(data, new Date(year, 0, 1), year);
 }
 export function createTimeInvoice(data: StoreData, raw: unknown): Invoice {
   const r = record(raw);

@@ -20,6 +20,8 @@ export const getDefaultStore = (): StoreData => ({
         payment_terms_default: "Zahlbar innerhalb von 14 Tagen ohne Abzug.",
         is_small_business: false,
         invoice_template: "classic",
+        invoice_number_pattern: "RE-{YYYY}-{###}",
+        next_invoice_number: 2,
     },
     invoices: [
         {
@@ -103,6 +105,7 @@ export const getDefaultStore = (): StoreData => ({
         },
     ],
     offers: [],
+    invoiceTemplates: [],
     expenses: [
         {
             id: "exp-1",

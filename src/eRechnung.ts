@@ -55,6 +55,13 @@ export function generateXRechnungXML(
     const deliveryDate = (invoice.delivery_date || invoice.issue_date || new Date().toISOString())
         .slice(0, 10)
         .replace(/-/g, "");
+    const deliveryDateUntil = invoice.delivery_date_until
+        ? invoice.delivery_date_until.slice(0, 10).replace(/-/g, "")
+        : "";
+
+    const billingPeriodXml = invoice.delivery_date && deliveryDateUntil
+        ? `<ram:BillingSpecifiedPeriod><ram:StartDateTime><udt:DateTimeString format="102">${deliveryDate}</udt:DateTimeString></ram:StartDateTime><ram:EndDateTime><udt:DateTimeString format="102">${deliveryDateUntil}</udt:DateTimeString></ram:EndDateTime></ram:BillingSpecifiedPeriod>`
+        : "";
 
     const iban = (company.bank_iban || "").replace(/\s+/g, "");
     const bic = (company.bank_bic || "").replace(/\s+/g, "");
@@ -101,6 +108,14 @@ export function generateXRechnungXML(
         const lineNet = round(item.quantity * item.price * (1 - (item.discount_percent || 0) / 100));
         const vatRate = company.is_small_business ? 0 : (item.tax_rate_percent ?? 0);
         const vatCategory = company.is_small_business ? "E" : (vatRate === 0 ? "Z" : "S");
+        const itemDeliveryDate = item.delivery_date ? item.delivery_date.slice(0, 10).replace(/-/g, "") : "";
+        const itemDeliveryUntil = item.delivery_date_until ? item.delivery_date_until.slice(0, 10).replace(/-/g, "") : "";
+        const itemDeliveryXml = itemDeliveryDate
+            ? `<ram:ActualDeliverySupplyChainEvent><ram:OccurrenceDateTime><udt:DateTimeString format="102">${itemDeliveryDate}</udt:DateTimeString></ram:OccurrenceDateTime></ram:ActualDeliverySupplyChainEvent>`
+            : "";
+        const itemPeriodXml = itemDeliveryDate && itemDeliveryUntil
+            ? `<ram:BillingSpecifiedPeriod><ram:StartDateTime><udt:DateTimeString format="102">${itemDeliveryDate}</udt:DateTimeString></ram:StartDateTime><ram:EndDateTime><udt:DateTimeString format="102">${itemDeliveryUntil}</udt:DateTimeString></ram:EndDateTime></ram:BillingSpecifiedPeriod>`
+            : "";
 
         return `
     <ram:IncludedSupplyChainTradeLineItem>
@@ -116,9 +131,9 @@ export function generateXRechnungXML(
         </ram:NetPriceProductTradePrice>
       </ram:SpecifiedLineTradeAgreement>
       <ram:SpecifiedLineTradeDelivery>
-        <ram:BilledQuantity unitCode="${unitCode(item.unit_of_measure)}">${item.quantity}</ram:BilledQuantity>
+        <ram:BilledQuantity unitCode="${unitCode(item.unit_of_measure)}">${item.quantity}</ram:BilledQuantity>${itemDeliveryXml ? `\n        ${itemDeliveryXml}` : ""}
       </ram:SpecifiedLineTradeDelivery>
-      <ram:SpecifiedLineTradeSettlement>
+      <ram:SpecifiedLineTradeSettlement>${itemPeriodXml ? `\n        ${itemPeriodXml}` : ""}
         <ram:ApplicableTradeTax>
           <ram:TypeCode>VAT</ram:TypeCode>
           <ram:CategoryCode>${vatCategory}</ram:CategoryCode>
@@ -210,6 +225,7 @@ export function generateXRechnungXML(
     </ram:ApplicableHeaderTradeDelivery>
 
     <ram:ApplicableHeaderTradeSettlement>
+      ${billingPeriodXml}
       <ram:PaymentReference>${escapeXml(invoice.invoice_number)}</ram:PaymentReference>
       <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
       ${paymentMeansXml}

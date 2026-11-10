@@ -2702,6 +2702,8 @@ export function createRechlyBackupBundle(storeData: StoreData): RechlyBackupBund
               invoice_template: storeData.company.invoice_template || "classic",
               show_payment_qr: Boolean(storeData.company.show_payment_qr),
               ...(storeData.company.logo_base64 ? { logo_base64: storeData.company.logo_base64 } : {}),
+              ...(storeData.company.invoice_number_pattern ? { invoice_number_pattern: storeData.company.invoice_number_pattern } : {}),
+              ...(typeof storeData.company.next_invoice_number === "number" ? { next_invoice_number: storeData.company.next_invoice_number } : {}),
           }
         : null;
 
@@ -2917,6 +2919,8 @@ export function executeMigrationImport(
                     comp.invoice_template || nextStore.company?.invoice_template || "classic",
                 ),
                 show_payment_qr: comp.show_payment_qr !== undefined ? Boolean(comp.show_payment_qr) : Boolean(nextStore.company?.show_payment_qr),
+                ...(comp.invoice_number_pattern ? { invoice_number_pattern: String(comp.invoice_number_pattern) } : (nextStore.company?.invoice_number_pattern ? { invoice_number_pattern: nextStore.company.invoice_number_pattern } : {})),
+                ...(typeof comp.next_invoice_number === "number" ? { next_invoice_number: comp.next_invoice_number } : (typeof nextStore.company?.next_invoice_number === "number" ? { next_invoice_number: nextStore.company.next_invoice_number } : {})),
             };
             if (typeof comp.logo_base64 === "string" && comp.logo_base64.startsWith("data:image/")) {
                 updatedComp.logo_base64 = comp.logo_base64;

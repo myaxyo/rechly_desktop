@@ -9,6 +9,7 @@ import type {
     Expense,
     CompleteOnboardingRequest,
     Invoice,
+    InvoiceTemplate,
     ModelTierId,
     Offer,
     OllamaPullProgress,
@@ -44,11 +45,17 @@ const api = {
 
     // Invoices
     getInvoicePaymentQr: (id: string): Promise<string | null> => ipcRenderer.invoke("invoice:paymentQr", id),
+    getNextInvoiceNumber: (): Promise<string> => ipcRenderer.invoke("invoices:getNextNumber"),
     getInvoices: () => ipcRenderer.invoke("invoices:getAll"),
     createInvoice: (data: Draft<Invoice>) => ipcRenderer.invoke("invoices:create", data),
     updateInvoice: (id: string, data: Draft<Invoice>) =>
         ipcRenderer.invoke("invoices:update", id, data),
     deleteInvoice: (id: string) => ipcRenderer.invoke("invoices:delete", id),
+
+    // Invoice Templates
+    getInvoiceTemplates: (): Promise<InvoiceTemplate[]> => ipcRenderer.invoke("invoiceTemplates:getAll"),
+    saveInvoiceTemplate: (data: InvoiceTemplate): Promise<InvoiceTemplate> => ipcRenderer.invoke("invoiceTemplates:save", data),
+    deleteInvoiceTemplate: (id: string): Promise<boolean> => ipcRenderer.invoke("invoiceTemplates:delete", id),
 
     // Clients
     getClients: () => ipcRenderer.invoke("clients:getAll"),
