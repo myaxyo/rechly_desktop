@@ -42,6 +42,11 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Ensure Electron binary is installed
+        run: |
+          for i in 1 2 3; do
+            node node_modules/electron/install.js && break || sleep 5
+          done
       - name: Install isolated UI test tooling
         run: npm install --prefix .ci-tools --no-save --package-lock=false playwright-core@1.57.0
       - name: Typecheck, compile and regression tests
