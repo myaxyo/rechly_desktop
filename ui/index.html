@@ -1717,11 +1717,13 @@
     }
 
     async function setInvoiceStatus(id, status) {
-      await window.rechly.updateInvoice(id, { status });
-      currentStore = await window.rechly.getStore();
-      const label = INVOICE_STATUSES.find(s => s.value === status)?.label || status;
-      showToast(`Status geändert: ${label}`);
-      showView(currentView);
+      try {
+        await window.rechly.updateInvoice(id, { status });
+        currentStore = await window.rechly.getStore();
+        const label = INVOICE_STATUSES.find(s => s.value === status)?.label || status;
+        showToast(`Status geändert: ${label}`);
+        showView(currentView);
+      } catch (err) { showToast(err?.message || 'Status konnte nicht geändert werden.', 'error'); }
     }
 
     function showView(viewId) {
@@ -2480,7 +2482,7 @@
       saveButton.disabled = true;
       try {
         const clientId = document.getElementById('inv-client').value;
-        if (!clientId) return;
+        if (!clientId) { showToast('Bitte wählen Sie einen Kunden aus.', 'error'); return; }
 
         const items = [];
         document.querySelectorAll('#inv-items-body tr').forEach(tr => {
@@ -3157,13 +3159,15 @@
       const leitweg_id = document.getElementById('modal-client-leitweg').value.trim();
 
       const clientData = { name, contact_person, email, address_line1, postal_code, city, vat_id, leitweg_id };
-      if (editingClientId) {
-        await window.rechly.updateClient(editingClientId, clientData);
-        showToast('Kunde erfolgreich aktualisiert!');
-      } else {
-        await window.rechly.createClient(clientData);
-        showToast('Kunde angelegt!');
-      }
+      try {
+        if (editingClientId) {
+          await window.rechly.updateClient(editingClientId, clientData);
+          showToast('Kunde erfolgreich aktualisiert!');
+        } else {
+          await window.rechly.createClient(clientData);
+          showToast('Kunde angelegt!');
+        }
+      } catch (err) { showToast(err?.message || 'Kunde konnte nicht gespeichert werden.', 'error'); return; }
       editingClientId = null;
       currentStore = await window.rechly.getStore();
       updateBadges();
@@ -3255,13 +3259,15 @@
       const tax_rate_percent = parseFloat(document.getElementById('modal-product-vat').value) || 0;
 
       const productData = { name, description, price, unit_of_measure, tax_rate_percent };
-      if (editingProductId) {
-        await window.rechly.updateProduct(editingProductId, productData);
-        showToast('Produkt erfolgreich aktualisiert!');
-      } else {
-        await window.rechly.createProduct(productData);
-        showToast('Produkt gespeichert!');
-      }
+      try {
+        if (editingProductId) {
+          await window.rechly.updateProduct(editingProductId, productData);
+          showToast('Produkt erfolgreich aktualisiert!');
+        } else {
+          await window.rechly.createProduct(productData);
+          showToast('Produkt gespeichert!');
+        }
+      } catch (err) { showToast(err?.message || 'Produkt konnte nicht gespeichert werden.', 'error'); return; }
       editingProductId = null;
       currentStore = await window.rechly.getStore();
       updateBadges();
@@ -3299,10 +3305,12 @@
     }
 
     async function setOfferStatus(id, status) {
-      await window.rechly.updateOffer(id, { status });
-      currentStore = await window.rechly.getStore();
-      showToast(`Status geändert: ${OFFER_STATUSES.find(s => s.value === status)?.label || status}`);
-      showView(currentView);
+      try {
+        await window.rechly.updateOffer(id, { status });
+        currentStore = await window.rechly.getStore();
+        showToast(`Status geändert: ${OFFER_STATUSES.find(s => s.value === status)?.label || status}`);
+        showView(currentView);
+      } catch (err) { showToast(err?.message || 'Status konnte nicht geändert werden.', 'error'); }
     }
 
     function createNewOffer() {
@@ -4160,6 +4168,14 @@
       if (file.size > 5 * 1024 * 1024) throw new Error('Die Bilddatei ist zu groß (maximal 5 MB erlaubt).');
       if (!file.type.startsWith('image/')) throw new Error('Bitte wählen Sie eine gültige Bilddatei (PNG, JPG, WebP) aus.');
 
+      // SVG als Vektor direkt übernehmen (kein Canvas-Raster nötig, bleibt scharf im Druck).
+      if (file.type === 'image/svg+xml') {
+        const text = await file.text();
+        if (!text.includes('<svg')) throw new Error('Die SVG-Datei konnte nicht verarbeitet werden.');
+        if (text.length > 1024 * 1024) throw new Error('Die SVG-Datei ist zu groß (maximal 1 MB erlaubt).');
+        return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(text)))}`;
+      }
+
       return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);
         const img = new Image();
@@ -4722,66 +4738,68 @@
     }
 
     async function saveSettings() {
-      const updatedComp = {
-        ...currentStore.company,
-        name: document.getElementById('set-name').value,
-        legal_form: document.getElementById('set-legal').value,
-        address_line1: document.getElementById('set-addr').value,
-        postal_code: document.getElementById('set-plz').value,
-        city: document.getElementById('set-city').value,
-        country: document.getElementById('set-country')?.value.trim() || currentStore.company?.country || 'DE',
-        email: document.getElementById('set-email')?.value.trim() || currentStore.company?.email || '',
-        phone: document.getElementById('set-phone')?.value.trim() || currentStore.company?.phone || '',
-        vat_id: document.getElementById('set-vat').value,
-        tax_number: document.getElementById('set-tax').value,
-        bank_iban: document.getElementById('set-iban').value,
-        bank_bic: document.getElementById('set-bic').value,
-        bank_name: document.getElementById('set-bank').value,
-        is_small_business: document.getElementById('set-smallbiz').checked,
-        show_payment_qr: document.getElementById('set-payment-qr').checked,
-        invoice_number_pattern: document.getElementById('set-invoice-pattern')?.value.trim() || 'RE-{YYYY}-{###}',
-        next_invoice_number: parseInt(document.getElementById('set-next-invoice-num')?.value, 10) || 1,
-        nextInvoiceNumber: parseInt(document.getElementById('set-next-invoice-num')?.value, 10) || 1,
-        invoice_template: document.querySelector('input[name="set-tpl"]:checked')?.value || currentStore.company?.invoice_template || 'classic',
-        logo_base64: currentSettingsLogo || undefined,
-      };
-      if (!currentSettingsLogo) {
-        delete updatedComp.logo_base64;
-      }
+      try {
+        const updatedComp = {
+          ...currentStore.company,
+          name: document.getElementById('set-name').value,
+          legal_form: document.getElementById('set-legal').value,
+          address_line1: document.getElementById('set-addr').value,
+          postal_code: document.getElementById('set-plz').value,
+          city: document.getElementById('set-city').value,
+          country: document.getElementById('set-country')?.value.trim() || currentStore.company?.country || 'DE',
+          email: document.getElementById('set-email')?.value.trim() || currentStore.company?.email || '',
+          phone: document.getElementById('set-phone')?.value.trim() || currentStore.company?.phone || '',
+          vat_id: document.getElementById('set-vat').value,
+          tax_number: document.getElementById('set-tax').value,
+          bank_iban: document.getElementById('set-iban').value,
+          bank_bic: document.getElementById('set-bic').value,
+          bank_name: document.getElementById('set-bank').value,
+          is_small_business: document.getElementById('set-smallbiz').checked,
+          show_payment_qr: document.getElementById('set-payment-qr').checked,
+          invoice_number_pattern: document.getElementById('set-invoice-pattern')?.value.trim() || 'RE-{YYYY}-{###}',
+          next_invoice_number: parseInt(document.getElementById('set-next-invoice-num')?.value, 10) || 1,
+          nextInvoiceNumber: parseInt(document.getElementById('set-next-invoice-num')?.value, 10) || 1,
+          invoice_template: document.querySelector('input[name="set-tpl"]:checked')?.value || currentStore.company?.invoice_template || 'classic',
+          logo_base64: currentSettingsLogo || undefined,
+        };
+        if (!currentSettingsLogo) {
+          delete updatedComp.logo_base64;
+        }
 
-      const customModel = document.getElementById('ai-ollama-model')?.value || '';
-      let detectedTier = currentStore.aiSettings?.selected_tier || '3b';
-      if (customModel.includes('0.5b')) detectedTier = '0.5b';
-      else if (customModel.includes('1.5b')) detectedTier = '1.5b';
-      else if (customModel.includes('3b')) detectedTier = '3b';
+        const customModel = document.getElementById('ai-ollama-model')?.value || '';
+        let detectedTier = currentStore.aiSettings?.selected_tier || '3b';
+        if (customModel.includes('0.5b')) detectedTier = '0.5b';
+        else if (customModel.includes('1.5b')) detectedTier = '1.5b';
+        else if (customModel.includes('3b')) detectedTier = '3b';
 
-      const updatedAi = {
-        active_provider: selectedAiProvider,
-        ollama_host: document.getElementById('ai-ollama-host')?.value || 'http://localhost:11434',
-        ollama_model: customModel || RECHLY_MODEL_FAMILY[detectedTier]?.modelIdentifier || 'jonprompter/rechly-de-3b',
-        selected_tier: detectedTier,
-        openai_key: document.getElementById('ai-openai-key')?.value || '',
-        openai_model: document.getElementById('ai-openai-model')?.value || 'gpt-4o-mini',
-        anthropic_key: document.getElementById('ai-anthropic-key')?.value || '',
-        anthropic_model: document.getElementById('ai-anthropic-model')?.value || 'claude-3-5-sonnet-20241022',
-        featured_model: customModel || 'jonprompter/rechly-de-3b',
-        ollama_url: `https://ollama.com/${customModel || 'jonprompter/rechly-de-3b'}`,
-        hf_url: RECHLY_MODEL_FAMILY[detectedTier]?.hfUrl || 'https://huggingface.co/jonprompter/rechly-de-3b',
-      };
+        const updatedAi = {
+          active_provider: selectedAiProvider,
+          ollama_host: document.getElementById('ai-ollama-host')?.value || 'http://localhost:11434',
+          ollama_model: customModel || RECHLY_MODEL_FAMILY[detectedTier]?.modelIdentifier || 'jonprompter/rechly-de-3b',
+          selected_tier: detectedTier,
+          openai_key: document.getElementById('ai-openai-key')?.value || '',
+          openai_model: document.getElementById('ai-openai-model')?.value || 'gpt-4o-mini',
+          anthropic_key: document.getElementById('ai-anthropic-key')?.value || '',
+          anthropic_model: document.getElementById('ai-anthropic-model')?.value || 'claude-3-5-sonnet-20241022',
+          featured_model: customModel || 'jonprompter/rechly-de-3b',
+          ollama_url: `https://ollama.com/${customModel || 'jonprompter/rechly-de-3b'}`,
+          hf_url: RECHLY_MODEL_FAMILY[detectedTier]?.hfUrl || 'https://huggingface.co/jonprompter/rechly-de-3b',
+        };
 
-      const isCloud = selectedAiProvider === 'openai' || selectedAiProvider === 'anthropic';
-      if (isCloud && currentStore.onboarding && currentStore.onboarding.cloud_ai_opt_in === false) {
-        const allow = confirm('Cloud-KI erlauben?\n\nBei der KI-Schnellerfassung werden Ihr eingegebener Text und Ihre Kundennamen an den gewählten Anbieter übertragen. Bisher haben Sie nur lokale KI erlaubt.');
-        if (!allow) return;
-        await window.rechly.setCloudAiOptIn(true);
-      }
+        const isCloud = selectedAiProvider === 'openai' || selectedAiProvider === 'anthropic';
+        if (isCloud && currentStore.onboarding && currentStore.onboarding.cloud_ai_opt_in === false) {
+          const allow = confirm('Cloud-KI erlauben?\n\nBei der KI-Schnellerfassung werden Ihr eingegebener Text und Ihre Kundennamen an den gewählten Anbieter übertragen. Bisher haben Sie nur lokale KI erlaubt.');
+          if (!allow) return;
+          await window.rechly.setCloudAiOptIn(true);
+        }
 
-      await window.rechly.saveCompany(updatedComp);
-      await window.rechly.saveAiSettings(updatedAi);
-      currentStore = await window.rechly.getStore();
-      updateSidebarCompany();
-      updateAiStatusPill();
-      showToast('Einstellungen & KI erfolgreich gespeichert!');
+        await window.rechly.saveCompany(updatedComp);
+        await window.rechly.saveAiSettings(updatedAi);
+        currentStore = await window.rechly.getStore();
+        updateSidebarCompany();
+        updateAiStatusPill();
+        showToast('Einstellungen & KI erfolgreich gespeichert!');
+      } catch (err) { showToast(err?.message || 'Einstellungen konnten nicht gespeichert werden.', 'error'); }
     }
 
     async function importBackup() {
@@ -5403,33 +5421,35 @@
       const step = onbStepId();
       const next = document.getElementById('onb-next');
 
-      if (step === 'privacy') {
-        if (!onb.storageConsent) return onbError('Bitte bestätigen Sie die lokale Speicherung, um fortzufahren.');
-        if (!onb.cloudOptIn && onb.aiChoice !== 'ollama') onb.aiChoice = 'ollama';
-      }
-      if (step === 'components') {
-        if (onb.aiChoice !== 'ollama' && !onb.cloudKey[onb.aiChoice]) return onbError('Bitte API-Key eingeben oder „Lokale KI“ wählen.');
-        await onbSaveAiChoice();
-      }
-      if (step === 'company') {
-        onbCollectCompany();
-        const error = onbValidateCompany();
-        if (error) return onbError(error);
-        await window.rechly.saveCompany({ ...currentStore.company, ...onb.company });
-      }
-      if (step === 'done') {
-        next.disabled = true;
-        await window.rechly.completeOnboarding({ cloud_ai_opt_in: onb.cloudOptIn, remove_sample_data: onb.removeSamples });
-        currentStore = await window.rechly.getStore();
-        document.getElementById('onboarding').style.display = 'none';
-        onb = null;
-        updateSidebarCompany();
-        updateBadges();
-        updateAiStatusPill();
-        showView('dashboard');
-        showToast('Willkommen bei Rechly!');
-        return;
-      }
+      try {
+        if (step === 'privacy') {
+          if (!onb.storageConsent) return onbError('Bitte bestätigen Sie die lokale Speicherung, um fortzufahren.');
+          if (!onb.cloudOptIn && onb.aiChoice !== 'ollama') onb.aiChoice = 'ollama';
+        }
+        if (step === 'components') {
+          if (onb.aiChoice !== 'ollama' && !onb.cloudKey[onb.aiChoice]) return onbError('Bitte API-Key eingeben oder „Lokale KI“ wählen.');
+          await onbSaveAiChoice();
+        }
+        if (step === 'company') {
+          onbCollectCompany();
+          const error = onbValidateCompany();
+          if (error) return onbError(error);
+          await window.rechly.saveCompany({ ...currentStore.company, ...onb.company });
+        }
+        if (step === 'done') {
+          next.disabled = true;
+          await window.rechly.completeOnboarding({ cloud_ai_opt_in: onb.cloudOptIn, remove_sample_data: onb.removeSamples });
+          currentStore = await window.rechly.getStore();
+          document.getElementById('onboarding').style.display = 'none';
+          onb = null;
+          updateSidebarCompany();
+          updateBadges();
+          updateAiStatusPill();
+          showView('dashboard');
+          showToast('Willkommen bei Rechly!');
+          return;
+        }
+      } catch (err) { onbError(err?.message || 'Speichern fehlgeschlagen. Bitte prüfen Sie Ihre Eingaben.'); return; }
       onb.step += 1;
       renderOnboarding();
     }
@@ -5470,7 +5490,7 @@
       el.setAttribute('role', 'button');
       el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
     });
-    window.addEventListener('unhandledrejection', () => showToast('Der Vorgang konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.', 'error'));
+    window.addEventListener('unhandledrejection', (event) => showToast(event?.reason?.message ? `Fehler: ${event.reason.message}` : 'Der Vorgang konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.', 'error'));
     init();
   </script>
 </body>
