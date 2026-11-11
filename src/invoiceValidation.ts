@@ -32,23 +32,29 @@ export function validateInvoice(invoice: Invoice, existing: Invoice[], clientIds
         if (!Number.isSafeInteger(Math.round(total * 100))) throw new Error('Der Positionsbetrag ist zu groß.');
         subtotal += total;
         vat += cents(total * tax / 100);
-        return {
+        const cleanedItem: InvoiceItem = {
             ...item,
             description: item.description.trim(),
-            delivery_date: itemDeliveryDate,
-            delivery_date_until: itemDeliveryDateUntil,
             total,
         };
+        if (itemDeliveryDate) cleanedItem.delivery_date = itemDeliveryDate;
+        else delete cleanedItem.delivery_date;
+        if (itemDeliveryDateUntil) cleanedItem.delivery_date_until = itemDeliveryDateUntil;
+        else delete cleanedItem.delivery_date_until;
+        return cleanedItem;
     });
     if (!Number.isSafeInteger(Math.round((subtotal + vat) * 100))) throw new Error('Der Rechnungsbetrag ist zu groß.');
-    return {
+    const cleanedInvoice: Invoice = {
         ...invoice,
         invoice_number: number,
-        delivery_date: deliveryDate,
-        delivery_date_until: deliveryDateUntil,
         items,
         subtotal: cents(subtotal),
         total_vat: cents(vat),
         total_gross: cents(subtotal + vat),
     };
+    if (deliveryDate) cleanedInvoice.delivery_date = deliveryDate;
+    else delete cleanedInvoice.delivery_date;
+    if (deliveryDateUntil) cleanedInvoice.delivery_date_until = deliveryDateUntil;
+    else delete cleanedInvoice.delivery_date_until;
+    return cleanedInvoice;
 }

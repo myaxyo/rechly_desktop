@@ -2056,18 +2056,19 @@
         const unit = tr.querySelector('.item-unit')?.value.trim() || 'Stück';
         const price = parseFloat(tr.querySelector('.item-price')?.value) || 0;
         const vat = parseFloat(tr.querySelector('.item-vat')?.value) || 0;
-        const dDate = tr.querySelector('.item-delivery-date')?.value || undefined;
-        const dUntil = tr.querySelector('.item-delivery-until')?.value || undefined;
+        const dDate = tr.querySelector('.item-delivery-date')?.value?.trim();
+        const dUntil = tr.querySelector('.item-delivery-until')?.value?.trim();
         if (desc) {
-          items.push({
+          const item = {
             description: desc,
             quantity: qty,
             unit_of_measure: unit,
             price,
             tax_rate_percent: vat,
-            delivery_date: dDate,
-            delivery_date_until: dUntil,
-          });
+          };
+          if (dDate) item.delivery_date = dDate;
+          if (dUntil) item.delivery_date_until = dUntil;
+          items.push(item);
         }
       });
 
@@ -2353,9 +2354,6 @@
       tbody.appendChild(tr);
       calculateTotals();
     }
-      tbody.appendChild(tr);
-      calculateTotals();
-    }
 
     function addProductItem(productId) {
       const product = (currentStore.products || []).find(pr => pr.id === productId);
@@ -2491,29 +2489,30 @@
           const unit = tr.querySelector('.item-unit').value.trim() || 'Stück';
           const price = parseFloat(tr.querySelector('.item-price').value) || 0;
           const vat = parseFloat(tr.querySelector('.item-vat').value) || 0;
-          const itDDate = tr.querySelector('.item-delivery-date')?.value?.trim() || undefined;
-          const itDUntil = tr.querySelector('.item-delivery-until')?.value?.trim() || undefined;
-          if (desc) items.push({
-            description: desc,
-            quantity: qty,
-            unit_of_measure: unit,
-            price,
-            tax_rate_percent: vat,
-            delivery_date: itDDate,
-            delivery_date_until: itDUntil,
-          });
+          const itDDate = tr.querySelector('.item-delivery-date')?.value?.trim();
+          const itDUntil = tr.querySelector('.item-delivery-until')?.value?.trim();
+          if (desc) {
+            const itObj = {
+              description: desc,
+              quantity: qty,
+              unit_of_measure: unit,
+              price,
+              tax_rate_percent: vat,
+            };
+            if (itDDate) itObj.delivery_date = itDDate;
+            if (itDUntil) itObj.delivery_date_until = itDUntil;
+            items.push(itObj);
+          }
         });
 
         const totals = calculateTotals();
-        const deliveryDate = document.getElementById('inv-delivery-date')?.value?.trim() || undefined;
-        const deliveryDateUntil = document.getElementById('inv-delivery-until')?.value?.trim() || undefined;
+        const deliveryDate = document.getElementById('inv-delivery-date')?.value?.trim();
+        const deliveryDateUntil = document.getElementById('inv-delivery-until')?.value?.trim();
         const invoiceData = {
           client_id: clientId,
           invoice_number: document.getElementById('inv-num').value.trim(),
           issue_date: document.getElementById('inv-date').value,
           due_date: document.getElementById('inv-due').value,
-          delivery_date: deliveryDate,
-          delivery_date_until: deliveryDateUntil,
           payment_terms: document.getElementById('inv-terms').value,
           items,
           subtotal: totals.subtotal,
@@ -2521,6 +2520,8 @@
           total_gross: totals.totalGross,
           status: document.getElementById('inv-status').value,
         };
+        if (deliveryDate) invoiceData.delivery_date = deliveryDate;
+        if (deliveryDateUntil) invoiceData.delivery_date_until = deliveryDateUntil;
 
         if (editorDocType === 'offer') {
           const offerData = {
