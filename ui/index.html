@@ -1046,6 +1046,7 @@
   </style>
   <link rel="stylesheet" href="workspace.css">
   <link rel="stylesheet" href="business.css">
+  <script src="decimal.js"></script>
   <script src="business.js"></script>
   <script src="calendar.js"></script>
   <script src="shell.js"></script>
@@ -1251,7 +1252,7 @@
           </div>
           <div class="form-group">
             <label>Nettopreis (€) *</label>
-            <input type="number" id="modal-product-price" step="0.01" value="100.00">
+            <input type="text" inputmode="decimal" id="modal-product-price" step="0.01" value="100.00">
           </div>
           <div class="form-group">
             <label>Einheit</label>
@@ -1295,7 +1296,7 @@
           </div>
           <div class="form-group">
             <label>Bruttobetrag (€) *</label>
-            <input type="number" id="modal-exp-amount" step="0.01" placeholder="49.99">
+            <input type="text" inputmode="decimal" id="modal-exp-amount" step="0.01" placeholder="49.99">
           </div>
           <div class="form-group">
             <label>MwSt-Satz (%)</label>
@@ -2054,10 +2055,10 @@
       const items = [];
       rows.forEach(tr => {
         const desc = tr.querySelector('.item-desc')?.value.trim();
-        const qty = parseFloat(tr.querySelector('.item-qty')?.value) || 1;
+        const qty = parseDecimalInput(tr.querySelector('.item-qty')?.value) || 1;
         const unit = tr.querySelector('.item-unit')?.value.trim() || 'Stück';
-        const price = parseFloat(tr.querySelector('.item-price')?.value) || 0;
-        const vat = parseFloat(tr.querySelector('.item-vat')?.value) || 0;
+        const price = parseDecimalInput(tr.querySelector('.item-price')?.value) || 0;
+        const vat = parseDecimalInput(tr.querySelector('.item-vat')?.value) || 0;
         const dDate = tr.querySelector('.item-delivery-date')?.value?.trim();
         const dUntil = tr.querySelector('.item-delivery-until')?.value?.trim();
         if (desc) {
@@ -2183,10 +2184,10 @@
                 <input type="date" class="item-delivery-until" value="${esc(it.delivery_date_until || '')}" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
               </div>
             </td>
-            <td><input type="number" class="item-qty" value="${it.quantity || 1}" style="width:70px" oninput="calculateTotals()"></td>
+            <td><input type="text" inputmode="decimal" class="item-qty" value="${it.quantity || 1}" style="width:70px" oninput="calculateTotals()"></td>
             <td><input type="text" class="item-unit" value="${esc(it.unit_of_measure || 'Stunde')}" style="width:80px"></td>
-            <td><input type="number" class="item-price" value="${it.price || 0}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
-            <td><input type="number" class="item-vat" value="${it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company.is_small_business ? 0 : 19)}" style="width:70px" oninput="calculateTotals()"></td>
+            <td><input type="text" inputmode="decimal" class="item-price" value="${it.price || 0}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
+            <td><input type="text" inputmode="decimal" class="item-vat" value="${it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company.is_small_business ? 0 : 19)}" style="width:70px" oninput="calculateTotals()"></td>
             <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
           </tr>
         `).join('');
@@ -2202,10 +2203,10 @@
                 <input type="date" class="item-delivery-until" value="" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
               </div>
             </td>
-            <td><input type="number" class="item-qty" value="1" style="width:70px" oninput="calculateTotals()"></td>
+            <td><input type="text" inputmode="decimal" class="item-qty" value="1" style="width:70px" oninput="calculateTotals()"></td>
             <td><input type="text" class="item-unit" value="Stunde" style="width:80px"></td>
-            <td><input type="number" class="item-price" value="110" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
-            <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : 19}" style="width:70px" oninput="calculateTotals()"></td>
+            <td><input type="text" inputmode="decimal" class="item-price" value="110" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
+            <td><input type="text" inputmode="decimal" class="item-vat" value="${currentStore.company.is_small_business ? 0 : 19}" style="width:70px" oninput="calculateTotals()"></td>
             <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
           </tr>
         `;
@@ -2347,10 +2348,10 @@
             <input type="date" class="item-delivery-until" value="${esc(dUntil)}" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
           </div>
         </td>
-        <td><input type="number" class="item-qty" value="${esc(qty)}" style="width:70px" oninput="calculateTotals()"></td>
+        <td><input type="text" inputmode="decimal" class="item-qty" value="${esc(qty)}" style="width:70px" oninput="calculateTotals()"></td>
         <td><input type="text" class="item-unit" value="${esc(unit)}" style="width:80px"></td>
-        <td><input type="number" class="item-price" value="${esc(price)}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
-        <td><input type="number" class="item-vat" value="${currentStore.company.is_small_business ? 0 : vat}" style="width:70px" oninput="calculateTotals()"></td>
+        <td><input type="text" inputmode="decimal" class="item-price" value="${esc(price)}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
+        <td><input type="text" inputmode="decimal" class="item-vat" value="${currentStore.company.is_small_business ? 0 : vat}" style="width:70px" oninput="calculateTotals()"></td>
         <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
       `;
       tbody.appendChild(tr);
@@ -2376,9 +2377,9 @@
       let subtotal = 0;
       let totalVat = 0;
       document.querySelectorAll('#inv-items-body tr').forEach(tr => {
-        const qty = parseFloat(tr.querySelector('.item-qty')?.value) || 0;
-        const price = parseFloat(tr.querySelector('.item-price')?.value) || 0;
-        const vat = parseFloat(tr.querySelector('.item-vat')?.value) || 0;
+        const qty = parseDecimalInput(tr.querySelector('.item-qty')?.value) || 0;
+        const price = parseDecimalInput(tr.querySelector('.item-price')?.value) || 0;
+        const vat = parseDecimalInput(tr.querySelector('.item-vat')?.value) || 0;
         const net = Math.round((qty * price + Number.EPSILON) * 100) / 100;
         subtotal += net;
         totalVat += Math.round((net * vat / 100 + Number.EPSILON) * 100) / 100;
@@ -2464,9 +2465,9 @@
       for (const row of rows) {
         for (const [selector, valid, message] of [
           ['.item-desc', v => v.trim().length > 0, 'Bitte beschreiben Sie jede Position.'],
-          ['.item-qty', v => v !== '' && Number.isFinite(Number(v)) && Number(v)>0, 'Die Menge muss größer als null sein.'],
-          ['.item-price', v => v !== '' && Number.isFinite(Number(v)) && Number(v)>=0, 'Bitte geben Sie einen gültigen, nicht negativen Preis ein.'],
-          ['.item-vat', v => v !== '' && Number.isFinite(Number(v)) && Number(v)>=0 && Number(v)<=100, 'Der Steuersatz muss zwischen 0 und 100 liegen.']
+          ['.item-qty', v => v !== '' && Number.isFinite(parseDecimalInput(v)) && parseDecimalInput(v)>0, 'Die Menge muss größer als null sein.'],
+          ['.item-price', v => v !== '' && Number.isFinite(parseDecimalInput(v)) && parseDecimalInput(v)>=0, 'Bitte geben Sie einen gültigen, nicht negativen Preis ein.'],
+          ['.item-vat', v => v !== '' && Number.isFinite(parseDecimalInput(v)) && parseDecimalInput(v)>=0 && parseDecimalInput(v)<=100, 'Der Steuersatz muss zwischen 0 und 100 liegen.']
         ]) { const element=row.querySelector(selector); if (!valid(element.value)) return {element,message}; }
       }
       return null;
@@ -2487,10 +2488,10 @@
         const items = [];
         document.querySelectorAll('#inv-items-body tr').forEach(tr => {
           const desc = tr.querySelector('.item-desc').value.trim();
-          const qty = parseFloat(tr.querySelector('.item-qty').value) || 1;
+          const qty = parseDecimalInput(tr.querySelector('.item-qty').value) || 1;
           const unit = tr.querySelector('.item-unit').value.trim() || 'Stück';
-          const price = parseFloat(tr.querySelector('.item-price').value) || 0;
-          const vat = parseFloat(tr.querySelector('.item-vat').value) || 0;
+          const price = parseDecimalInput(tr.querySelector('.item-price').value) || 0;
+          const vat = parseDecimalInput(tr.querySelector('.item-vat').value) || 0;
           const itDDate = tr.querySelector('.item-delivery-date')?.value?.trim();
           const itDUntil = tr.querySelector('.item-delivery-until')?.value?.trim();
           if (desc) {
@@ -3254,9 +3255,10 @@
       const name = document.getElementById('modal-product-name').value.trim();
       if (!name) return alert('Bitte Bezeichnung angeben.');
       const description = document.getElementById('modal-product-desc').value.trim();
-      const price = parseFloat(document.getElementById('modal-product-price').value) || 0;
+      const price = parseDecimalInput(document.getElementById('modal-product-price').value);
+      if (!Number.isFinite(price) || price < 0) return showToast('Bitte geben Sie einen gültigen, nicht negativen Preis ein.', 'error');
       const unit_of_measure = document.getElementById('modal-product-unit').value;
-      const tax_rate_percent = parseFloat(document.getElementById('modal-product-vat').value) || 0;
+      const tax_rate_percent = parseDecimalInput(document.getElementById('modal-product-vat').value) || 0;
 
       const productData = { name, description, price, unit_of_measure, tax_rate_percent };
       try {
@@ -3465,7 +3467,7 @@
       if (savingExpense) return;
       const vendor_name = document.getElementById('modal-exp-vendor').value.trim();
       if (!vendor_name) return alert('Bitte Lieferant angeben.');
-      const amount_gross = Number.parseFloat(document.getElementById('modal-exp-amount').value);
+      const amount_gross = parseDecimalInput(document.getElementById('modal-exp-amount').value);
       if (!Number.isFinite(amount_gross) || amount_gross < 0) return showToast('Bitte einen gültigen Bruttobetrag angeben.', 'error');
       const vat_rate = Number(document.getElementById('modal-exp-vat').value);
       const date = document.getElementById('modal-exp-date').value || new Date().toISOString().slice(0, 10);
@@ -4123,7 +4125,7 @@
             <h3 style="font-size:15px; margin-bottom:12px;">MwSt-Rechner (19% / 7%)</h3>
             <div class="form-group" style="margin-bottom:10px;">
               <label>Nettobetrag (€)</label>
-              <input type="number" id="calc-net" value="100" oninput="calcVat()">
+              <input type="text" inputmode="decimal" id="calc-net" value="100" oninput="calcVat()">
             </div>
             <div id="calc-vat-res" style="font-size:13px; color:#475569;">
               19% MwSt: <b>19.00 €</b> | Brutto: <b>119.00 €</b>
@@ -4134,11 +4136,11 @@
             <h3 style="font-size:15px; margin-bottom:12px;">Skonto-Rechner</h3>
             <div class="form-group" style="margin-bottom:10px;">
               <label>Rechnungsbetrag (€)</label>
-              <input type="number" id="calc-skonto-gross" value="1000" oninput="calcSkonto()">
+              <input type="text" inputmode="decimal" id="calc-skonto-gross" value="1000" oninput="calcSkonto()">
             </div>
             <div class="form-group" style="margin-bottom:10px;">
               <label>Skontosatz (%)</label>
-              <input type="number" id="calc-skonto-pct" value="2" oninput="calcSkonto()">
+              <input type="text" inputmode="decimal" id="calc-skonto-pct" value="2" oninput="calcSkonto()">
             </div>
             <div id="calc-skonto-res" style="font-size:13px; color:#475569;">
               Abzug: <b>20.00 €</b> | Zahlbetrag: <b>980.00 €</b>
@@ -4149,14 +4151,14 @@
     }
 
     function calcVat() {
-      const net = parseFloat(document.getElementById('calc-net').value) || 0;
+      const net = parseDecimalInput(document.getElementById('calc-net').value) || 0;
       const vat = net * 0.19;
       document.getElementById('calc-vat-res').innerHTML = `19% MwSt: <b>${vat.toFixed(2)} €</b> | Brutto: <b>${(net + vat).toFixed(2)} €</b>`;
     }
 
     function calcSkonto() {
-      const gross = parseFloat(document.getElementById('calc-skonto-gross').value) || 0;
-      const pct = parseFloat(document.getElementById('calc-skonto-pct').value) || 0;
+      const gross = parseDecimalInput(document.getElementById('calc-skonto-gross').value) || 0;
+      const pct = parseDecimalInput(document.getElementById('calc-skonto-pct').value) || 0;
       const discount = gross * (pct / 100);
       document.getElementById('calc-skonto-res').innerHTML = `Abzug: <b>${discount.toFixed(2)} €</b> | Zahlbetrag: <b>${(gross - discount).toFixed(2)} €</b>`;
     }
