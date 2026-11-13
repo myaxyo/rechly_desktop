@@ -707,10 +707,20 @@ ipcMain.handle("export:pdf", async (_e, invoiceId: string): Promise<ExportResult
     });
     if (canceled || !filePath) return { success: false };
 
-    const data = await mainWindow.webContents.printToPDF({
-        printBackground: true,
-        pageSize: "A4",
-    });
+    // Temporarily switch the window backdrop to white so @page margins do not inherit #f8fafc.
+    mainWindow.setBackgroundColor("#ffffff");
+    let data: Buffer;
+    try {
+        data = await mainWindow.webContents.printToPDF({
+            printBackground: true,
+            pageSize: "A4",
+            preferCSSPageSize: true,
+        });
+    } finally {
+        if (!mainWindow.isDestroyed()) {
+            mainWindow.setBackgroundColor("#f8fafc");
+        }
+    }
     fs.writeFileSync(filePath, data);
     shell.showItemInFolder(filePath);
     return { success: true, filePath };

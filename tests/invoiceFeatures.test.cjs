@@ -219,3 +219,46 @@ describe("Feature 3: Configurable Sequential Numbering & GoBD Compliance", () =>
     assert.ok(uiHtml.includes('updateSettingsPatternPreview'), 'ui/index.html must handle live preview updates');
   });
 });
+
+describe("Feedback Regression Fixes: Date Consistency, Duplicate/Multi-Select & PDF Margin", () => {
+  it("formats issue_date, due_date, and delivery_date consistently via dateLabel in all invoice templates", () => {
+    const uiHtml = fs.readFileSync(path.join(__dirname, "../ui/index.html"), "utf8");
+    for (const fnName of ["getClassicInvoiceHtml", "getModernInvoiceHtml", "getMinimalInvoiceHtml"]) {
+      const start = uiHtml.indexOf(`function ${fnName}(`);
+      assert.ok(start !== -1, `${fnName} must exist`);
+      const nextFn = uiHtml.indexOf("\n    function ", start + 1);
+      const body = uiHtml.slice(start, nextFn === -1 ? undefined : nextFn);
+      assert.ok(body.includes("dateLabel(inv.issue_date)"), `${fnName} must format issue_date with dateLabel`);
+      assert.ok(body.includes("dateLabel(inv.due_date)"), `${fnName} must format due_date with dateLabel`);
+      assert.ok(!body.includes("${inv.issue_date"), `${fnName} must not interpolate raw inv.issue_date`);
+      assert.ok(!body.includes("${inv.due_date"), `${fnName} must not interpolate raw inv.due_date`);
+    }
+  });
+
+  it("includes single duplicate and multi-select duplicate/delete for products and invoice items", () => {
+    const uiHtml = fs.readFileSync(path.join(__dirname, "../ui/index.html"), "utf8");
+    for (const hook of [
+      "duplicateProduct",
+      "duplicateSelectedProducts",
+      "deleteSelectedProducts",
+      "products-bulk-bar",
+      "prod-select-all",
+      "duplicateInvoiceItemRow",
+      "duplicateSelectedInvoiceItems",
+      "deleteSelectedInvoiceItems",
+      "inv-items-bulk-bar",
+      "inv-items-select-all",
+    ]) {
+      assert.ok(uiHtml.includes(hook), `ui/index.html must include ${hook}`);
+    }
+  });
+
+  it("sets white window background and preferCSSPageSize around printToPDF in src/main.ts", () => {
+    const mainTs = fs.readFileSync(path.join(__dirname, "../src/main.ts"), "utf8");
+    const exportStart = mainTs.indexOf('ipcMain.handle("export:pdf"');
+    assert.ok(exportStart !== -1, "export:pdf handler must exist");
+    const exportBlock = mainTs.slice(exportStart, exportStart + 1200);
+    assert.ok(exportBlock.includes('setBackgroundColor("#ffffff")'), "export:pdf must set white background for PDF margins");
+    assert.ok(exportBlock.includes('preferCSSPageSize: true'), "export:pdf must honor CSS @page size");
+  });
+});

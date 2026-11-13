@@ -1015,10 +1015,11 @@
       .print-sheet {
         position: static !important;
         display: block !important;
+        box-sizing: border-box !important;
         width: 100% !important;
         max-width: 100% !important;
         margin: 0 !important;
-        padding: 0 !important;
+        padding: 0 2px !important;
         box-shadow: none !important;
         border: none !important;
         background: transparent !important;
@@ -2173,43 +2174,25 @@
           : null;
 
       if (itemsSource) {
-        initialItemRows = itemsSource.map(it => `
-          <tr>
-            <td>
-              <input type="text" class="item-desc" value="${esc(it.description || '')}" style="width:100%">
-              <div class="item-period-row" style="margin-top:4px; display:flex; align-items:center; gap:6px; font-size:11px; color:#64748b;">
-                <span>Leistungszeitraum (optional):</span>
-                <input type="date" class="item-delivery-date" value="${esc(it.delivery_date || '')}" title="Leistungsdatum von" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
-                <span>–</span>
-                <input type="date" class="item-delivery-until" value="${esc(it.delivery_date_until || '')}" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
-              </div>
-            </td>
-            <td><input type="text" inputmode="decimal" class="item-qty" value="${it.quantity || 1}" style="width:70px" oninput="calculateTotals()"></td>
-            <td><input type="text" class="item-unit" value="${esc(it.unit_of_measure || 'Stunde')}" style="width:80px"></td>
-            <td><input type="text" inputmode="decimal" class="item-price" value="${it.price || 0}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
-            <td><input type="text" inputmode="decimal" class="item-vat" value="${it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company.is_small_business ? 0 : 19)}" style="width:70px" oninput="calculateTotals()"></td>
-            <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
-          </tr>
-        `).join('');
+        initialItemRows = itemsSource.map(it => buildInvoiceItemRowHtml({
+          description: it.description || '',
+          quantity: it.quantity ?? 1,
+          unit_of_measure: it.unit_of_measure || 'Stunde',
+          price: it.price ?? 0,
+          tax_rate_percent: it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company.is_small_business ? 0 : 19),
+          delivery_date: it.delivery_date || '',
+          delivery_date_until: it.delivery_date_until || '',
+        })).join('');
       } else {
-        initialItemRows = `
-          <tr data-placeholder="1">
-            <td>
-              <input type="text" class="item-desc" value="Beratung und Konzeption" style="width:100%">
-              <div class="item-period-row" style="margin-top:4px; display:flex; align-items:center; gap:6px; font-size:11px; color:#64748b;">
-                <span>Leistungszeitraum (optional):</span>
-                <input type="date" class="item-delivery-date" value="" title="Leistungsdatum von" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
-                <span>–</span>
-                <input type="date" class="item-delivery-until" value="" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
-              </div>
-            </td>
-            <td><input type="text" inputmode="decimal" class="item-qty" value="1" style="width:70px" oninput="calculateTotals()"></td>
-            <td><input type="text" class="item-unit" value="Stunde" style="width:80px"></td>
-            <td><input type="text" inputmode="decimal" class="item-price" value="110" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
-            <td><input type="text" inputmode="decimal" class="item-vat" value="${currentStore.company.is_small_business ? 0 : 19}" style="width:70px" oninput="calculateTotals()"></td>
-            <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
-          </tr>
-        `;
+        initialItemRows = buildInvoiceItemRowHtml({
+          description: 'Beratung und Konzeption',
+          quantity: 1,
+          unit_of_measure: 'Stunde',
+          price: 110,
+          tax_rate_percent: currentStore.company.is_small_business ? 0 : 19,
+          delivery_date: '',
+          delivery_date_until: '',
+        }, true);
       }
 
       const templatesList = currentStore.invoiceTemplates || [];
@@ -2293,7 +2276,8 @@
           <table id="inv-items-table">
             <thead>
               <tr>
-                <th style="width:45%">Beschreibung</th>
+                <th style="width:32px; text-align:center;"><input type="checkbox" id="inv-items-select-all" aria-label="Alle Positionen auswählen" onchange="toggleAllInvoiceItems(this.checked)"></th>
+                <th style="width:43%">Beschreibung</th>
                 <th>Menge</th>
                 <th>Einheit</th>
                 <th>Einzelpreis (€)</th>
@@ -2305,14 +2289,21 @@
               ${initialItemRows}
             </tbody>
           </table>
-          <div style="display:flex; gap:8px; align-items:center; margin-top:10px;">
-            <button class="btn btn-secondary btn-sm" onclick="addInvoiceItemRow()">+ Freie Position</button>
-            ${products.length > 0 ? `
-            <select id="inv-product-picker" class="product-picker" onchange="addProductItem(this.value); this.value = '';">
-              <option value="">📦 Aus Leistungen & Artikeln hinzufügen…</option>
-              ${productOptions}
-            </select>` : `
-            <span style="font-size:12px; color:#64748b;">Noch keine Leistungen angelegt. <a href="#" onclick="showView('products'); return false;">Leistungen & Artikel anlegen ↗</a></span>`}
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:10px;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addInvoiceItemRow()">+ Freie Position</button>
+              ${products.length > 0 ? `
+              <select id="inv-product-picker" class="product-picker" onchange="addProductItem(this.value); this.value = '';">
+                <option value="">📦 Aus Leistungen & Artikeln hinzufügen…</option>
+                ${productOptions}
+              </select>` : `
+              <span style="font-size:12px; color:#64748b;">Noch keine Leistungen angelegt. <a href="#" onclick="showView('products'); return false;">Leistungen & Artikel anlegen ↗</a></span>`}
+            </div>
+            <div id="inv-items-bulk-bar" style="display:none; align-items:center; gap:8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:4px 10px;">
+              <span id="inv-items-selected-count" style="font-size:12px; font-weight:600; color:#334155;"></span>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="duplicateSelectedInvoiceItems()">📋 Duplizieren</button>
+              <button type="button" class="btn btn-danger-outline btn-sm" onclick="deleteSelectedInvoiceItems()">Löschen</button>
+            </div>
           </div>
 
           <div class="form-group" style="margin-top:20px;">
@@ -2325,37 +2316,144 @@
               Gesamt Netto: <b>110.00 €</b> | MwSt: <b>20.90 €</b> | Brutto: <b style="color:#0f172a; font-size:16px;">130.90 €</b>
             </div>
             <div style="display:flex; gap:10px;">
-              ${isEditing ? `<button class="btn btn-secondary" onclick="showView('${backView}')">Abbrechen</button>` : ''}
-              <button class="btn btn-primary" id="save-document" onclick="saveNewInvoice()">${submitText}</button>
+              ${isEditing ? `<button type="button" class="btn btn-secondary" onclick="showView('${backView}')">Abbrechen</button>` : ''}
+              <button type="button" class="btn btn-primary" id="save-document" onclick="saveNewInvoice()">${submitText}</button>
             </div>
           </div>
         </div>
       `;
       invoiceDraftPrefill = null;
       calculateTotals();
+      updateInvoiceItemBulkBar();
+    }
+
+    function buildInvoiceItemRowHtml(item = {}, isPlaceholder = false) {
+      const qty = item.quantity !== undefined ? item.quantity : 1;
+      const unit = item.unit_of_measure !== undefined ? item.unit_of_measure : 'Stunde';
+      const price = item.price !== undefined ? item.price : 0;
+      const vat = item.tax_rate_percent !== undefined ? item.tax_rate_percent : (currentStore.company.is_small_business ? 0 : 19);
+      const dDate = item.delivery_date || '';
+      const dUntil = item.delivery_date_until || '';
+      return `
+        <tr${isPlaceholder ? ' data-placeholder="1"' : ''}>
+          <td style="text-align:center;"><input type="checkbox" class="item-select-cb" aria-label="Position auswählen" onchange="updateInvoiceItemBulkBar()"></td>
+          <td>
+            <input type="text" class="item-desc" value="${esc(item.description || '')}" style="width:100%">
+            <div class="item-period-row" style="margin-top:4px; display:flex; align-items:center; gap:6px; font-size:11px; color:#64748b;">
+              <span>Leistungszeitraum (optional):</span>
+              <input type="date" class="item-delivery-date" value="${esc(dDate)}" title="Leistungsdatum von" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
+              <span>–</span>
+              <input type="date" class="item-delivery-until" value="${esc(dUntil)}" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
+            </div>
+          </td>
+          <td><input type="text" inputmode="decimal" class="item-qty" value="${esc(qty)}" style="width:70px" oninput="calculateTotals()"></td>
+          <td><input type="text" class="item-unit" value="${esc(unit)}" style="width:80px"></td>
+          <td><input type="text" inputmode="decimal" class="item-price" value="${esc(price)}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
+          <td><input type="text" inputmode="decimal" class="item-vat" value="${esc(vat)}" style="width:70px" oninput="calculateTotals()"></td>
+          <td>
+            <div style="display:flex; gap:4px; white-space:nowrap;">
+              <button type="button" class="btn btn-secondary btn-sm" title="Position duplizieren" aria-label="Position duplizieren" onclick="duplicateInvoiceItemRow(this)">📋</button>
+              <button type="button" class="btn btn-secondary btn-sm" title="Position löschen" aria-label="Position löschen" onclick="removeInvoiceItemRow(this)">✕</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+
+    function createInvoiceItemRowElement(item = {}) {
+      const tmp = document.createElement('tbody');
+      tmp.innerHTML = buildInvoiceItemRowHtml(item).trim();
+      return tmp.firstElementChild;
+    }
+
+    function readInvoiceItemRow(tr) {
+      return {
+        description: tr.querySelector('.item-desc')?.value ?? '',
+        quantity: tr.querySelector('.item-qty')?.value ?? 1,
+        unit_of_measure: tr.querySelector('.item-unit')?.value ?? 'Stunde',
+        price: tr.querySelector('.item-price')?.value ?? 0,
+        tax_rate_percent: tr.querySelector('.item-vat')?.value ?? 0,
+        delivery_date: tr.querySelector('.item-delivery-date')?.value ?? '',
+        delivery_date_until: tr.querySelector('.item-delivery-until')?.value ?? '',
+      };
     }
 
     function addInvoiceItemRow(desc = '', qty = 1, unit = 'Stunde', price = 0, vat = 19, dDate = '', dUntil = '') {
       const tbody = document.getElementById('inv-items-body');
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>
-          <input type="text" class="item-desc" value="${esc(desc)}" style="width:100%">
-          <div class="item-period-row" style="margin-top:4px; display:flex; align-items:center; gap:6px; font-size:11px; color:#64748b;">
-            <span>Leistungszeitraum (optional):</span>
-            <input type="date" class="item-delivery-date" value="${esc(dDate)}" title="Leistungsdatum von" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
-            <span>–</span>
-            <input type="date" class="item-delivery-until" value="${esc(dUntil)}" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
-          </div>
-        </td>
-        <td><input type="text" inputmode="decimal" class="item-qty" value="${esc(qty)}" style="width:70px" oninput="calculateTotals()"></td>
-        <td><input type="text" class="item-unit" value="${esc(unit)}" style="width:80px"></td>
-        <td><input type="text" inputmode="decimal" class="item-price" value="${esc(price)}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
-        <td><input type="text" inputmode="decimal" class="item-vat" value="${currentStore.company.is_small_business ? 0 : vat}" style="width:70px" oninput="calculateTotals()"></td>
-        <td><button class="btn btn-secondary btn-sm" onclick="this.closest('tr').remove(); calculateTotals();">✕</button></td>
-      `;
+      if (!tbody) return;
+      const tr = createInvoiceItemRowElement({
+        description: desc,
+        quantity: qty,
+        unit_of_measure: unit,
+        price,
+        tax_rate_percent: currentStore.company.is_small_business ? 0 : vat,
+        delivery_date: dDate,
+        delivery_date_until: dUntil,
+      });
       tbody.appendChild(tr);
       calculateTotals();
+      updateInvoiceItemBulkBar();
+    }
+
+    function duplicateInvoiceItemRow(btn) {
+      const tr = btn?.closest('tr');
+      if (!tr) return;
+      const clone = createInvoiceItemRowElement(readInvoiceItemRow(tr));
+      tr.insertAdjacentElement('afterend', clone);
+      calculateTotals();
+      updateInvoiceItemBulkBar();
+    }
+
+    function removeInvoiceItemRow(btn) {
+      btn?.closest('tr')?.remove();
+      calculateTotals();
+      updateInvoiceItemBulkBar();
+    }
+
+    function toggleAllInvoiceItems(checked) {
+      document.querySelectorAll('#inv-items-body .item-select-cb').forEach(cb => {
+        cb.checked = checked;
+      });
+      updateInvoiceItemBulkBar();
+    }
+
+    function updateInvoiceItemBulkBar() {
+      const all = [...document.querySelectorAll('#inv-items-body .item-select-cb')];
+      const checkedCount = all.filter(cb => cb.checked).length;
+      const selectAll = document.getElementById('inv-items-select-all');
+      if (selectAll) {
+        selectAll.checked = all.length > 0 && checkedCount === all.length;
+        selectAll.indeterminate = checkedCount > 0 && checkedCount < all.length;
+      }
+      const bar = document.getElementById('inv-items-bulk-bar');
+      const label = document.getElementById('inv-items-selected-count');
+      if (bar) bar.style.display = checkedCount > 0 ? 'flex' : 'none';
+      if (label) label.textContent = `${checkedCount} ausgewählt`;
+    }
+
+    function duplicateSelectedInvoiceItems() {
+      const selectedRows = [...document.querySelectorAll('#inv-items-body tr')]
+        .filter(tr => tr.querySelector('.item-select-cb')?.checked);
+      if (!selectedRows.length) return;
+      for (const tr of selectedRows) {
+        const clone = createInvoiceItemRowElement(readInvoiceItemRow(tr));
+        tr.insertAdjacentElement('afterend', clone);
+        const cb = tr.querySelector('.item-select-cb');
+        if (cb) cb.checked = false;
+      }
+      calculateTotals();
+      updateInvoiceItemBulkBar();
+      showToast(`${selectedRows.length} ${selectedRows.length === 1 ? 'Position' : 'Positionen'} dupliziert.`);
+    }
+
+    function deleteSelectedInvoiceItems() {
+      const selectedRows = [...document.querySelectorAll('#inv-items-body tr')]
+        .filter(tr => tr.querySelector('.item-select-cb')?.checked);
+      if (!selectedRows.length) return;
+      selectedRows.forEach(tr => tr.remove());
+      calculateTotals();
+      updateInvoiceItemBulkBar();
+      showToast(`${selectedRows.length} ${selectedRows.length === 1 ? 'Position' : 'Positionen'} entfernt.`);
     }
 
     function addProductItem(productId) {
@@ -2644,15 +2742,15 @@
                 </tr>
                 <tr>
                   <td style="color: #64748b; padding: 2px 0;">${printLabels.date}:</td>
-                  <td style="text-align: right; padding: 2px 0;">${inv.issue_date || '-'}</td>
+                  <td style="text-align: right; padding: 2px 0;">${dateLabel(inv.issue_date)}</td>
                 </tr>
                 ${printLabels.showDelivery ? `<tr>
                   <td style="color: #64748b; padding: 2px 0;">Liefer-/Leistung:</td>
-                  <td style="text-align: right; padding: 2px 0;">${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || inv.issue_date || '-'}</td>
+                  <td style="text-align: right; padding: 2px 0;">${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || dateLabel(inv.issue_date)}</td>
                 </tr>` : ''}
                 <tr>
                   <td style="color: #64748b; padding: 2px 0;">${printLabels.due}:</td>
-                  <td style="font-weight: 600; color: #dc2626; text-align: right; padding: 2px 0;">${inv.due_date || '-'}</td>
+                  <td style="font-weight: 600; color: #dc2626; text-align: right; padding: 2px 0;">${dateLabel(inv.due_date)}</td>
                 </tr>
                 ${client.vat_id ? `
                 <tr>
@@ -2716,7 +2814,7 @@
             ${printLabels.showDelivery ? `
             <b>Zahlungshinweis:</b> ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'}<br>
             Bitte überweisen Sie den Gesamtbetrag unter Angabe der Rechnungsnummer <b>${inv.invoice_number}</b> auf das unten genannte Konto.` : `
-            <b>Gültigkeit:</b> Dieses Angebot ist gültig bis <b>${inv.due_date || '-'}</b>.<br>
+            <b>Gültigkeit:</b> Dieses Angebot ist gültig bis <b>${dateLabel(inv.due_date)}</b>.<br>
             <b>Zahlungsbedingungen:</b> ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'}`}
           </div>
 
@@ -2785,15 +2883,15 @@
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 9pt;">
                 <div>
                   <span style="color: #64748b; font-size: 8pt; display: block;">${printLabels.date}</span>
-                  <b>${inv.issue_date || '-'}</b>
+                  <b>${dateLabel(inv.issue_date)}</b>
                 </div>
                 <div>
                   <span style="color: #64748b; font-size: 8pt; display: block;">${printLabels.dueShort}</span>
-                  <b style="color: #dc2626;">${inv.due_date || '-'}</b>
+                  <b style="color: #dc2626;">${dateLabel(inv.due_date)}</b>
                 </div>
                 ${printLabels.showDelivery ? `<div>
                   <span style="color: #64748b; font-size: 8pt; display: block;">Liefer-/Leistung</span>
-                  <b>${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || inv.issue_date || '-'}</b>
+                  <b>${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || dateLabel(inv.issue_date)}</b>
                 </div>` : ''}
                 <div>
                   <span style="color: #64748b; font-size: 8pt; display: block;">Status</span>
@@ -2888,15 +2986,15 @@
             </div>
             <div>
               <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">DATUM</div>
-              <div style="font-weight: 600; color: #0f172a;">${inv.issue_date || '-'}</div>
+              <div style="font-weight: 600; color: #0f172a;">${dateLabel(inv.issue_date)}</div>
             </div>
             <div>
               <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">${printLabels.dueCaps}</div>
-              <div style="font-weight: 600; color: #0f172a;">${inv.due_date || '-'}</div>
+              <div style="font-weight: 600; color: #0f172a;">${dateLabel(inv.due_date)}</div>
             </div>
             ${printLabels.showDelivery ? `<div>
               <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">LEISTUNGSZEITRAUM</div>
-              <div style="font-weight: 600; color: #0f172a;">${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || inv.issue_date || '-'}</div>
+              <div style="font-weight: 600; color: #0f172a;">${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || dateLabel(inv.issue_date)}</div>
             </div>` : '<div></div>'}
           </div>
 
@@ -3192,18 +3290,29 @@
     }
 
     // ─── View 4: Products ───
+    let selectedProductIds = new Set();
+
     function renderProductsView(container) {
       const prods = currentStore.products || [];
+      const validIds = new Set(prods.map(p => p.id));
+      selectedProductIds = new Set([...selectedProductIds].filter(id => validIds.has(id)));
+      const allSelected = prods.length > 0 && selectedProductIds.size === prods.length;
       const rows = prods.map(p => `
         <tr>
-          <td><b>${p.name}</b></td>
-          <td>${p.description || '-'}</td>
+          <td style="width:36px; text-align:center;">
+            <input type="checkbox" class="prod-select-cb" data-id="${esc(p.id)}" aria-label="${esc(p.name)} auswählen" ${selectedProductIds.has(p.id) ? 'checked' : ''} onchange="toggleProductSelection('${esc(p.id)}', this.checked)">
+          </td>
+          <td><b>${esc(p.name)}</b></td>
+          <td>${esc(p.description || '-')}</td>
           <td>${(p.price || 0).toFixed(2)} €</td>
           <td>${p.tax_rate_percent}%</td>
-          <td>${p.unit_of_measure}</td>
-          <td style="display:flex; gap:6px;">
-            <button class="btn btn-secondary btn-sm" onclick="editProduct('${p.id}')">✏️ Bearbeiten</button>
-            <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteProduct('${p.id}')">Löschen</button>
+          <td>${esc(p.unit_of_measure)}</td>
+          <td>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" onclick="editProduct('${esc(p.id)}')">✏️ Bearbeiten</button>
+              <button class="btn btn-secondary btn-sm" title="Leistung duplizieren" onclick="duplicateProduct('${esc(p.id)}')">📋 Duplizieren</button>
+              <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteProduct('${esc(p.id)}')">Löschen</button>
+            </div>
           </td>
         </tr>
       `).join('');
@@ -3216,13 +3325,123 @@
           </div>
           <button class="btn btn-primary" onclick="showNewProductModal()">+ Neues Produkt</button>
         </div>
+        <div id="products-bulk-bar" class="card" style="display:${selectedProductIds.size > 0 ? 'flex' : 'none'}; justify-content:space-between; align-items:center; gap:12px; padding:12px 16px; margin-bottom:14px; background:#f8fafc;">
+          <span id="products-selected-count" style="font-size:13px; font-weight:600; color:#334155;">${selectedProductIds.size} ausgewählt</span>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="duplicateSelectedProducts()">📋 Ausgewählte duplizieren</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="deleteSelectedProducts()">Ausgewählte löschen</button>
+            <button class="btn btn-secondary btn-sm" onclick="clearProductSelection()">Auswahl aufheben</button>
+          </div>
+        </div>
         <div class="card">
           <table>
-            <thead><tr><th>Bezeichnung</th><th>Beschreibung</th><th>Preis</th><th>MwSt</th><th>Einheit</th><th>Aktionen</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="6" style="text-align:center; padding:24px;">Keine Produkte hinterlegt.</td></tr>'}</tbody>
+            <thead>
+              <tr>
+                <th style="width:36px; text-align:center;"><input type="checkbox" id="prod-select-all" aria-label="Alle Leistungen auswählen" ${allSelected ? 'checked' : ''} onchange="toggleAllProducts(this.checked)"></th>
+                <th>Bezeichnung</th>
+                <th>Beschreibung</th>
+                <th>Preis</th>
+                <th>MwSt</th>
+                <th>Einheit</th>
+                <th>Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="7" style="text-align:center; padding:24px;">Keine Produkte hinterlegt.</td></tr>'}</tbody>
           </table>
         </div>
       `;
+      updateProductBulkBar();
+    }
+
+    function updateProductBulkBar() {
+      const prods = currentStore.products || [];
+      const selectAll = document.getElementById('prod-select-all');
+      if (selectAll) {
+        selectAll.checked = prods.length > 0 && selectedProductIds.size === prods.length;
+        selectAll.indeterminate = selectedProductIds.size > 0 && selectedProductIds.size < prods.length;
+      }
+      const bar = document.getElementById('products-bulk-bar');
+      const count = document.getElementById('products-selected-count');
+      if (bar) bar.style.display = selectedProductIds.size > 0 ? 'flex' : 'none';
+      if (count) count.textContent = `${selectedProductIds.size} ausgewählt`;
+    }
+
+    function toggleProductSelection(id, checked) {
+      if (checked) selectedProductIds.add(id);
+      else selectedProductIds.delete(id);
+      updateProductBulkBar();
+    }
+
+    function toggleAllProducts(checked) {
+      selectedProductIds = checked ? new Set((currentStore.products || []).map(p => p.id)) : new Set();
+      document.querySelectorAll('.prod-select-cb').forEach(cb => { cb.checked = checked; });
+      updateProductBulkBar();
+    }
+
+    function clearProductSelection() {
+      toggleAllProducts(false);
+    }
+
+    function productCopyPayload(p) {
+      return {
+        name: `${p.name || 'Leistung'} (Kopie)`,
+        description: p.description || '',
+        price: Number(p.price) || 0,
+        unit_of_measure: p.unit_of_measure || 'Stunde',
+        tax_rate_percent: p.tax_rate_percent !== undefined ? Number(p.tax_rate_percent) : 19,
+      };
+    }
+
+    async function duplicateProduct(id) {
+      const source = (currentStore.products || []).find(p => p.id === id);
+      if (!source) {
+        showToast('Leistung nicht gefunden.', 'error');
+        return;
+      }
+      try {
+        await window.rechly.createProduct(productCopyPayload(source));
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showToast(`„${source.name}“ dupliziert.`);
+        renderProductsView(document.getElementById('content-container'));
+      } catch (err) {
+        showToast(err?.message || 'Leistung konnte nicht dupliziert werden.', 'error');
+      }
+    }
+
+    async function duplicateSelectedProducts() {
+      const selected = (currentStore.products || []).filter(p => selectedProductIds.has(p.id));
+      if (!selected.length) return;
+      try {
+        for (const p of selected) {
+          await window.rechly.createProduct(productCopyPayload(p));
+        }
+        selectedProductIds.clear();
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showToast(`${selected.length} ${selected.length === 1 ? 'Leistung' : 'Leistungen'} dupliziert.`);
+        renderProductsView(document.getElementById('content-container'));
+      } catch (err) {
+        showToast(err?.message || 'Leistungen konnten nicht dupliziert werden.', 'error');
+      }
+    }
+
+    async function deleteSelectedProducts() {
+      const ids = [...selectedProductIds];
+      if (!ids.length) return;
+      if (!confirm(`${ids.length} ausgewählte ${ids.length === 1 ? 'Leistung' : 'Leistungen'} wirklich löschen?`)) return;
+      try {
+        for (const id of ids) {
+          await window.rechly.deleteProduct(id);
+        }
+        selectedProductIds.clear();
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showToast(`${ids.length} ${ids.length === 1 ? 'Leistung' : 'Leistungen'} gelöscht.`);
+        renderProductsView(document.getElementById('content-container'));
+      } catch (err) {
+        showToast(err?.message || 'Leistungen konnten nicht gelöscht werden.', 'error');
+      }
     }
 
     function showNewProductModal() {
@@ -3280,6 +3499,7 @@
     async function deleteProduct(id) {
       if (confirm('Produkt löschen?')) {
         await window.rechly.deleteProduct(id);
+        selectedProductIds.delete(id);
         currentStore = await window.rechly.getStore();
         updateBadges();
         showToast('Produkt gelöscht');
@@ -3336,8 +3556,8 @@
           <tr>
             <td><b>${esc(o.offer_number || o.id)}</b></td>
             <td>${esc(client.name)}</td>
-            <td>${esc(o.issue_date || '-')}</td>
-            <td style="${expired ? 'color:#dc2626; font-weight:600;' : ''}" title="${expired ? 'Gültigkeit abgelaufen' : ''}">${esc(o.valid_until || '-')}</td>
+            <td>${dateLabel(o.issue_date)}</td>
+            <td style="${expired ? 'color:#dc2626; font-weight:600;' : ''}" title="${expired ? 'Gültigkeit abgelaufen' : ''}">${dateLabel(o.valid_until)}</td>
             <td><b>${(o.total_gross || 0).toFixed(2)} €</b></td>
             <td>${offerStatusSelect(o)}</td>
             <td>
