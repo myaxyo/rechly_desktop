@@ -44,6 +44,19 @@ function jsonTree(value: unknown, depth = 0): void {
       jsonTree(child, depth + 1);
     }
 }
+/** Optional fields sent as `undefined` mean "absent" (JSON semantics); drop them instead of rejecting the whole store. */
+function stripUndefined(value: unknown, depth = 0): unknown {
+  if (depth > 40) fail("zu tief verschachtelt.");
+  if (Array.isArray(value))
+    return value.map((child) => stripUndefined(child, depth + 1));
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, child]) => child !== undefined)
+        .map(([key, child]) => [key, stripUndefined(child, depth + 1)]),
+    );
+  return value;
+}
 function fields(
   record: Record<string, any>,
   strings: string[],
@@ -66,31 +79,32 @@ function fields(
 /** Shape validation accepts historical partial records but never missing core collections. */
 export function validateStore(raw: unknown): StoreData {
   if (!object(raw)) fail("kein Datenobjekt.");
-  jsonTree(raw);
-  if (raw.version !== 1)
+  const sanitized = stripUndefined(raw) as Record<string, any>;
+  jsonTree(sanitized);
+  if (sanitized.version !== 1)
     fail(
       "nicht unterstützte Datenversion. Bitte die passende Rechly-Version verwenden.",
     );
-  if (!object(raw.company) || typeof raw.initialized_at !== "string")
+  if (!object(sanitized.company) || typeof sanitized.initialized_at !== "string")
     fail("Firmenprofil oder Erstellungsdatum fehlt.");
   for (const key of ["invoices", "clients", "products", "offers", "expenses"])
-    if (!Array.isArray(raw[key])) fail(`${key} fehlt oder ist keine Liste.`);
+    if (!Array.isArray(sanitized[key])) fail(`${key} fehlt oder ist keine Liste.`);
   if (
-    raw.business !== undefined &&
-    (!object(raw.business) ||
+    sanitized.business !== undefined &&
+    (!object(sanitized.business) ||
       ["projects", "tasks", "documents"].some(
-        (k) => !Array.isArray(raw.business[k]),
+        (k) => !Array.isArray(sanitized.business[k]),
       ))
   )
     fail("Arbeitsbereich unvollständig.");
   for (const key of ["calendar", "timeEntries", "calendarReminders"])
-    if (raw[key] !== undefined && !Array.isArray(raw[key]))
+    if (sanitized[key] !== undefined && !Array.isArray(sanitized[key]))
       fail(`${key} ist keine Liste.`);
-  if (raw.calendarReminders?.some((v: unknown) => typeof v !== "string"))
+  if (sanitized.calendarReminders?.some((v: unknown) => typeof v !== "string"))
     fail("Kalendererinnerungen müssen Text sein.");
-  if (raw.aiSettings !== undefined && !object(raw.aiSettings))
+  if (sanitized.aiSettings !== undefined && !object(sanitized.aiSettings))
     fail("KI-Einstellungen ungültig.");
-  const data = structuredClone(raw) as StoreData;
+  const data = structuredClone(sanitized) as StoreData;
   data.aiSettings = { ...getDefaultStore().aiSettings, ...data.aiSettings };
   fields(data.company, [
     "name",

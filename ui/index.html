@@ -4623,7 +4623,7 @@
             <div class="form-group"><label>E-Mail-Adresse (BT-34)</label><input type="email" id="set-email" value="${comp.email || ''}" placeholder="rechnung@meine-firma.de"></div>
             <div class="form-group"><label>Telefon</label><input type="tel" id="set-phone" value="${comp.phone || ''}"></div>
             <div class="form-group"><label>USt-IdNr.</label><input type="text" id="set-vat" value="${comp.vat_id || ''}"></div>
-            <div class="form-group"><label>Steuernummer</label><input type="text" id="set-tax" value="${comp.tax_number || ''}"></div>
+            <div class="form-group"><label>Steuernummer</label><input type="text" id="set-tax" value="${comp.tax_number || ''}" placeholder="z. B. 21/123/45678 oder 35123/45678 (BW)"></div>
             <div class="form-group"><label>IBAN</label><input type="text" id="set-iban" value="${comp.bank_iban || ''}"></div>
             <div class="form-group"><label>BIC</label><input type="text" id="set-bic" value="${comp.bank_bic || ''}"></div>
             <div class="form-group"><label>Bankname</label><input type="text" id="set-bank" value="${comp.bank_name || ''}"></div>
@@ -5120,7 +5120,7 @@
         is_small_business: false,
         payment_terms_default: comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.',
         invoice_template: comp.invoice_template || 'classic',
-        logo_base64: comp.logo_base64 || undefined,
+        ...(comp.logo_base64 ? { logo_base64: comp.logo_base64 } : {}),
       };
     }
 
@@ -5531,7 +5531,7 @@
           ${field('country', 'country', 'Land (ISO-Code)', { placeholder: 'DE' })}
           ${field('email', 'email', 'E-Mail', { type: 'email' })}
           ${field('phone', 'phone', 'Telefon', { type: 'tel' })}
-          ${field('tax', 'tax_number', 'Steuernummer', { placeholder: 'z. B. 21/123/45678' })}
+          ${field('tax', 'tax_number', 'Steuernummer', { placeholder: 'z. B. 21/123/45678 oder 35123/45678 (BW)' })}
           ${field('vat', 'vat_id', 'USt-IdNr.', { placeholder: 'z. B. DE123456789' })}
         </div>
         <div class="onb-hint" style="margin:-4px 0 14px;">Steuernummer <b>oder</b> USt-IdNr. ist Pflicht.</div>
