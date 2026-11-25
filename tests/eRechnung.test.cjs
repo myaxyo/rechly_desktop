@@ -1,6 +1,11 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { generateXRechnungXML, generateDatevExport } = require('../out/eRechnung');
+const fs = require('node:fs');
+const path = require('node:path');
+const { PDFDocument, PDFName } = require('pdf-lib');
+const { generateXRechnungXML, generateZugferdXML, generateDatevExport } = require('../out/eRechnung');
+const { createZugferdPdf } = require('../out/zugferdPdf');
+const { extractXmlFromPdf, parseEInvoiceXmlForMigration } = require('../out/migration');
 
 const mockCompany = {
     name: "Musterberater GmbH",
@@ -159,4 +164,59 @@ test('small business export explains its VAT exemption', () => {
     const xml = generateXRechnungXML({ ...mockInvoice, total_vat: 0, total_gross: 1000 }, { ...mockCompany, is_small_business: true }, mockClient);
     assert.match(xml, /<ram:ExemptionReason>Gemäß § 19 UStG/);
     assert.match(xml, /<ram:CategoryCode>E<\/ram:CategoryCode>/);
+});
+
+test('generateZugferdXML emits Factur-X / ZUGFeRD 2.3 EN 16931 profile and omits N/A BuyerReference when leitweg_id is absent', () => {
+    const xmlNoLeitweg = generateZugferdXML(mockInvoice, mockCompany, { ...mockClient, leitweg_id: undefined });
+    assert.ok(xmlNoLeitweg.includes('<ram:ID>urn:cen.eu:en16931:2017</ram:ID>'));
+    assert.ok(!xmlNoLeitweg.includes('xrechnung_3.0'));
+    assert.ok(!xmlNoLeitweg.includes('<ram:BuyerReference>N/A</ram:BuyerReference>'));
+
+    const xmlWithLeitweg = generateZugferdXML(mockInvoice, mockCompany, mockClient);
+    assert.ok(xmlWithLeitweg.includes('<ram:BuyerReference>991-12345-73</ram:BuyerReference>'));
+});
+
+test('createZugferdPdf embeds factur-x.xml with PDF/A-3b OutputIntent & XMP metadata and round-trips through extractXmlFromPdf', async () => {
+    const baseDoc = await PDFDocument.create();
+    const page = baseDoc.addPage([595, 842]);
+    page.drawText('Rechnung RE-2026-001');
+    const baseBytes = await baseDoc.save();
+
+    const xml = generateZugferdXML(mockInvoice, mockCompany, mockClient);
+    const zugferdPdf = await createZugferdPdf(baseBytes, xml, {
+        invoiceNumber: mockInvoice.invoice_number,
+        sellerName: mockCompany.name,
+        issueDate: mockInvoice.issue_date,
+    });
+
+    assert.equal(zugferdPdf.subarray(0, 4).toString(), '%PDF');
+    const loaded = await PDFDocument.load(zugferdPdf);
+    assert.ok(loaded.catalog.get(PDFName.of('AF')), 'PDF/A-3 catalog must include /AF');
+    assert.ok(loaded.catalog.get(PDFName.of('OutputIntents')), 'PDF/A-3b catalog must include /OutputIntents');
+    assert.ok(loaded.catalog.get(PDFName.of('Metadata')), 'PDF/A-3b catalog must include /Metadata');
+    assert.ok(loaded.catalog.get(PDFName.of('Names')), 'Catalog must include /Names for EmbeddedFiles');
+
+    const pdfLatin1 = zugferdPdf.toString('latin1');
+    assert.ok(pdfLatin1.includes('<pdfaid:part>3</pdfaid:part>'));
+    assert.ok(pdfLatin1.includes('<pdfaid:conformance>B</pdfaid:conformance>'));
+    assert.ok(pdfLatin1.includes('<fx:DocumentFileName>factur-x.xml</fx:DocumentFileName>'));
+    assert.ok(pdfLatin1.includes('<fx:ConformanceLevel>EN 16931</fx:ConformanceLevel>'));
+
+    const extracted = extractXmlFromPdf(zugferdPdf);
+    assert.ok(extracted, 'extractXmlFromPdf must recover embedded factur-x.xml');
+    const parsed = parseEInvoiceXmlForMigration(extracted, 'ZUGFeRD_RE-2026-001.pdf');
+    assert.equal(parsed.invoiceNumber, 'RE-2026-001');
+    assert.equal(parsed.totalGross, 1190);
+    assert.equal(parsed.items.length, 1);
+    assert.equal(parsed.items[0].description, 'Softwareberatung');
+});
+
+test('ZUGFeRD export hooks exist in ui/index.html, src/preload.ts, and src/main.ts', () => {
+    const uiHtml = fs.readFileSync(path.join(__dirname, '../ui/index.html'), 'utf8');
+    const preloadTs = fs.readFileSync(path.join(__dirname, '../src/preload.ts'), 'utf8');
+    const mainTs = fs.readFileSync(path.join(__dirname, '../src/main.ts'), 'utf8');
+    assert.ok(uiHtml.includes('exportZugferd('), 'ui/index.html must expose exportZugferd');
+    assert.ok(uiHtml.includes('ZUGFeRD (PDF)'), 'ui/index.html must show ZUGFeRD (PDF) buttons');
+    assert.ok(preloadTs.includes('exportZugferd:'), 'preload.ts must expose exportZugferd');
+    assert.ok(mainTs.includes('ipcMain.handle("export:zugferd"'), 'main.ts must register export:zugferd handler');
 });

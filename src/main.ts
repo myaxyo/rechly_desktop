@@ -25,7 +25,8 @@ import * as fs from "node:fs";
 import store from "./store";
 import { BackupSelection } from "./backupService";
 import { checkPassword } from "./backupCrypto";
-import { generateXRechnungXML, generateDatevExport } from "./eRechnung";
+import { generateXRechnungXML, generateZugferdXML, generateDatevExport } from "./eRechnung";
+import { createZugferdPdf } from "./zugferdPdf";
 import {
     MIGRATION_SOURCES,
     CLIENT_FIELD_DEFINITIONS,
@@ -692,6 +693,23 @@ ipcMain.handle("invoice:paymentQr", async (_e, invoiceId: unknown) => {
     if (!invoice) throw new Error("Rechnung nicht gefunden.");
     return invoicePaymentQr(invoice, store.get("company") || {});
 });
+async function renderMainWindowPdfBuffer(): Promise<Buffer> {
+    if (!mainWindow) throw new Error("Hauptfenster nicht verfügbar.");
+    // Temporarily switch the window backdrop to white so @page margins do not inherit #f8fafc.
+    mainWindow.setBackgroundColor("#ffffff");
+    try {
+        return await mainWindow.webContents.printToPDF({
+            printBackground: true,
+            pageSize: "A4",
+            preferCSSPageSize: true,
+        });
+    } finally {
+        if (!mainWindow.isDestroyed()) {
+            mainWindow.setBackgroundColor("#f8fafc");
+        }
+    }
+}
+
 ipcMain.handle("export:pdf", async (_e, invoiceId: string): Promise<ExportResult> => {
     if (!mainWindow) return { success: false };
     const inv = (store.get("invoices") || []).find((i) => i.id === invoiceId);
@@ -707,21 +725,38 @@ ipcMain.handle("export:pdf", async (_e, invoiceId: string): Promise<ExportResult
     });
     if (canceled || !filePath) return { success: false };
 
-    // Temporarily switch the window backdrop to white so @page margins do not inherit #f8fafc.
-    mainWindow.setBackgroundColor("#ffffff");
-    let data: Buffer;
-    try {
-        data = await mainWindow.webContents.printToPDF({
-            printBackground: true,
-            pageSize: "A4",
-            preferCSSPageSize: true,
-        });
-    } finally {
-        if (!mainWindow.isDestroyed()) {
-            mainWindow.setBackgroundColor("#f8fafc");
-        }
-    }
+    const data = await renderMainWindowPdfBuffer();
     fs.writeFileSync(filePath, data);
+    shell.showItemInFolder(filePath);
+    return { success: true, filePath };
+});
+
+ipcMain.handle("export:zugferd", async (_e, invoiceId: string): Promise<ExportResult> => {
+    if (!mainWindow) return { success: false };
+    const invoices = store.get("invoices") || [];
+    const clients = store.get("clients") || [];
+    const company: Company = store.get("company") || {};
+
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (!inv) return { success: false, error: "Rechnung nicht gefunden" };
+    const client: Partial<Client> = clients.find((c) => c.id === inv.client_id) || { name: "Kunde" };
+
+    const filename = `ZUGFeRD_${inv.invoice_number || inv.id}.pdf`;
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: "ZUGFeRD 2.3 PDF speichern",
+        defaultPath: filename,
+        filters: [{ name: "ZUGFeRD PDF", extensions: ["pdf"] }],
+    });
+    if (canceled || !filePath) return { success: false };
+
+    const basePdf = await renderMainWindowPdfBuffer();
+    const xml = generateZugferdXML(inv, company, client);
+    const zugferdPdf = await createZugferdPdf(basePdf, xml, {
+        invoiceNumber: inv.invoice_number || inv.id,
+        sellerName: company.name || "Rechly Desktop",
+        issueDate: inv.issue_date,
+    });
+    fs.writeFileSync(filePath, zugferdPdf);
     shell.showItemInFolder(filePath);
     return { success: true, filePath };
 });

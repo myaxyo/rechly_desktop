@@ -122,6 +122,7 @@ const api = {
 
     // Native Export Dialogs
     exportPdf: (invoiceId: string) => ipcRenderer.invoke("export:pdf", invoiceId),
+    exportZugferd: (invoiceId: string) => ipcRenderer.invoke("export:zugferd", invoiceId),
     exportXRechnung: (invoiceId: string) => ipcRenderer.invoke("export:xrechnung", invoiceId),
     exportDatev: () => ipcRenderer.invoke("export:datev"),
     printPage: () => ipcRenderer.invoke("native:print"),

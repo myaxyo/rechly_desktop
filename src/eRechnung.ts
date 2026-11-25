@@ -38,13 +38,13 @@ function countryCode(country: string | undefined): string {
     return "DE";
 }
 
-/**
- * Generates EN 16931 / XRechnung 3.0 valid CII XML
- */
-export function generateXRechnungXML(
+type CiiProfile = "xrechnung" | "zugferd";
+
+function generateCiiInvoiceXml(
     invoice: Invoice,
     company: Company,
-    client: Partial<Client>
+    client: Partial<Client>,
+    profile: CiiProfile
 ): string {
     const issueDate = (invoice.issue_date || new Date().toISOString())
         .slice(0, 10)
@@ -148,7 +148,24 @@ export function generateXRechnungXML(
 
     const buyerReference = client.leitweg_id
         ? `<ram:BuyerReference>${escapeXml(client.leitweg_id)}</ram:BuyerReference>`
-        : `<ram:BuyerReference>N/A</ram:BuyerReference>`;
+        : profile === "xrechnung"
+            ? `<ram:BuyerReference>N/A</ram:BuyerReference>`
+            : "";
+
+    const contextXml = profile === "xrechnung"
+        ? `<rsm:ExchangedDocumentContext>
+    <ram:BusinessProcessSpecifiedDocumentContextParameter>
+      <ram:ID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</ram:ID>
+    </ram:BusinessProcessSpecifiedDocumentContextParameter>
+    <ram:GuidelineSpecifiedDocumentContextParameter>
+      <ram:ID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</ram:ID>
+    </ram:GuidelineSpecifiedDocumentContextParameter>
+  </rsm:ExchangedDocumentContext>`
+        : `<rsm:ExchangedDocumentContext>
+    <ram:GuidelineSpecifiedDocumentContextParameter>
+      <ram:ID>urn:cen.eu:en16931:2017</ram:ID>
+    </ram:GuidelineSpecifiedDocumentContextParameter>
+  </rsm:ExchangedDocumentContext>`;
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <rsm:CrossIndustryInvoice
@@ -156,14 +173,7 @@ export function generateXRechnungXML(
   xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
   xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
 
-  <rsm:ExchangedDocumentContext>
-    <ram:BusinessProcessSpecifiedDocumentContextParameter>
-      <ram:ID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</ram:ID>
-    </ram:BusinessProcessSpecifiedDocumentContextParameter>
-    <ram:GuidelineSpecifiedDocumentContextParameter>
-      <ram:ID>urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0</ram:ID>
-    </ram:GuidelineSpecifiedDocumentContextParameter>
-  </rsm:ExchangedDocumentContext>
+  ${contextXml}
 
   <rsm:ExchangedDocument>
     <ram:ID>${escapeXml(invoice.invoice_number)}</ram:ID>
@@ -242,6 +252,28 @@ export function generateXRechnungXML(
     </ram:ApplicableHeaderTradeSettlement>
   </rsm:SupplyChainTradeTransaction>
 </rsm:CrossIndustryInvoice>`;
+}
+
+/**
+ * Generates EN 16931 / XRechnung 3.0 valid CII XML
+ */
+export function generateXRechnungXML(
+    invoice: Invoice,
+    company: Company,
+    client: Partial<Client>
+): string {
+    return generateCiiInvoiceXml(invoice, company, client, "xrechnung");
+}
+
+/**
+ * Generates ZUGFeRD 2.3 / Factur-X 1.07 (EN 16931 profile) CII XML
+ */
+export function generateZugferdXML(
+    invoice: Invoice,
+    company: Company,
+    client: Partial<Client>
+): string {
+    return generateCiiInvoiceXml(invoice, company, client, "zugferd");
 }
 
 /**

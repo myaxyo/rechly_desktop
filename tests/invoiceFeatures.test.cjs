@@ -255,10 +255,12 @@ describe("Feedback Regression Fixes: Date Consistency, Duplicate/Multi-Select & 
 
   it("sets white window background and preferCSSPageSize around printToPDF in src/main.ts", () => {
     const mainTs = fs.readFileSync(path.join(__dirname, "../src/main.ts"), "utf8");
-    const exportStart = mainTs.indexOf('ipcMain.handle("export:pdf"');
-    assert.ok(exportStart !== -1, "export:pdf handler must exist");
-    const exportBlock = mainTs.slice(exportStart, exportStart + 1200);
-    assert.ok(exportBlock.includes('setBackgroundColor("#ffffff")'), "export:pdf must set white background for PDF margins");
-    assert.ok(exportBlock.includes('preferCSSPageSize: true'), "export:pdf must honor CSS @page size");
+    const helperStart = mainTs.indexOf("async function renderMainWindowPdfBuffer()");
+    assert.ok(helperStart !== -1, "renderMainWindowPdfBuffer helper must exist");
+    const helperBlock = mainTs.slice(helperStart, helperStart + 900);
+    assert.ok(helperBlock.includes('setBackgroundColor("#ffffff")'), "renderMainWindowPdfBuffer must set white background for PDF margins");
+    assert.ok(helperBlock.includes('preferCSSPageSize: true'), "renderMainWindowPdfBuffer must honor CSS @page size");
+    const exportPdfBlock = mainTs.slice(mainTs.indexOf('ipcMain.handle("export:pdf"'), mainTs.indexOf('ipcMain.handle("export:zugferd"'));
+    assert.ok(exportPdfBlock.includes("renderMainWindowPdfBuffer()"), "export:pdf must use renderMainWindowPdfBuffer()");
   });
 });

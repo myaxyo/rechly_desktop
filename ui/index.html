@@ -2114,7 +2114,7 @@
         <select aria-label="Rechnungen sortieren" onchange="invoiceSort=this.value; renderInvoicesView(document.getElementById('content-container'))">${[['newest','Zuletzt erstellt'],['due','Fälligkeit aufsteigend'],['amount','Betrag absteigend']].map(([v,l])=>`<option value="${v}" ${invoiceSort===v?'selected':''}>${l}</option>`).join('')}</select></div>
         <p class="result-count" role="status">${invoices.length} von ${all.length} Rechnungen${term ? ` · Suche: „${esc(term)}“` : ''}</p>
         <div class="table-scroll"><table><thead><tr><th>Rechnung / Kunde</th><th>Datum</th><th>Fällig</th><th class="numeric">Betrag</th><th>Status</th><th>Aktionen</th></tr></thead><tbody>
-        ${invoices.map(i=>`<tr><td><button class="text-button" onclick="editInvoice('${i.id}')">${esc(i.invoice_number || 'Ohne Nummer')}</button><span class="cell-sub">${esc(clients.find(c=>c.id===i.client_id)?.name || 'Unbekannter Kunde')}</span></td><td>${dateLabel(i.issue_date)}</td><td class="${isOverdue(i)?'overdue-text':''}">${dateLabel(i.due_date)}${isOverdue(i)?'<span class="cell-sub">Überfällig</span>':''}</td><td class="numeric">${money(i.total_gross)}</td><td>${invoiceStatusSelect(i)}</td><td><div class="row-actions"><button class="btn btn-secondary btn-sm" onclick="previewInvoice('${i.id}')">PDF</button><button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${i.id}')">XRechnung (XML)</button><button class="btn btn-secondary btn-sm" title="Rechnung duplizieren" onclick="duplicateInvoice('${i.id}')">📋 Duplizieren</button><button class="btn btn-danger-outline btn-sm" aria-label="Rechnung ${esc(i.invoice_number)} löschen" onclick="deleteInvoice('${i.id}')">Löschen</button></div></td></tr>`).join('') || `<tr><td colspan="6"><div class="empty-state"><h3>${all.length?'Keine passenden Rechnungen':'Ihre erste Rechnung beginnt hier'}</h3><p>${all.length?'Ändern Sie den Suchbegriff oder setzen Sie die Filter zurück.':'Erfassen Sie Ihre Leistungen und behalten Sie Zahlungen im Blick.'}</p><button class="btn btn-secondary" onclick="${all.length?"openInvoiceFilter('all')":"createNewInvoice()"}">${all.length?'Filter zurücksetzen':'Rechnung erstellen'}</button></div></td></tr>`}
+        ${invoices.map(i=>`<tr><td><button class="text-button" onclick="editInvoice('${i.id}')">${esc(i.invoice_number || 'Ohne Nummer')}</button><span class="cell-sub">${esc(clients.find(c=>c.id===i.client_id)?.name || 'Unbekannter Kunde')}</span></td><td>${dateLabel(i.issue_date)}</td><td class="${isOverdue(i)?'overdue-text':''}">${dateLabel(i.due_date)}${isOverdue(i)?'<span class="cell-sub">Überfällig</span>':''}</td><td class="numeric">${money(i.total_gross)}</td><td>${invoiceStatusSelect(i)}</td><td><div class="row-actions"><button class="btn btn-secondary btn-sm" onclick="previewInvoice('${i.id}')">PDF</button><button class="btn btn-secondary btn-sm" onclick="exportZugferd('${i.id}')">ZUGFeRD (PDF)</button><button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${i.id}')">XRechnung (XML)</button><button class="btn btn-secondary btn-sm" title="Rechnung duplizieren" onclick="duplicateInvoice('${i.id}')">📋 Duplizieren</button><button class="btn btn-danger-outline btn-sm" aria-label="Rechnung ${esc(i.invoice_number)} löschen" onclick="deleteInvoice('${i.id}')">Löschen</button></div></td></tr>`).join('') || `<tr><td colspan="6"><div class="empty-state"><h3>${all.length?'Keine passenden Rechnungen':'Ihre erste Rechnung beginnt hier'}</h3><p>${all.length?'Ändern Sie den Suchbegriff oder setzen Sie die Filter zurück.':'Erfassen Sie Ihre Leistungen und behalten Sie Zahlungen im Blick.'}</p><button class="btn btn-secondary" onclick="${all.length?"openInvoiceFilter('all')":"createNewInvoice()"}">${all.length?'Filter zurücksetzen':'Rechnung erstellen'}</button></div></td></tr>`}
         </tbody></table></div></div>`;
     }
 
@@ -2207,6 +2207,7 @@
           <div style="display:flex; gap:8px; align-items:center;">
             ${isEditing && !isOffer && inv ? `
               <button class="btn btn-secondary" onclick="previewInvoice('${inv.id}')">🖨️ PDF Vorschau</button>
+              <button class="btn btn-secondary" onclick="exportZugferd('${inv.id}')">📎 ZUGFeRD (PDF)</button>
               <button class="btn btn-secondary" onclick="exportXRechnung('${inv.id}')">📄 XRechnung (XML)</button>
               <button class="btn btn-secondary" onclick="duplicateInvoice('${inv.id}')">📋 Duplizieren</button>
             ` : ''}
@@ -2688,6 +2689,27 @@
       if (res.success) showToast('XRechnung 3.0 XML erfolgreich gespeichert!');
     }
 
+    async function exportZugferd(id) {
+      const modal = document.getElementById('print-modal');
+      const wasOpen = modal?.style.display === 'flex' && activePreviewKind === 'invoice' && activePreviewInvoiceId === id;
+      try {
+        if (!wasOpen) {
+          await previewDocument('invoice', id);
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        }
+        const res = await window.rechly.exportZugferd(id);
+        if (res?.success) {
+          showToast('ZUGFeRD 2.3 PDF (PDF/A-3) erfolgreich gespeichert!');
+        } else if (res?.error) {
+          showToast(res.error, 'error');
+        }
+      } catch (err) {
+        showToast(err?.message || 'ZUGFeRD-Export fehlgeschlagen.', 'error');
+      } finally {
+        if (!wasOpen) closePrintModal();
+      }
+    }
+
     let activePreviewInvoiceId = null;
     let activePreviewKind = 'invoice';
 
@@ -3143,6 +3165,7 @@
           <div style="display:flex; align-items:center; gap:8px;">
             <button class="btn btn-primary" onclick="window.print()">🖨️ Jetzt Drucken (A4)</button>
             <button class="btn btn-secondary" onclick="window.rechly.exportPdf('${inv.id}')">Als PDF speichern</button>
+            ${kind === 'invoice' ? `<button class="btn btn-secondary" onclick="exportZugferd('${inv.id}')">📎 ZUGFeRD (PDF)</button>` : ''}
             ${kind === 'invoice' ? `<button class="btn btn-secondary" onclick="exportXRechnung('${inv.id}')">📄 XRechnung (XML)</button>` : ''}
           </div>
           
@@ -5185,7 +5208,7 @@
     function renderOnbWelcome() {
       const features = [
         ['📄', 'Rechnungen & Angebote', 'GoBD-konforme Rechnungen erstellen, Angebote mit einem Klick umwandeln, Status verfolgen.'],
-        ['🏛️', 'E-Rechnung & DATEV', 'XRechnung 3.0 / ZUGFeRD XML und DATEV-Buchungsstapel für Ihre Steuerberatung.'],
+        ['🏛️', 'E-Rechnung & DATEV', 'XRechnung 3.0, ZUGFeRD 2.3 (PDF/A-3) und DATEV-Buchungsstapel für Ihre Steuerberatung.'],
         ['🤖', 'KI-Schnellerfassung', 'Rechnung als Satz eintippen, die KI füllt den Entwurf aus. Lokal mit Rechly-DE-3B oder per Cloud.'],
         ['🔒', '100% Offline', 'Keine Anmeldung, kein Cloud-Server. Alle Daten bleiben in einer Datei auf diesem Gerät.'],
       ];
