@@ -2850,8 +2850,8 @@
             </div>
             <div>
               <b style="color: #334155;">Steuer- & Unternehmensangaben</b><br>
-              USt-IdNr.: ${comp.vat_id || '-'}<br>
-              Steuernr.: ${comp.tax_number || '-'}<br>
+              ${comp.vat_id ? `USt-IdNr.: ${comp.vat_id}<br>` : ''}
+              ${comp.tax_number ? `Steuernr.: ${comp.tax_number}<br>` : ''}
               ${comp.legal_form ? `Rechtsform: ${comp.legal_form}` : ''}
             </div>
             <div>
