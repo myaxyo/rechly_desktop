@@ -6,6 +6,7 @@
  * completely offline using `pdf-lib`.
  */
 
+import { createHash } from "node:crypto";
 import { PDFArray, PDFDict, PDFDocument, PDFHexString, PDFName, PDFString } from "pdf-lib";
 
 export interface ZugferdPdfMetadata {
@@ -312,6 +313,17 @@ export async function createZugferdPdf(
     const metadataRef = pdfDoc.context.register(metadataStream);
     pdfDoc.catalog.set(PDFName.of("Metadata"), metadataRef);
     pdfDoc.catalog.set(PDFName.of("Lang"), PDFString.of("de-DE"));
+
+    // PDF/A-3 requires a trailer file identifier (ISO 32000-1:2008, 14.4).
+    // Chromium printToPDF and pdf-lib both leave /ID empty, which validators
+    // report as "Fehlende oder leere ID im Dokumentanhänger".
+    const idSeed = `rechly:${meta.invoiceNumber || ""}:${meta.sellerName || ""}:${xmlBytes.length}`;
+    const permanentId = createHash("md5").update(idSeed).digest("hex");
+    const changingId = createHash("md5").update(`${idSeed}:${timestampIso}`).digest("hex");
+    pdfDoc.context.trailerInfo.ID = pdfDoc.context.obj([
+        PDFHexString.of(permanentId),
+        PDFHexString.of(changingId),
+    ]);
 
     // 4. Sync Document Info dictionary
     pdfDoc.setTitle(`Rechnung ${meta.invoiceNumber || ""}`.trim());

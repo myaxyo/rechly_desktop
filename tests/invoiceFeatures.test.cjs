@@ -150,11 +150,14 @@ describe("Feature 2: Editable Service Period (Leistungszeitraum)", () => {
     );
   });
 
-  it("generates XRechnung XML with BillingSpecifiedPeriod and item delivery event", () => {
+  it("generates XRechnung XML with header and line billing periods", () => {
     const xml = generateXRechnungXML(sampleInvoice, baseCompany, baseClient);
 
-    // Header delivery event has start delivery date
-    assert.ok(xml.includes('<ram:OccurrenceDateTime><udt:DateTimeString format="102">20261101</udt:DateTimeString></ram:OccurrenceDateTime>'));
+    const headerDelivery = xml.slice(
+      xml.indexOf("<ram:ApplicableHeaderTradeDelivery>"),
+      xml.indexOf("</ram:ApplicableHeaderTradeDelivery>")
+    );
+    assert.match(headerDelivery, /<udt:DateTimeString format="102">20261101<\/udt:DateTimeString>/);
 
     // Header trade settlement has BillingSpecifiedPeriod
     assert.ok(xml.includes('<ram:BillingSpecifiedPeriod>'));

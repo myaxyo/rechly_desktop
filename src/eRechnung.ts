@@ -38,6 +38,24 @@ function countryCode(country: string | undefined): string {
     return "DE";
 }
 
+function trimmed(value: string | null | undefined): string {
+    return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * EN 16931 BR-CO-26 requires a seller identifier (BT-29), a seller legal
+ * registration identifier (BT-30), or a seller VAT identifier (BT-31).
+ * A Steuernummer written only with schemeID FC is BT-32 and does not count.
+ * Callers that export XML or PDF must surface this warning instead of writing
+ * a file validators will reject.
+ */
+export function eInvoiceSellerIdentifierWarning(
+    company: Pick<Company, "vat_id" | "tax_number"> | null | undefined
+): string | null {
+    if (trimmed(company?.vat_id) || trimmed(company?.tax_number)) return null;
+    return "E-Rechnung unvollständig (EN 16931, BR-CO-26): Es fehlt eine Verkäuferkennung. Hinterlegen Sie in den Einstellungen eine USt-IdNr. (BT-31) oder eine Steuernummer. Die USt-IdNr. wird als BT-31 geschrieben; eine Steuernummer ohne USt-IdNr. wird als Seller identifier (BT-29) und zusätzlich als Steuernummer (BT-32) geschrieben. Ohne eine dieser Angaben fehlen BT-29, BT-30 und BT-31, und der Export wird nicht gespeichert.";
+}
+
 type CiiProfile = "xrechnung" | "zugferd";
 
 function generateCiiInvoiceXml(
@@ -110,13 +128,21 @@ function generateCiiInvoiceXml(
         const vatCategory = company.is_small_business ? "E" : (vatRate === 0 ? "Z" : "S");
         const itemDeliveryDate = item.delivery_date ? item.delivery_date.slice(0, 10).replace(/-/g, "") : "";
         const itemDeliveryUntil = item.delivery_date_until ? item.delivery_date_until.slice(0, 10).replace(/-/g, "") : "";
-        const itemDeliveryXml = itemDeliveryDate
-            ? `<ram:ActualDeliverySupplyChainEvent><ram:OccurrenceDateTime><udt:DateTimeString format="102">${itemDeliveryDate}</udt:DateTimeString></ram:OccurrenceDateTime></ram:ActualDeliverySupplyChainEvent>`
-            : "";
-        const itemPeriodXml = itemDeliveryDate && itemDeliveryUntil
-            ? `<ram:BillingSpecifiedPeriod><ram:StartDateTime><udt:DateTimeString format="102">${itemDeliveryDate}</udt:DateTimeString></ram:StartDateTime><ram:EndDateTime><udt:DateTimeString format="102">${itemDeliveryUntil}</udt:DateTimeString></ram:EndDateTime></ram:BillingSpecifiedPeriod>`
+        // EN 16931 CII-SR-170: line-level ActualDeliverySupplyChainEvent is not allowed.
+        // Line dates belong in BillingSpecifiedPeriod (BG-26). A single date is enough (BR-CO-20).
+        const itemPeriodParts = [
+            itemDeliveryDate
+                ? `<ram:StartDateTime><udt:DateTimeString format="102">${itemDeliveryDate}</udt:DateTimeString></ram:StartDateTime>`
+                : "",
+            itemDeliveryUntil
+                ? `<ram:EndDateTime><udt:DateTimeString format="102">${itemDeliveryUntil}</udt:DateTimeString></ram:EndDateTime>`
+                : "",
+        ].filter(Boolean);
+        const itemPeriodXml = itemPeriodParts.length
+            ? `<ram:BillingSpecifiedPeriod>${itemPeriodParts.join("")}</ram:BillingSpecifiedPeriod>`
             : "";
 
+        // LineTradeSettlementType: ApplicableTradeTax, then BillingSpecifiedPeriod.
         return `
     <ram:IncludedSupplyChainTradeLineItem>
       <ram:AssociatedDocumentLineDocument>
@@ -131,14 +157,14 @@ function generateCiiInvoiceXml(
         </ram:NetPriceProductTradePrice>
       </ram:SpecifiedLineTradeAgreement>
       <ram:SpecifiedLineTradeDelivery>
-        <ram:BilledQuantity unitCode="${unitCode(item.unit_of_measure)}">${item.quantity}</ram:BilledQuantity>${itemDeliveryXml ? `\n        ${itemDeliveryXml}` : ""}
+        <ram:BilledQuantity unitCode="${unitCode(item.unit_of_measure)}">${item.quantity}</ram:BilledQuantity>
       </ram:SpecifiedLineTradeDelivery>
-      <ram:SpecifiedLineTradeSettlement>${itemPeriodXml ? `\n        ${itemPeriodXml}` : ""}
+      <ram:SpecifiedLineTradeSettlement>
         <ram:ApplicableTradeTax>
           <ram:TypeCode>VAT</ram:TypeCode>
           <ram:CategoryCode>${vatCategory}</ram:CategoryCode>
           <ram:RateApplicablePercent>${vatRate}</ram:RateApplicablePercent>
-        </ram:ApplicableTradeTax>
+        </ram:ApplicableTradeTax>${itemPeriodXml ? `\n        ${itemPeriodXml}` : ""}
         <ram:SpecifiedTradeSettlementLineMonetarySummation>
           <ram:LineTotalAmount>${lineNet.toFixed(2)}</ram:LineTotalAmount>
         </ram:SpecifiedTradeSettlementLineMonetarySummation>
@@ -167,10 +193,18 @@ function generateCiiInvoiceXml(
     </ram:GuidelineSpecifiedDocumentContextParameter>
   </rsm:ExchangedDocumentContext>`;
 
+    const sellerVatId = trimmed(company.vat_id);
+    const sellerTaxNumber = trimmed(company.tax_number);
+    // schemeID FC is BT-32 only. Repeat the Steuernummer as BT-29 when BT-31 is absent.
+    const sellerIdentifierXml = !sellerVatId && sellerTaxNumber
+        ? `<ram:ID>${escapeXml(sellerTaxNumber)}</ram:ID>\n        `
+        : "";
+
     return `<?xml version="1.0" encoding="UTF-8"?>
 <rsm:CrossIndustryInvoice
   xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
   xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
+  xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100"
   xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
 
   ${contextXml}
@@ -191,7 +225,7 @@ function generateCiiInvoiceXml(
       ${buyerReference}
 
       <ram:SellerTradeParty>
-        <ram:Name>${escapeXml(company.name)}</ram:Name>
+        ${sellerIdentifierXml}<ram:Name>${escapeXml(company.name)}</ram:Name>
         <ram:DefinedTradeContact>
           <ram:PersonName>${escapeXml(company.name)}</ram:PersonName>
           ${company.phone ? `<ram:TelephoneUniversalCommunication><ram:CompleteNumber>${escapeXml(company.phone)}</ram:CompleteNumber></ram:TelephoneUniversalCommunication>` : ""}
@@ -203,9 +237,9 @@ function generateCiiInvoiceXml(
           <ram:CityName>${escapeXml(company.city || "")}</ram:CityName>
           <ram:CountryID>${countryCode(company.country)}</ram:CountryID>
         </ram:PostalTradeAddress>
-        ${company.email?.trim() ? `<ram:URIUniversalCommunication><ram:URIID schemeID="EM">${escapeXml(company.email.trim())}</ram:URIID></ram:URIUniversalCommunication>` : (company.vat_id ? `<ram:URIUniversalCommunication><ram:URIID schemeID="9930">${escapeXml(company.vat_id.replace(/\s+/g, ""))}</ram:URIID></ram:URIUniversalCommunication>` : "")}
-        ${company.vat_id ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">${escapeXml(company.vat_id)}</ram:ID></ram:SpecifiedTaxRegistration>` : ""}
-        ${company.tax_number ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="FC">${escapeXml(company.tax_number)}</ram:ID></ram:SpecifiedTaxRegistration>` : ""}
+        ${company.email?.trim() ? `<ram:URIUniversalCommunication><ram:URIID schemeID="EM">${escapeXml(company.email.trim())}</ram:URIID></ram:URIUniversalCommunication>` : (sellerVatId ? `<ram:URIUniversalCommunication><ram:URIID schemeID="9930">${escapeXml(sellerVatId.replace(/\s+/g, ""))}</ram:URIID></ram:URIUniversalCommunication>` : "")}
+        ${sellerVatId ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="VA">${escapeXml(sellerVatId.replace(/\s+/g, ""))}</ram:ID></ram:SpecifiedTaxRegistration>` : ""}
+        ${sellerTaxNumber ? `<ram:SpecifiedTaxRegistration><ram:ID schemeID="FC">${escapeXml(sellerTaxNumber)}</ram:ID></ram:SpecifiedTaxRegistration>` : ""}
       </ram:SellerTradeParty>
 
       <ram:BuyerTradeParty>
@@ -235,11 +269,11 @@ function generateCiiInvoiceXml(
     </ram:ApplicableHeaderTradeDelivery>
 
     <ram:ApplicableHeaderTradeSettlement>
-      ${billingPeriodXml}
       <ram:PaymentReference>${escapeXml(invoice.invoice_number)}</ram:PaymentReference>
       <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
       ${paymentMeansXml}
       ${headerTaxXml}
+      ${billingPeriodXml}
       ${paymentTermsXml}
 
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>

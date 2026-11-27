@@ -25,7 +25,7 @@ import * as fs from "node:fs";
 import store from "./store";
 import { BackupSelection } from "./backupService";
 import { checkPassword } from "./backupCrypto";
-import { generateXRechnungXML, generateZugferdXML, generateDatevExport } from "./eRechnung";
+import { generateXRechnungXML, generateZugferdXML, generateDatevExport, eInvoiceSellerIdentifierWarning } from "./eRechnung";
 import { createZugferdPdf } from "./zugferdPdf";
 import {
     MIGRATION_SOURCES,
@@ -739,6 +739,8 @@ ipcMain.handle("export:zugferd", async (_e, invoiceId: string): Promise<ExportRe
 
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, error: "Rechnung nicht gefunden" };
+    const sellerWarning = eInvoiceSellerIdentifierWarning(company);
+    if (sellerWarning) return { success: false, error: sellerWarning };
     const client: Partial<Client> = clients.find((c) => c.id === inv.client_id) || { name: "Kunde" };
 
     const filename = `ZUGFeRD_${inv.invoice_number || inv.id}.pdf`;
@@ -769,6 +771,8 @@ ipcMain.handle("export:xrechnung", async (_e, invoiceId: string): Promise<Export
 
     const inv = invoices.find((i) => i.id === invoiceId);
     if (!inv) return { success: false, error: "Rechnung nicht gefunden" };
+    const sellerWarning = eInvoiceSellerIdentifierWarning(company);
+    if (sellerWarning) return { success: false, error: sellerWarning };
     const client: Partial<Client> = clients.find((c) => c.id === inv.client_id) || { name: "Kunde" };
 
     const xml = generateXRechnungXML(inv, company, client);

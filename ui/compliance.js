@@ -15,8 +15,10 @@
     const taxOk = present(input.sellerVatId) || present(input.sellerTaxId);
     checks.push({
       id: "tax",
-      label: "Steuerkennzeichen (USt-IdNr. oder Steuernummer)",
-      severity: taxOk ? "pass" : input.isSmallBusiness ? "warn" : "fail",
+      label: taxOk
+        ? "Steuerkennzeichen (USt-IdNr. oder Steuernummer)"
+        : "Verkäuferkennung BT-29, BT-30 oder BT-31 (BR-CO-26)",
+      severity: taxOk ? "pass" : "warn",
     });
     checks.push({ id: "lines", label: "Positionen", severity: (input.lineCount || 0) > 0 ? "pass" : "fail" });
     const gross = input.totalGross;
@@ -71,7 +73,11 @@
           );
         })
         .join("") +
-      '</ul><p class="compliance-note">Keine KoSIT-/veraPDF-Zertifizierung — nur eine Produkt-Checkliste.</p></div>'
+      "</ul>" +
+      (!present(input.sellerVatId) && !present(input.sellerTaxId)
+        ? '<p class="compliance-note">EN 16931 BR-CO-26: Ohne USt-IdNr. (BT-31) oder Steuernummer fehlen die Verkäuferkennungen BT-29, BT-30 und BT-31. Der XRechnung- und ZUGFeRD-Export wird dann nicht gespeichert. Eine Steuernummer ohne USt-IdNr. wird als Seller identifier (BT-29) und als Steuernummer (BT-32) geschrieben.</p>'
+        : "") +
+      '<p class="compliance-note">Keine KoSIT-/veraPDF-Zertifizierung — nur eine Produkt-Checkliste.</p></div>'
     );
   }
 

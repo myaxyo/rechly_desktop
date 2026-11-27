@@ -1354,8 +1354,13 @@
 
     // ─── Export Actions ───
     async function exportXRechnung(id) {
-      const res = await window.rechly.exportXRechnung(id);
-      if (res.success) showToast('XRechnung 3.0 XML erfolgreich gespeichert!');
+      try {
+        const res = await window.rechly.exportXRechnung(id);
+        if (res?.success) showToast('XRechnung 3.0 XML erfolgreich gespeichert!');
+        else if (res?.error) showToast(res.error, String(res.error).includes('BR-CO-26') ? 'warning' : 'error');
+      } catch (err) {
+        showToast(err?.message || 'XRechnung-Export fehlgeschlagen.', 'error');
+      }
     }
 
     async function exportZugferd(id) {
@@ -1370,7 +1375,7 @@
         if (res?.success) {
           showToast('ZUGFeRD 2.3 PDF (PDF/A-3) erfolgreich gespeichert!');
         } else if (res?.error) {
-          showToast(res.error, 'error');
+          showToast(res.error, String(res.error).includes('BR-CO-26') ? 'warning' : 'error');
         }
       } catch (err) {
         showToast(err?.message || 'ZUGFeRD-Export fehlgeschlagen.', 'error');
