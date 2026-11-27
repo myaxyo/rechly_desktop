@@ -5,6 +5,8 @@
 
 **Rechly Desktop** is the standalone, fully offline, privacy-first desktop edition of [Rechly](https://rechly.de) for macOS and Windows. It is free and open source under the AGPL-3.0.
 
+**Product boundary:** Desktop owns the offline vault; Web owns accounts/automation/public surfaces. UI stays vanilla HTML/CSS/JS (brand tokens in `ui/tokens.css`, aligned with Web shadcn). See [docs/PRODUCT_RULE.md](docs/PRODUCT_RULE.md). The web repo’s `desktop/` folder is only a Next.js dev wrapper — not this app.
+
 ---
 
 ## ⬇️ Download

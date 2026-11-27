@@ -1,5 +1,5 @@
-/** EPC069-12 transfer payload, adapted from Rechly Web (AGPL-3.0-only).
- * Validation prevents malformed or multiline payment data from reaching a QR code.
+/** EPC069-12 transfer payload — keep in sync with @rechly/core (AGPL-3.0-only).
+ * Desktop vendors this copy so the Electron main process has no npm workspace link.
  */
 export interface GirocodeInput { name: string; iban: string; bic?: string; amount: number; reference: string }
 export function buildGirocodePayload(input: GirocodeInput): string | null {

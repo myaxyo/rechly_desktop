@@ -26,11 +26,12 @@ as 19%. Full desktop KoSIT validation and PDF/A-3 hybrid export remain separate
 work; ordinary PDF output has not become a certified electronic invoice.
 
 Rechly Web receives projects, tasks and document editing/export based on this
-repository's business workspace, behind an optional deployment flag. There is
-no automatic web/desktop synchronization. Web still lacks desktop's time billing,
-project cost reports and calendar; desktop still lacks equivalent web recurring
-invoice, dunning and bank-matching workflows. See the web repository's
-`docs/FEATURE_PARITY.md` for the full comparison and rollout instructions.
+repository's business workspace (see web `docs/FEATURE_PARITY.md`). There is
+**no live multi-master sync**. The **vault bridge** lets Web import encrypted
+Desktop `.rechly-backup` files (and JSON backups) via the migration wizard;
+Desktop can still import Rechly JSON backups. Web still leads on recurring
+invoices, dunning, bank matching and Termine booking; Desktop leads on ZUGFeRD
+PDF/A-3, Ollama install and native vault recovery. See `docs/PRODUCT_RULE.md`.
 
 ## Tests
 

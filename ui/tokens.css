@@ -1,0 +1,43 @@
+/**
+ * Rechly shared design tokens — keep web (globals.css) and desktop (ui/tokens.css) aligned.
+ * Primary brand: #2855d9 (not Tailwind blue-600).
+ */
+:root {
+  --rechly-primary: #2855d9;
+  --rechly-primary-hover: #1f46c2;
+  --rechly-primary-foreground: #ffffff;
+  --rechly-ink: #152438;
+  --rechly-muted: #526174;
+  --rechly-line: #e3e9f1;
+  --rechly-input: #dbe3ee;
+  --rechly-bg: #f5f7fa;
+  --rechly-surface: #ffffff;
+  --rechly-destructive: #dc2626;
+  --rechly-success: #15803d;
+  --rechly-warning: #d97706;
+  --rechly-radius-sm: 6px;
+  --rechly-radius: 8px;
+  --rechly-radius-lg: 12px;
+  --rechly-shadow: 0 4px 6px -1px rgba(21, 36, 56, 0.06), 0 2px 4px -2px rgba(21, 36, 56, 0.05);
+  --rechly-ring: #2855d9;
+}
+
+/* Map to desktop legacy variable names when this file is loaded there */
+:root {
+  --primary: var(--rechly-primary);
+  --primary-hover: var(--rechly-primary-hover);
+  --primary-light: color-mix(in srgb, var(--rechly-primary) 10%, white);
+  --text: var(--rechly-ink);
+  --text-muted: var(--rechly-muted);
+  --border: var(--rechly-line);
+  --border-focus: var(--rechly-ring);
+  --bg-main: var(--rechly-bg);
+  --bg-surface: var(--rechly-surface);
+  --radius-sm: var(--rechly-radius-sm);
+  --radius: var(--rechly-radius);
+  --radius-lg: var(--rechly-radius-lg);
+  --shadow: var(--rechly-shadow);
+  --danger: var(--rechly-destructive);
+  --success: var(--rechly-success);
+  --warning: var(--rechly-warning);
+}

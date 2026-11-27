@@ -1,0 +1,4408 @@
+// ─── Model Registry (Multi-Tier Local AI Family) ───
+    const RECHLY_MODEL_FAMILY = {
+      '3b': {
+        id: '3b',
+        name: 'Rechly-DE-3B (Flagship)',
+        tag: 'Flagship',
+        modelIdentifier: 'jonprompter/rechly-de-3b',
+        paramSize: '3B Parameter',
+        downloadSize: '1.93 GB',
+        ramRequired: '~2.5 GB RAM',
+        badge: 'Maximale Präzision (100% Benchmark)',
+        description: 'Vollständige deutsche Steuer- & GoBD-Prüfung, komplexe XRechnung/ZUGFeRD-Parsing-Fälle und DATEV-Kontierung.',
+        recommendedFor: 'Apple Silicon (M1–M4), Workstations, PCs mit ≥ 8 GB RAM',
+        hfUrl: 'https://huggingface.co/jonprompter/rechly-de-3b',
+        minRamGb: 8,
+      },
+      '1.5b': {
+        id: '1.5b',
+        name: 'Rechly-DE-1.5B (Slim)',
+        tag: 'Slim',
+        modelIdentifier: 'jonprompter/rechly-de-1.5b',
+        paramSize: '1.5B Parameter',
+        downloadSize: '986 MB',
+        ramRequired: '~1.1 GB RAM',
+        badge: 'Ausgewogen & Schnell',
+        description: 'Optimiert für Standard-Rechnungen, UStG-Pflichtangaben und DATEV SKR03/04 Kontierung.',
+        recommendedFor: 'Laptops, Intel MacBooks, PCs mit 4–8 GB RAM, 1 GB VPS',
+        hfUrl: 'https://huggingface.co/jonprompter/rechly-de-1.5b',
+        minRamGb: 4,
+      },
+      '0.5b': {
+        id: '0.5b',
+        name: 'Rechly-DE-0.5B (Nano)',
+        tag: 'Nano',
+        modelIdentifier: 'jonprompter/rechly-de-0.5b',
+        paramSize: '0.5B Parameter',
+        downloadSize: '398 MB',
+        ramRequired: '~512 MB RAM',
+        badge: 'Ultra-Leicht & Sparsam',
+        description: 'Extrem sparsam im Arbeitsspeicher, blitzschnelle Antwortzeiten für Basis-Rechnungserfassung.',
+        recommendedFor: 'Ältere Geräte, Thin Clients, Micro-Instanzen, RAM < 4 GB',
+        hfUrl: 'https://huggingface.co/jonprompter/rechly-de-0.5b',
+        minRamGb: 2,
+      },
+    };
+
+    // ─── Desktop App State ───
+    let currentStore = {
+      company: {},
+      invoices: [],
+      clients: [],
+      products: [],
+      offers: [],
+      expenses: [],
+      aiSettings: {
+        active_provider: 'ollama',
+        ollama_host: 'http://localhost:11434',
+        ollama_model: 'jonprompter/rechly-de-3b',
+        selected_tier: '3b',
+        openai_key: '',
+        openai_model: 'gpt-4o-mini',
+        anthropic_key: '',
+        anthropic_model: 'claude-3-5-sonnet-20241022',
+        featured_model: 'jonprompter/rechly-de-3b',
+        ollama_url: 'https://ollama.com/jonprompter/rechly-de-3b',
+        hf_url: 'https://huggingface.co/jonprompter/rechly-de-3b',
+      }
+    };
+    let currentView = 'dashboard';
+    let editingInvoiceId = null;
+    let editingOfferId = null;
+    let invoiceDraftPrefill = null;
+    let editorDocType = 'invoice';
+    let editingClientId = null;
+    let editingProductId = null;
+    let editingExpenseId = null;
+    let savingExpense = false;
+
+    async function init() {
+      if (window.rechly) {
+        currentStore = await window.rechly.getStore();
+        if (!currentStore.aiSettings) {
+          currentStore.aiSettings = await window.rechly.getAiSettings();
+        }
+        updateSidebarCompany();
+        updateBadges();
+        showView('business');
+        updateAiStatusPill();
+        setupAutoUpdater();
+        if (!currentStore.onboarding) await showOnboarding();
+      }
+    }
+
+    // ─── Auto-Updater UI Logic ───
+    let currentAppUpdate = null;
+    let updateDownloadState = 'idle'; // 'idle' | 'downloading' | 'downloaded'
+
+    function setupAutoUpdater() {
+      if (!window.rechly || !window.rechly.onUpdateStatus) return;
+
+      window.rechly.onUpdateStatus((info) => {
+        if (info && info.available) {
+          currentAppUpdate = info;
+          showUpdateIndicator(info);
+        }
+      });
+
+      window.rechly.onUpdateProgress((p) => {
+        updateDownloadState = 'downloading';
+        const progContainer = document.getElementById('update-progress-container');
+        if (progContainer) progContainer.style.display = 'block';
+
+        const bar = document.getElementById('update-progress-bar');
+        const pct = document.getElementById('update-progress-pct');
+        const spd = document.getElementById('update-progress-speed');
+        const btn = document.getElementById('btn-update-action');
+
+        if (bar) bar.style.width = `${p.percent}%`;
+        if (pct) pct.innerText = `${p.percent}%`;
+        if (spd) {
+          const mbTransferred = (p.transferred / (1024 * 1024)).toFixed(1);
+          const mbTotal = p.total > 0 ? (p.total / (1024 * 1024)).toFixed(1) : '?';
+          const mbSec = (p.bytesPerSecond / (1024 * 1024)).toFixed(2);
+          spd.innerText = `${mbTransferred} MB / ${mbTotal} MB (${mbSec} MB/s)`;
+        }
+        if (btn) {
+          btn.disabled = true;
+          btn.innerText = `Wird geladen (${p.percent}%)…`;
+        }
+      });
+    }
+
+    function showUpdateIndicator(info) {
+      const pill = document.getElementById('update-indicator');
+      if (!pill) return;
+      pill.style.display = 'inline-flex';
+      pill.innerHTML = `🚀 <b>Update v${esc(info.latestVersion)}</b>`;
+      pill.title = `Klicken, um Update v${esc(info.latestVersion)} zu installieren`;
+    }
+
+    function openUpdateModal() {
+      if (!currentAppUpdate) return;
+      const modal = document.getElementById('modal-update');
+      const title = document.getElementById('update-modal-title');
+      const info = document.getElementById('update-modal-info');
+      const btn = document.getElementById('btn-update-action');
+
+      if (title) title.innerText = `🚀 Update v${currentAppUpdate.latestVersion || ''} verfügbar`;
+
+      let notesHtml = '';
+      if (currentAppUpdate.releaseNotes) {
+        notesHtml = `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:10px 12px; margin-top:10px; max-height:160px; overflow-y:auto; font-size:12px; font-family:monospace; white-space:pre-wrap;">${esc(currentAppUpdate.releaseNotes)}</div>`;
+      }
+
+      if (info) {
+        info.innerHTML = `
+          <p style="margin-bottom:8px;">Eine neue Version von <b>Rechly Desktop</b> ist bereit zur Installation:</p>
+          <ul style="margin:0 0 10px 18px; padding:0; font-size:12px; color:#475569;">
+            <li><b>Aktuelle Version:</b> v${esc(currentAppUpdate.currentVersion)}</li>
+            <li><b>Neue Version:</b> <span style="color:#10b981; font-weight:700;">v${esc(currentAppUpdate.latestVersion)}</span></li>
+          </ul>
+          ${notesHtml}
+          <p style="margin-top:10px; font-size:11px; color:#64748b;">
+            💡 Ihre lokalen Daten und Rechnungen bleiben bei diesem Update zu 100% unverändert erhalten.
+          </p>
+        `;
+      }
+
+      if (btn) {
+        if (updateDownloadState === 'downloaded') {
+          btn.disabled = false;
+          btn.innerText = '🚀 Jetzt neu starten & installieren';
+        } else if (updateDownloadState === 'downloading') {
+          btn.disabled = true;
+          btn.innerText = 'Wird heruntergeladen…';
+        } else {
+          btn.disabled = false;
+          btn.innerText = 'Jetzt aktualisieren';
+        }
+      }
+
+      if (modal) modal.style.display = 'flex';
+    }
+
+    async function handleUpdateAction() {
+      const btn = document.getElementById('btn-update-action');
+      if (updateDownloadState === 'downloaded') {
+        if (btn) btn.disabled = true;
+        await window.rechly.installUpdate();
+        return;
+      }
+
+      if (!currentAppUpdate || !currentAppUpdate.downloadUrl) {
+        if (currentAppUpdate?.releaseUrl) {
+          window.open(currentAppUpdate.releaseUrl, '_blank');
+        }
+        return;
+      }
+
+      updateDownloadState = 'downloading';
+      document.getElementById('update-progress-container').style.display = 'block';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Lade herunter…';
+      }
+
+      try {
+        const res = await window.rechly.downloadUpdate(currentAppUpdate.downloadUrl);
+        if (res.success) {
+          updateDownloadState = 'downloaded';
+          document.getElementById('update-progress-label').innerText = '✅ Download abgeschlossen';
+          document.getElementById('update-progress-speed').innerText = 'Bereit zur Installation.';
+          if (btn) {
+            btn.disabled = false;
+            btn.innerText = '🚀 Jetzt neu starten & installieren';
+          }
+          showToast('Update heruntergeladen! Klicken Sie auf "Installieren", um die Aktualisierung abzuschließen.', 'success');
+        } else {
+          updateDownloadState = 'idle';
+          if (btn) {
+            btn.disabled = false;
+            btn.innerText = 'Erneut versuchen';
+          }
+          showToast(`Fehler beim Download: ${res.error}`, 'error');
+        }
+      } catch (err) {
+        updateDownloadState = 'idle';
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = 'Erneut versuchen';
+        }
+        showToast(`Fehler: ${err.message}`, 'error');
+      }
+    }
+
+    async function manualCheckForUpdates() {
+      showToast('Suche nach Updates auf GitHub…');
+      try {
+        const update = await window.rechly.checkForUpdates();
+        if (update.available) {
+          currentAppUpdate = update;
+          showUpdateIndicator(update);
+          openUpdateModal();
+        } else if (update.error) {
+          showToast(`Hinweis: ${update.error}`, 'warning');
+        } else {
+          showToast(`Sie nutzen bereits die neueste Version (v${update.currentVersion})!`, 'success');
+        }
+      } catch (err) {
+        showToast(`Updatesuche fehlgeschlagen: ${err.message}`, 'error');
+      }
+    }
+
+    let toastTimer;
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      clearTimeout(toastTimer);
+      toast.dataset.type = type;
+      toast.innerText = message;
+      toast.classList.add('show');
+      toastTimer = setTimeout(() => toast.classList.remove('show'), type === 'success' ? 4000 : 7000);
+    }
+
+    function updateSidebarCompany() {
+      const c = currentStore.company || {};
+      const logoEl = document.getElementById('sidebar-company-logo');
+      if (logoEl) {
+        if (c.logo_base64) {
+          logoEl.src = c.logo_base64;
+          logoEl.style.display = 'block';
+        } else {
+          logoEl.style.display = 'none';
+        }
+      }
+      document.getElementById('sidebar-company-name').innerText = c.name || 'Meine Firma';
+      document.getElementById('sidebar-company-legal').innerText = c.legal_form || 'Einzelunternehmen';
+    }
+
+    function updateBadges() {
+      document.getElementById('badge-invoices').innerText = (currentStore.invoices || []).length;
+      document.getElementById('badge-offers').innerText = (currentStore.offers || []).length;
+      document.getElementById('badge-clients').innerText = (currentStore.clients || []).length;
+      document.getElementById('badge-products').innerText = (currentStore.products || []).length;
+      document.getElementById('badge-expenses').innerText = (currentStore.expenses || []).length;
+    }
+
+    async function updateAiStatusPill() {
+      if (!window.rechly) return;
+      const pill = document.getElementById('ai-model-indicator');
+      if (!pill) return;
+      const settings = currentStore.aiSettings || {};
+      const provider = settings.active_provider || 'ollama';
+
+      pill.className = 'badge ai-pill';
+
+      if (provider === 'openai') {
+        pill.classList.add('active-openai');
+        pill.innerHTML = `⚡ <b>OpenAI: ${settings.openai_model || 'gpt-4o-mini'}</b>`;
+      } else if (provider === 'anthropic') {
+        pill.classList.add('active-anthropic');
+        pill.innerHTML = `🧠 <b>Claude: ${settings.anthropic_model?.includes('haiku') ? 'Haiku' : 'Sonnet'}</b>`;
+      } else {
+        pill.classList.add('active-ollama');
+        const tierId = settings.selected_tier || (
+          settings.ollama_model?.includes('0.5b') ? '0.5b' :
+          settings.ollama_model?.includes('1.5b') ? '1.5b' : '3b'
+        );
+        const modelLabel =
+          tierId === '0.5b' ? 'Rechly-DE-0.5B (Nano)' :
+          tierId === '1.5b' ? 'Rechly-DE-1.5B (Slim)' :
+          'Rechly-DE-3B (Lokal)';
+        const offlineLabel =
+          tierId === '0.5b' ? 'Rechly-DE-0.5B (offline)' :
+          tierId === '1.5b' ? 'Rechly-DE-1.5B (offline)' :
+          'Rechly-DE-3B (offline)';
+
+        try {
+          const res = await window.rechly.checkOllama(settings.ollama_host || 'http://localhost:11434');
+          if (res.connected) {
+            pill.innerHTML = `🟢 ${modelLabel}`;
+          } else {
+            pill.innerHTML = `⚪ ${offlineLabel}`;
+          }
+        } catch {
+          pill.innerHTML = `⚪ ${offlineLabel}`;
+        }
+      }
+    }
+
+    // ─── Navigation ───
+    function createNewInvoice() {
+      editingInvoiceId = null;
+      invoiceDraftPrefill = null;
+      showView('create-invoice');
+    }
+
+    // ─── Invoice Status ───
+    const INVOICE_STATUSES = [
+      { value: 'draft', label: 'Entwurf' },
+      { value: 'sent', label: 'Offen' },
+      { value: 'paid', label: 'Bezahlt' },
+    ];
+
+    function normalizeInvoiceStatus(status) {
+      return INVOICE_STATUSES.some(s => s.value === status) ? status : 'draft';
+    }
+
+    function invoiceStatusOptions(status) {
+      const current = normalizeInvoiceStatus(status);
+      return INVOICE_STATUSES.map(s => `<option value="${s.value}" ${s.value === current ? 'selected' : ''}>${s.label}</option>`).join('');
+    }
+
+    function invoiceStatusSelect(inv) {
+      const current = normalizeInvoiceStatus(inv.status);
+      return `<select class="status-pill status-select status-${current}" title="Status ändern" onchange="setInvoiceStatus('${inv.id}', this.value)">${invoiceStatusOptions(current)}</select>`;
+    }
+
+    async function setInvoiceStatus(id, status) {
+      try {
+        await window.rechly.updateInvoice(id, { status });
+        currentStore = await window.rechly.getStore();
+        const label = INVOICE_STATUSES.find(s => s.value === status)?.label || status;
+        showToast(`Status geändert: ${label}`);
+        showView(currentView);
+      } catch (err) { showToast(err?.message || 'Status konnte nicht geändert werden.', 'error'); }
+    }
+
+    function showView(viewId) {
+      if (viewId !== 'create-invoice') {
+        editingInvoiceId = null;
+        invoiceDraftPrefill = null;
+      }
+      if (viewId !== 'create-offer') {
+        editingOfferId = null;
+      }
+      currentView = viewId;
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      const navId = viewId === 'create-offer' ? 'offers' : viewId === 'create-invoice' ? 'invoices' : viewId;
+      const activeNav = document.getElementById(`nav-${navId}`) || Array.from(document.querySelectorAll('.nav-item')).find(el => el.innerText.toLowerCase().includes(viewId.replace('-', ' ')));
+      document.querySelectorAll('.nav-item').forEach(el => el.removeAttribute('aria-current'));
+      if (activeNav) { activeNav.classList.add('active'); activeNav.setAttribute('aria-current', 'page'); }
+
+      const container = document.getElementById('content-container');
+      container.onclick = null;
+      container.onchange = null;
+      if (viewId === 'worklog' || viewId === 'reports') Worklog.render(viewId);
+      else if (viewId === 'calendar') Calendar.render();
+      else if (['business','documents','projects','tasks'].includes(viewId)) Business.render(viewId);
+      else if (viewId === 'dashboard') renderDashboardView(container);
+      else if (viewId === 'invoices') renderInvoicesView(container);
+      else if (viewId === 'create-invoice') renderCreateInvoiceView(container, 'invoice');
+      else if (viewId === 'create-offer') renderCreateInvoiceView(container, 'offer');
+      else if (viewId === 'clients') renderClientsView(container);
+      else if (viewId === 'products') renderProductsView(container);
+      else if (viewId === 'offers') renderOffersView(container);
+      else if (viewId === 'expenses') renderExpensesView(container);
+      else if (viewId === 'datev') renderDatevView(container);
+      else if (viewId === 'migration') renderMigrationView(container);
+      else if (viewId === 'tools') renderToolsView(container);
+      else if (viewId === 'settings') { renderSettingsView(container); StorageUI.renderStatus(); }
+    }
+
+    // ─── View 0: Startup Menu / Home Dashboard ───
+    const money = value => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(Number(value) || 0);
+    const dateLabel = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? value.split('-').reverse().join('.') : '—';
+    function localToday() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    function isOverdue(inv) { return inv.status === 'sent' && inv.due_date && inv.due_date < localToday(); }
+    function openInvoiceFilter(status) {
+      invoiceFilter = status;
+      document.getElementById('global-search').value = '';
+      showView('invoices');
+    }
+    function renderDashboardView(container) {
+      const invoices = currentStore.invoices || [];
+      const clients = currentStore.clients || [];
+      const paid = invoices.filter(i => i.status === 'paid');
+      const open = invoices.filter(i => i.status === 'sent');
+      const overdue = invoices.filter(isOverdue);
+      const sum = list => list.reduce((n,i) => n + (Number(i.total_gross) || 0), 0);
+      const recent = [...invoices].sort((a,b) => (b.created_at || 0) - (a.created_at || 0)).slice(0,5);
+      const hour = new Date().getHours();
+      container.innerHTML = `
+        <div class="page-header dashboard-heading"><div><div class="eyebrow">IHR FINANZÜBERBLICK</div>
+          <h1 class="page-title">${hour < 11 ? 'Guten Morgen' : hour < 18 ? 'Guten Tag' : 'Guten Abend'}, ${esc(currentStore.company?.name || 'willkommen')}.</h1>
+          <p class="page-subtitle">Alles Wichtige auf einen Blick. Alle Beträge brutto, über den gesamten Datenbestand.</p></div>
+          <button class="btn btn-primary" onclick="createNewInvoice()">+ Neue Rechnung</button></div>
+        <div class="metrics-grid">
+          <button class="metric-card" onclick="openInvoiceFilter('paid')"><span class="metric-label">Bezahlt</span><strong class="metric-value">${money(sum(paid))}</strong><span class="metric-sub">${paid.length} Rechnungen · Zahlungseingänge</span></button>
+          <button class="metric-card" onclick="openInvoiceFilter('sent')"><span class="metric-label">Offene Forderungen</span><strong class="metric-value">${money(sum(open))}</strong><span class="metric-sub">${open.length} Rechnungen · noch ausstehend</span></button>
+          <button class="metric-card attention" onclick="openInvoiceFilter('overdue')"><span class="metric-label">Überfällig</span><strong class="metric-value">${money(sum(overdue))}</strong><span class="metric-sub">${overdue.length} Rechnungen · Zahlung prüfen</span></button>
+          <button class="metric-card" onclick="showView('expenses')"><span class="metric-label">Erfasste Ausgaben</span><strong class="metric-value">${money((currentStore.expenses || []).reduce((n,e)=>n+(Number(e.amount_gross)||0),0))}</strong><span class="metric-sub">${(currentStore.expenses || []).length} Belege im Überblick</span></button>
+        </div>
+        <div class="workspace-grid"><section class="card recent-card"><div class="section-heading"><div><h2>Letzte Rechnungen</h2><p>Ihre zuletzt erstellten Dokumente</p></div><button class="btn btn-secondary btn-sm" onclick="openInvoiceFilter('all')">Alle anzeigen →</button></div>
+          <div class="table-scroll"><table><thead><tr><th>Rechnung / Kunde</th><th>Fälligkeit</th><th class="numeric">Betrag</th><th>Status</th></tr></thead><tbody>
+          ${recent.map(i=>`<tr><td><button class="text-button" onclick="editInvoice('${i.id}')">${esc(i.invoice_number || 'Ohne Nummer')}</button><span class="cell-sub">${esc(clients.find(c=>c.id===i.client_id)?.name || 'Unbekannter Kunde')}</span></td><td class="${isOverdue(i)?'overdue-text':''}">${dateLabel(i.due_date)}${isOverdue(i)?'<span class="cell-sub">Überfällig</span>':''}</td><td class="numeric">${money(i.total_gross)}</td><td>${invoiceStatusSelect(i)}</td></tr>`).join('') || '<tr><td colspan="4"><div class="empty-state"><h3>Platz für Ihre erste Rechnung</h3><p>Legen Sie einen Kunden an und erfassen Sie Ihre Leistungen.</p><button class="btn btn-primary" onclick="createNewInvoice()">Rechnung erstellen</button></div></td></tr>'}
+          </tbody></table></div></section>
+          <aside class="card workflow-card"><div class="eyebrow">NÄCHSTE SCHRITTE</div><h2>Gut organisiert.</h2><p>Von der ersten Anfrage bis zur fertigen Abrechnung.</p>
+          <button class="workflow-action" onclick="createNewOffer()"><span>01</span><div><b>Angebot erstellen</b><small>Leistungen planen und kalkulieren</small></div><span>→</span></button>
+          <button class="workflow-action" onclick="showNewClientModal()"><span>02</span><div><b>Kunde anlegen</b><small>Kontaktdaten zentral verwalten</small></div><span>→</span></button>
+          <button class="workflow-action" onclick="showNewExpenseModal()"><span>03</span><div><b>Ausgabe erfassen</b><small>Geschäftsausgaben im Blick behalten</small></div><span>→</span></button>
+          <div class="backup-note"><b>Ihre Daten bleiben bei Ihnen.</b><p>Erstellen Sie regelmäßig eine Sicherung auf einem separaten Laufwerk.</p><button class="btn btn-secondary btn-sm" onclick="showView('settings')">Sicherung & Einstellungen →</button></div></aside></div>`;
+    }
+
+    // ─── Sequential Numbering & Template Helpers ───
+    function formatInvoiceNumberString(pattern, counter, date = new Date()) {
+      const p = (pattern || 'RE-{YYYY}-{###}').trim();
+      const year = date.getFullYear();
+      const yy = String(year).slice(-2);
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+
+      let result = p
+        .replace(/\{YYYY\}/g, String(year))
+        .replace(/\{YY\}/g, yy)
+        .replace(/\{MM\}/g, month)
+        .replace(/\{DD\}/g, day);
+
+      const hashMatch = result.match(/\{(#+)\}/);
+      if (hashMatch) {
+        result = result.replace(hashMatch[0], String(counter).padStart(hashMatch[1].length, '0'));
+      } else if (/\{NR\}|\{COUNTER\}/i.test(result)) {
+        result = result.replace(/\{NR\}|\{COUNTER\}/gi, String(counter));
+      } else {
+        const sep = result.endsWith('-') || result.endsWith('/') ? '' : '-';
+        result = `${result}${sep}${String(counter).padStart(3, '0')}`;
+      }
+      return result;
+    }
+
+    function getCalculatedNextInvoiceNumber(date = new Date()) {
+      const comp = currentStore.company || {};
+      const pattern = (comp.invoice_number_pattern || comp.invoice_number_prefix || 'RE-{YYYY}-{###}').trim();
+      const year = date.getFullYear();
+      const yy = String(year).slice(-2);
+
+      let regexStr = pattern
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\\\{YYYY\\\}/g, String(year))
+        .replace(/\\\{YY\\\}/g, yy)
+        .replace(/\\\{MM\\\}/g, '\\d{2}')
+        .replace(/\\\{DD\\\}/g, '\\d{2}')
+        .replace(/\\\{#+\\\}/g, '(\\d+)')
+        .replace(/\\\{NR\\\}|\\\{COUNTER\\\}/gi, '(\\d+)');
+
+      if (!regexStr.includes('(\\d+)')) {
+        regexStr = `${regexStr}[-/]?(\\d+)`;
+      }
+      const regex = new RegExp(`^${regexStr}$`);
+
+      let maxExisting = 0;
+      for (const inv of (currentStore.invoices || [])) {
+        if (!inv.invoice_number) continue;
+        const m = inv.invoice_number.trim().match(regex);
+        if (m && m[1]) {
+          const val = parseInt(m[1], 10);
+          if (Number.isSafeInteger(val) && val > maxExisting) maxExisting = val;
+        }
+      }
+
+      const configuredCounter = comp.next_invoice_number || comp.nextInvoiceNumber || 1;
+      const nextCounter = Math.max(configuredCounter, maxExisting + 1);
+
+      return formatInvoiceNumberString(pattern, nextCounter, date);
+    }
+
+    function formatServicePeriod(start, end) {
+      if (!start && !end) return '';
+      if (start && end && start !== end) {
+        return `${dateLabel(start)} – ${dateLabel(end)}`;
+      }
+      return dateLabel(start || end);
+    }
+
+    async function duplicateInvoice(id) {
+      const source = (currentStore.invoices || []).find(inv => inv.id === id);
+      if (!source) {
+        showToast('Rechnung nicht gefunden.', 'error');
+        return;
+      }
+      editingInvoiceId = null;
+      editorDocType = 'invoice';
+
+      const nextNum = getCalculatedNextInvoiceNumber();
+      invoiceDraftPrefill = {
+        client_id: source.client_id || '',
+        invoice_number: nextNum,
+        issue_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        delivery_date: source.delivery_date || '',
+        delivery_date_until: source.delivery_date_until || '',
+        status: 'draft',
+        notes: source.notes || '',
+        payment_terms: source.payment_terms || currentStore.company?.payment_terms_default || '',
+        items: (source.items || []).map(it => ({
+          description: it.description || '',
+          quantity: it.quantity || 1,
+          unit_of_measure: it.unit_of_measure || 'Stunde',
+          price: it.price || 0,
+          tax_rate_percent: it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company?.is_small_business ? 0 : 19),
+          discount_percent: it.discount_percent || 0,
+          delivery_date: it.delivery_date || '',
+          delivery_date_until: it.delivery_date_until || '',
+        })),
+      };
+      showView('create-invoice');
+      showToast(`Rechnung ${source.invoice_number || ''} als neuer Entwurf dupliziert.`);
+    }
+
+    function showTemplateModal() {
+      const templates = currentStore.invoiceTemplates || [];
+      const existingModal = document.getElementById('template-modal-overlay');
+      if (existingModal) existingModal.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'template-modal-overlay';
+      modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.6); display:flex; align-items:center; justify-content:center; z-index:10000; padding:20px;';
+
+      const rows = templates.map(t => {
+        const client = (currentStore.clients || []).find(c => c.id === t.client_id);
+        const count = (t.items || []).length;
+        const totalEst = (t.items || []).reduce((sum, it) => sum + (it.quantity || 0) * (it.price || 0), 0);
+        return `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px; border-bottom:1px solid #e2e8f0;">
+            <div>
+              <div style="font-weight:700; font-size:14px; color:#0f172a;">${esc(t.name)}</div>
+              <div style="font-size:12px; color:#64748b;">${client ? esc(client.name) + ' · ' : ''}${count} Position(en) · ca. ${money(totalEst)} netto</div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-primary btn-sm" onclick="createInvoiceFromTemplate('${t.id}')">Verwenden →</button>
+              <button class="btn btn-danger-outline btn-sm" onclick="deleteTemplate('${t.id}')">Löschen</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      modal.innerHTML = `
+        <div class="card" style="width:100%; max-width:550px; max-height:85vh; display:flex; flex-direction:column; padding:24px; background:#fff; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">📋 Rechnungsvorlagen</h3>
+            <button class="btn btn-secondary btn-sm" onclick="closeTemplateModal()">✕</button>
+          </div>
+          <p style="font-size:13px; color:#475569; margin:0 0 16px 0;">
+            Wählen Sie eine Vorlage aus, um direkt eine neue Rechnung mit vordefinierten Positionen und Kundendaten zu erstellen.
+          </p>
+          <div style="overflow-y:auto; flex:1; max-height:50vh; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:16px;">
+            ${templates.length ? rows : '<div style="padding:32px 16px; text-align:center; color:#94a3b8; font-size:13px;">Noch keine Vorlagen gespeichert.<br>Speichern Sie eine Vorlage direkt beim Erstellen einer Rechnung über den Button „💾 Als Vorlage speichern“.</div>'}
+          </div>
+          <div style="display:flex; justify-content:flex-end;">
+            <button class="btn btn-secondary" onclick="closeTemplateModal()">Schließen</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+
+    function closeTemplateModal() {
+      const el = document.getElementById('template-modal-overlay');
+      if (el) el.remove();
+    }
+
+    async function deleteTemplate(tplId) {
+      if (!confirm('Möchten Sie diese Rechnungsvorlage wirklich löschen?')) return;
+      await window.rechly.deleteInvoiceTemplate(tplId);
+      currentStore = await window.rechly.getStore();
+      closeTemplateModal();
+      showTemplateModal();
+      showToast('Vorlage gelöscht.');
+    }
+
+    function createInvoiceFromTemplate(tplId) {
+      const templates = currentStore.invoiceTemplates || [];
+      const tpl = templates.find(t => t.id === tplId);
+      closeTemplateModal();
+      if (!tpl) return;
+
+      editingInvoiceId = null;
+      editorDocType = 'invoice';
+      const nextNum = getCalculatedNextInvoiceNumber();
+      invoiceDraftPrefill = {
+        client_id: tpl.client_id || '',
+        invoice_number: nextNum,
+        issue_date: new Date().toISOString().slice(0, 10),
+        due_date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+        delivery_date: '',
+        delivery_date_until: '',
+        status: 'draft',
+        notes: tpl.notes || '',
+        payment_terms: tpl.payment_terms || currentStore.company?.payment_terms_default || '',
+        items: (tpl.items || []).map(it => ({
+          description: it.description || '',
+          quantity: it.quantity || 1,
+          unit_of_measure: it.unit_of_measure || 'Stunde',
+          price: it.price || 0,
+          tax_rate_percent: it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company?.is_small_business ? 0 : 19),
+          discount_percent: it.discount_percent || 0,
+          delivery_date: it.delivery_date || '',
+          delivery_date_until: it.delivery_date_until || '',
+        })),
+      };
+      showView('create-invoice');
+      showToast(`Neue Rechnung aus Vorlage „${tpl.name}“ erstellt.`);
+    }
+
+    function applyInvoiceTemplate(tplId) {
+      if (!tplId) return;
+      const templates = currentStore.invoiceTemplates || [];
+      const tpl = templates.find(t => t.id === tplId);
+      if (!tpl) return;
+
+      if (tpl.client_id) {
+        const clientSelect = document.getElementById('inv-client');
+        if (clientSelect) clientSelect.value = tpl.client_id;
+      }
+      if (tpl.payment_terms) {
+        const termsInput = document.getElementById('inv-terms');
+        if (termsInput) termsInput.value = tpl.payment_terms;
+      }
+
+      const tbody = document.getElementById('inv-items-body');
+      if (tbody && Array.isArray(tpl.items) && tpl.items.length > 0) {
+        tbody.innerHTML = '';
+        for (const it of tpl.items) {
+          addInvoiceItemRow(
+            it.description || '',
+            it.quantity || 1,
+            it.unit_of_measure || 'Stunde',
+            it.price || 0,
+            it.tax_rate_percent !== undefined ? it.tax_rate_percent : 19,
+            it.delivery_date || '',
+            it.delivery_date_until || ''
+          );
+        }
+        calculateTotals();
+      }
+      showToast(`Vorlage „${tpl.name}“ angewendet.`);
+    }
+
+    async function saveCurrentAsTemplate() {
+      const rows = document.querySelectorAll('#inv-items-body tr');
+      if (!rows.length) {
+        showToast('Bitte fügen Sie mindestens eine Position hinzu.', 'error');
+        return;
+      }
+      const clientId = document.getElementById('inv-client')?.value || '';
+      const clientName = (currentStore.clients || []).find(c => c.id === clientId)?.name || '';
+      const defaultName = clientName ? `Vorlage für ${clientName}` : `Rechnungsvorlage ${new Date().toISOString().slice(0, 10)}`;
+      const name = prompt('Name für diese Rechnungsvorlage:', defaultName);
+      if (!name || !name.trim()) return;
+
+      const items = [];
+      rows.forEach(tr => {
+        const desc = tr.querySelector('.item-desc')?.value.trim();
+        const qty = parseDecimalInput(tr.querySelector('.item-qty')?.value) || 1;
+        const unit = tr.querySelector('.item-unit')?.value.trim() || 'Stück';
+        const price = parseDecimalInput(tr.querySelector('.item-price')?.value) || 0;
+        const vat = parseDecimalInput(tr.querySelector('.item-vat')?.value) || 0;
+        const dDate = tr.querySelector('.item-delivery-date')?.value?.trim();
+        const dUntil = tr.querySelector('.item-delivery-until')?.value?.trim();
+        if (desc) {
+          const item = {
+            description: desc,
+            quantity: qty,
+            unit_of_measure: unit,
+            price,
+            tax_rate_percent: vat,
+          };
+          if (dDate) item.delivery_date = dDate;
+          if (dUntil) item.delivery_date_until = dUntil;
+          items.push(item);
+        }
+      });
+
+      const template = {
+        id: `tpl-${Date.now()}`,
+        name: name.trim(),
+        client_id: clientId || null,
+        items,
+        payment_terms: document.getElementById('inv-terms')?.value || '',
+        created_at: Date.now(),
+      };
+
+      await window.rechly.saveInvoiceTemplate(template);
+      currentStore = await window.rechly.getStore();
+      showToast(`Vorlage „${template.name}“ erfolgreich gespeichert!`);
+
+      const picker = document.getElementById('inv-template-picker');
+      if (picker) {
+        const templates = currentStore.invoiceTemplates || [];
+        picker.innerHTML = `<option value="">📋 Vorlage laden…</option>` +
+          templates.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+      }
+    }
+
+    // ─── View 1: Invoices List ───
+    let invoiceFilter = 'all';
+    let invoiceSort = 'newest';
+    function renderInvoicesView(container) {
+      const all = currentStore.invoices || [];
+      const clients = currentStore.clients || [];
+      const term = document.getElementById('global-search').value.trim().toLocaleLowerCase('de');
+      const invoices = all.filter(i => {
+        const text = [i.invoice_number, clients.find(c=>c.id===i.client_id)?.name, ...(i.items || []).map(it=>it.description)].join(' ').toLocaleLowerCase('de');
+        return (!term || text.includes(term)) && (invoiceFilter === 'all' || (invoiceFilter === 'overdue' ? isOverdue(i) : normalizeInvoiceStatus(i.status) === invoiceFilter));
+      }).sort((a,b)=> invoiceSort === 'amount' ? (b.total_gross||0)-(a.total_gross||0) : invoiceSort === 'due' ? (a.due_date || '9999').localeCompare(b.due_date || '9999') : (b.created_at||0)-(a.created_at||0));
+      container.innerHTML = `<div class="page-header"><div><div class="eyebrow">DOKUMENTE</div><h1 class="page-title">Rechnungen</h1><p class="page-subtitle">Zahlungen verfolgen, Rechnungen bearbeiten und Dokumente exportieren.</p></div><div style="display:flex; gap:8px;"><button class="btn btn-secondary" onclick="showTemplateModal()">📋 Aus Vorlage…</button><button class="btn btn-primary" onclick="createNewInvoice()">+ Neue Rechnung</button></div></div>
+        <div class="card"><div class="invoice-toolbar"><div class="filter-tabs" role="group" aria-label="Rechnungsstatus">
+        ${[['all','Alle'],['draft','Entwürfe'],['sent','Offen'],['overdue','Überfällig'],['paid','Bezahlt']].map(([v,l])=>`<button class="filter-tab ${invoiceFilter===v?'selected':''}" aria-pressed="${invoiceFilter===v}" onclick="invoiceFilter='${v}'; renderInvoicesView(document.getElementById('content-container'))">${l}</button>`).join('')}</div>
+        <select aria-label="Rechnungen sortieren" onchange="invoiceSort=this.value; renderInvoicesView(document.getElementById('content-container'))">${[['newest','Zuletzt erstellt'],['due','Fälligkeit aufsteigend'],['amount','Betrag absteigend']].map(([v,l])=>`<option value="${v}" ${invoiceSort===v?'selected':''}>${l}</option>`).join('')}</select></div>
+        <p class="result-count" role="status">${invoices.length} von ${all.length} Rechnungen${term ? ` · Suche: „${esc(term)}“` : ''}</p>
+        <div class="table-scroll"><table><thead><tr><th>Rechnung / Kunde</th><th>Datum</th><th>Fällig</th><th class="numeric">Betrag</th><th>Status</th><th>Aktionen</th></tr></thead><tbody>
+        ${invoices.map(i=>`<tr><td><button class="text-button" onclick="editInvoice('${i.id}')">${esc(i.invoice_number || 'Ohne Nummer')}</button><span class="cell-sub">${esc(clients.find(c=>c.id===i.client_id)?.name || 'Unbekannter Kunde')}</span></td><td>${dateLabel(i.issue_date)}</td><td class="${isOverdue(i)?'overdue-text':''}">${dateLabel(i.due_date)}${isOverdue(i)?'<span class="cell-sub">Überfällig</span>':''}</td><td class="numeric">${money(i.total_gross)}</td><td>${invoiceStatusSelect(i)}</td><td><div class="row-actions"><button class="btn btn-secondary btn-sm" onclick="previewInvoice('${i.id}')">PDF</button><button class="btn btn-secondary btn-sm" onclick="exportZugferd('${i.id}')">ZUGFeRD (PDF)</button><button class="btn btn-secondary btn-sm" onclick="exportXRechnung('${i.id}')">XRechnung (XML)</button><button class="btn btn-secondary btn-sm" title="Rechnung duplizieren" onclick="duplicateInvoice('${i.id}')">📋 Duplizieren</button><button class="btn btn-danger-outline btn-sm" aria-label="Rechnung ${esc(i.invoice_number)} löschen" onclick="deleteInvoice('${i.id}')">Löschen</button></div></td></tr>`).join('') || `<tr><td colspan="6"><div class="empty-state"><h3>${all.length?'Keine passenden Rechnungen':'Ihre erste Rechnung beginnt hier'}</h3><p>${all.length?'Ändern Sie den Suchbegriff oder setzen Sie die Filter zurück.':'Erfassen Sie Ihre Leistungen und behalten Sie Zahlungen im Blick.'}</p><button class="btn btn-secondary" onclick="${all.length?"openInvoiceFilter('all')":"createNewInvoice()"}">${all.length?'Filter zurücksetzen':'Rechnung erstellen'}</button></div></td></tr>`}
+        </tbody></table></div></div>`;
+    }
+
+    // ─── View 2: Create & Edit Invoice with Text-to-Invoice ───
+    function editInvoice(id) {
+      editingInvoiceId = id;
+      showView('create-invoice');
+    }
+
+    function renderCreateInvoiceView(container, docType = 'invoice') {
+      editorDocType = docType;
+      const isOffer = docType === 'offer';
+      const editingId = isOffer ? editingOfferId : editingInvoiceId;
+      const isEditing = Boolean(editingId);
+      const inv = isEditing ? ((isOffer ? currentStore.offers : currentStore.invoices) || []).find(d => d.id === editingId) : null;
+      const prefill = !isEditing && !isOffer ? invoiceDraftPrefill : null;
+      const docLabel = isOffer ? 'Angebot' : 'Rechnung';
+      const backView = isOffer ? 'offers' : 'invoices';
+      const year = new Date().getFullYear();
+      const prefix = `${isOffer ? 'AN' : 'RE'}-${year}-`;
+      const numbers = ((isOffer ? currentStore.offers : currentStore.invoices) || []).map(d => isOffer ? d.offer_number : d.invoice_number).filter(n => n?.startsWith(prefix)).map(n => Number(n.slice(prefix.length))).filter(Number.isSafeInteger);
+      const defaultOfferNumber = `AN-${year}-` + String(Math.max(0, ...numbers) + 1).padStart(3, '0');
+      const calculatedInvoiceNumber = getCalculatedNextInvoiceNumber();
+      const defaultNumber = isOffer ? defaultOfferNumber : (prefill?.invoice_number || calculatedInvoiceNumber);
+      const docNumber = inv ? (isOffer ? inv.offer_number : inv.invoice_number) : (prefill?.invoice_number || defaultNumber);
+      const selectedClientId = inv ? inv.client_id : (prefill?.client_id || '');
+      const dueValue = inv ? (isOffer ? inv.valid_until : inv.due_date) : (prefill?.due_date || new Date(Date.now() + (isOffer ? 30 : 14) * 86400000).toISOString().slice(0, 10));
+      const issueDateValue = inv ? (inv.issue_date || '') : (prefill?.issue_date || new Date().toISOString().slice(0, 10));
+      const deliveryDateValue = inv ? (inv.delivery_date || '') : (prefill?.delivery_date || '');
+      const deliveryUntilValue = inv ? (inv.delivery_date_until || '') : (prefill?.delivery_date_until || '');
+      const termsValue = inv ? (inv.payment_terms || '') : (prefill?.payment_terms || (currentStore.company.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'));
+      const statusValue = inv ? inv.status : (prefill?.status || (isOffer ? 'draft' : 'sent'));
+
+      const titleText = isEditing && inv ? `${docLabel} ${docNumber || ''} bearbeiten` : `${isOffer ? 'Neues Angebot' : 'Neue Rechnung'} erstellen`;
+      const submitText = isEditing ? '💾 Änderungen speichern' : `${docLabel} speichern`;
+      const subtitleText = isOffer
+        ? (isEditing ? 'Passe Positionen, Gültigkeit und Konditionen des Angebots an.' : 'Kostenvoranschlag erstellen und nach Annahme mit einem Klick in eine Rechnung umwandeln.')
+        : (isEditing ? 'Passe Positionen, Rechnungsdaten und Konditionen der bestehenden Rechnung an.' : 'GoBD-konform mit automatischer Berechnung und E-Rechnung-Unterstützung.');
+      const products = currentStore.products || [];
+      const productOptions = products.map(pr => `<option value="${esc(pr.id)}">${esc(pr.name)} – ${(pr.price || 0).toFixed(2)} € / ${esc(pr.unit_of_measure || 'Stück')}</option>`).join('');
+
+      const clients = currentStore.clients || [];
+      const clientOptions = clients.map(c => `<option value="${c.id}" ${selectedClientId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+      const aiSettings = currentStore.aiSettings || {};
+      const activeProvider = aiSettings.active_provider || 'ollama';
+      const aiLabel = activeProvider === 'openai'
+        ? `OpenAI (${aiSettings.openai_model || 'gpt-4o-mini'})`
+        : activeProvider === 'anthropic'
+        ? `Claude (${aiSettings.anthropic_model?.includes('haiku') ? 'Haiku' : 'Sonnet'})`
+        : `jonprompter/Rechly-DE-3B (100% Lokal)`;
+
+      let initialItemRows = '';
+      const itemsSource = (inv && Array.isArray(inv.items) && inv.items.length > 0)
+        ? inv.items
+        : (prefill && Array.isArray(prefill.items) && prefill.items.length > 0)
+          ? prefill.items
+          : null;
+
+      if (itemsSource) {
+        initialItemRows = itemsSource.map(it => buildInvoiceItemRowHtml({
+          description: it.description || '',
+          quantity: it.quantity ?? 1,
+          unit_of_measure: it.unit_of_measure || 'Stunde',
+          price: it.price ?? 0,
+          tax_rate_percent: it.tax_rate_percent !== undefined ? it.tax_rate_percent : (currentStore.company.is_small_business ? 0 : 19),
+          delivery_date: it.delivery_date || '',
+          delivery_date_until: it.delivery_date_until || '',
+        })).join('');
+      } else {
+        initialItemRows = buildInvoiceItemRowHtml({
+          description: 'Beratung und Konzeption',
+          quantity: 1,
+          unit_of_measure: 'Stunde',
+          price: 110,
+          tax_rate_percent: currentStore.company.is_small_business ? 0 : 19,
+          delivery_date: '',
+          delivery_date_until: '',
+        }, true);
+      }
+
+      const templatesList = currentStore.invoiceTemplates || [];
+      const templatePickerOptions = templatesList.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-title">${titleText}</div>
+            <div class="page-subtitle">${subtitleText}</div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            ${isEditing && !isOffer && inv ? `
+              <button class="btn btn-secondary" onclick="previewInvoice('${inv.id}')">🖨️ PDF Vorschau</button>
+              <button class="btn btn-secondary" onclick="exportZugferd('${inv.id}')">📎 ZUGFeRD (PDF)</button>
+              <button class="btn btn-secondary" onclick="exportXRechnung('${inv.id}')">📄 XRechnung (XML)</button>
+              <button class="btn btn-secondary" onclick="duplicateInvoice('${inv.id}')">📋 Duplizieren</button>
+            ` : ''}
+            <button class="btn btn-secondary" onclick="showView('${backView}')">Zurück zur Übersicht</button>
+          </div>
+        </div>
+
+        <!-- AI Text-to-Invoice Bar -->
+        <div class="card" style="background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%); border: 1px solid #bfdbfe;">
+          <div style="display:flex; align-items:center; justify-content:space-between">
+            <span style="font-weight:700; font-size:13px; color:#1e40af">
+              ⚡ KI-Schnellerfassung mit <code>${aiLabel}</code>:
+            </span>
+            <span style="font-size:11px; color:#64748b;"><a href="#" onclick="showView('settings')">KI-Modell wechseln ↗</a></span>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <input type="text" id="ai-quick-text" style="flex:1; padding:9px 14px; border:1px solid #93c5fd; border-radius:6px; font-size:13px; outline:none;" placeholder="z. B. Rechnung an Müller GmbH: 10 Std. Beratung à 120€ und Hosting 250€, zahlbar in 14 Tagen mit 2% Skonto">
+            <button class="btn btn-primary" id="ai-quick-btn" onclick="executeAiQuickFill()">Ausfüllen</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Kunde auswählen <button class="btn btn-secondary btn-sm" style="padding:1px 6px; font-size:11px;" onclick="showNewClientModal()">+ Neu</button></label>
+              <select id="inv-client">${clientOptions || '<option value="">Keine Kunden angelegt</option>'}</select>
+            </div>
+            <div class="form-group">
+              <label>${isOffer ? 'Angebotsnummer' : 'Rechnungsnummer'}</label>
+              <input type="text" id="inv-num" value="${esc(inv ? (docNumber || '') : defaultNumber)}">
+            </div>
+            <div class="form-group">
+              <label>${isOffer ? 'Angebotsdatum' : 'Rechnungsdatum'}</label>
+              <input type="date" id="inv-date" value="${issueDateValue}">
+            </div>
+            <div class="form-group">
+              <label>${isOffer ? 'Gültig bis' : 'Fälligkeitsdatum'}</label>
+              <input type="date" id="inv-due" value="${dueValue || ''}">
+            </div>
+            ${!isOffer ? `
+            <div class="form-group">
+              <label>Leistungszeitraum von</label>
+              <input type="date" id="inv-delivery-date" value="${deliveryDateValue}" title="Liefer-/Leistungsdatum bzw. Beginn des Zeitraums">
+            </div>
+            <div class="form-group">
+              <label>Leistungszeitraum bis (optional)</label>
+              <input type="date" id="inv-delivery-until" value="${deliveryUntilValue}" title="Ende des Leistungszeitraums">
+            </div>
+            ` : ''}
+            <div class="form-group">
+              <label>Status</label>
+              <select id="inv-status">${isOffer ? offerStatusOptions(statusValue) : invoiceStatusOptions(statusValue)}</select>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin: 20px 0 10px 0;">
+            <div style="font-weight:700; font-size:14px;">${isOffer ? 'Angebotspositionen' : 'Rechnungspositionen'}</div>
+            ${!isOffer ? `
+            <div style="display:flex; gap:8px; align-items:center;">
+              <select id="inv-template-picker" onchange="applyInvoiceTemplate(this.value); this.value='';" style="padding:4px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; background:#fff;">
+                <option value="">📋 Vorlage laden…</option>
+                ${templatePickerOptions}
+              </select>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="saveCurrentAsTemplate()">💾 Als Vorlage speichern</button>
+            </div>` : ''}
+          </div>
+          <table id="inv-items-table">
+            <thead>
+              <tr>
+                <th style="width:32px; text-align:center;"><input type="checkbox" id="inv-items-select-all" aria-label="Alle Positionen auswählen" onchange="toggleAllInvoiceItems(this.checked)"></th>
+                <th style="width:43%">Beschreibung</th>
+                <th>Menge</th>
+                <th>Einheit</th>
+                <th>Einzelpreis (€)</th>
+                <th>MwSt %</th>
+                <th>Aktion</th>
+              </tr>
+            </thead>
+            <tbody id="inv-items-body">
+              ${initialItemRows}
+            </tbody>
+          </table>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:10px;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addInvoiceItemRow()">+ Freie Position</button>
+              ${products.length > 0 ? `
+              <select id="inv-product-picker" class="product-picker" onchange="addProductItem(this.value); this.value = '';">
+                <option value="">📦 Aus Leistungen & Artikeln hinzufügen…</option>
+                ${productOptions}
+              </select>` : `
+              <span style="font-size:12px; color:#64748b;">Noch keine Leistungen angelegt. <a href="#" onclick="showView('products'); return false;">Leistungen & Artikel anlegen ↗</a></span>`}
+            </div>
+            <div id="inv-items-bulk-bar" style="display:none; align-items:center; gap:8px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:6px; padding:4px 10px;">
+              <span id="inv-items-selected-count" style="font-size:12px; font-weight:600; color:#334155;"></span>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="duplicateSelectedInvoiceItems()">📋 Duplizieren</button>
+              <button type="button" class="btn btn-danger-outline btn-sm" onclick="deleteSelectedInvoiceItems()">Löschen</button>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top:20px;">
+            <label>Zahlungsbedingungen</label>
+            <textarea id="inv-terms" rows="2">${termsValue}</textarea>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:24px; padding-top:16px; border-top:1px solid var(--border);">
+            <div id="inv-totals-display" style="font-size:14px; color:#475569;">
+              Gesamt Netto: <b>110.00 €</b> | MwSt: <b>20.90 €</b> | Brutto: <b style="color:#0f172a; font-size:16px;">130.90 €</b>
+            </div>
+            <div style="display:flex; gap:10px;">
+              ${isEditing ? `<button type="button" class="btn btn-secondary" onclick="showView('${backView}')">Abbrechen</button>` : ''}
+              <button type="button" class="btn btn-primary" id="save-document" onclick="saveNewInvoice()">${submitText}</button>
+            </div>
+          </div>
+        </div>
+        <div id="invoice-compliance-host"></div>
+      `;
+      invoiceDraftPrefill = null;
+      calculateTotals();
+      updateInvoiceItemBulkBar();
+      refreshInvoiceCompliancePanel(inv, isOffer);
+    }
+
+    function refreshInvoiceCompliancePanel(inv, isOffer) {
+      const host = document.getElementById('invoice-compliance-host');
+      if (!host || !window.RechlyCompliance || isOffer) {
+        if (host && isOffer) host.innerHTML = '';
+        return;
+      }
+      const company = currentStore.company || {};
+      const client = inv ? (currentStore.clients || []).find((c) => c.id === inv.client_id) : null;
+      const selectedClientId = document.getElementById('inv-client')?.value;
+      const liveClient = client || (currentStore.clients || []).find((c) => c.id === selectedClientId);
+      const lineCount = document.querySelectorAll('#inv-items-body tr').length || (inv?.items || []).length || 0;
+      host.innerHTML = window.RechlyCompliance.renderCompliancePanel({
+        invoiceNumber: document.getElementById('inv-num')?.value || inv?.invoice_number,
+        issueDate: document.getElementById('inv-date')?.value || inv?.issue_date,
+        sellerName: company.name,
+        sellerAddress: [company.address_line1 || company.street, company.postal_code || company.zip, company.city].filter(Boolean).join(', '),
+        buyerName: liveClient?.name,
+        buyerAddress: liveClient ? [liveClient.address_line1 || liveClient.street, liveClient.postal_code || liveClient.zip, liveClient.city].filter(Boolean).join(', ') : '',
+        sellerTaxId: company.tax_number || company.steuernummer,
+        sellerVatId: company.vat_id || company.ust_id,
+        iban: company.bank_iban || company.iban,
+        currency: 'EUR',
+        totalGross: inv?.total_gross,
+        lineCount,
+        isSmallBusiness: Boolean(company.is_small_business),
+        hasServicePeriod: Boolean(inv?.delivery_date || inv?.delivery_date_start || document.getElementById('inv-delivery')?.value),
+        hasBuyerLeitwegOrVat: Boolean(liveClient?.leitweg_id || liveClient?.vat_id),
+      });
+    }
+
+    function buildInvoiceItemRowHtml(item = {}, isPlaceholder = false) {
+      const qty = item.quantity !== undefined ? item.quantity : 1;
+      const unit = item.unit_of_measure !== undefined ? item.unit_of_measure : 'Stunde';
+      const price = item.price !== undefined ? item.price : 0;
+      const vat = item.tax_rate_percent !== undefined ? item.tax_rate_percent : (currentStore.company.is_small_business ? 0 : 19);
+      const dDate = item.delivery_date || '';
+      const dUntil = item.delivery_date_until || '';
+      return `
+        <tr${isPlaceholder ? ' data-placeholder="1"' : ''}>
+          <td style="text-align:center;"><input type="checkbox" class="item-select-cb" aria-label="Position auswählen" onchange="updateInvoiceItemBulkBar()"></td>
+          <td>
+            <input type="text" class="item-desc" value="${esc(item.description || '')}" style="width:100%">
+            <div class="item-period-row" style="margin-top:4px; display:flex; align-items:center; gap:6px; font-size:11px; color:#64748b;">
+              <span>Leistungszeitraum (optional):</span>
+              <input type="date" class="item-delivery-date" value="${esc(dDate)}" title="Leistungsdatum von" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
+              <span>–</span>
+              <input type="date" class="item-delivery-until" value="${esc(dUntil)}" title="Leistungsdatum bis" style="font-size:11px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; max-width:130px;">
+            </div>
+          </td>
+          <td><input type="text" inputmode="decimal" class="item-qty" value="${esc(qty)}" style="width:70px" oninput="calculateTotals()"></td>
+          <td><input type="text" class="item-unit" value="${esc(unit)}" style="width:80px"></td>
+          <td><input type="text" inputmode="decimal" class="item-price" value="${esc(price)}" step="0.01" style="width:90px" oninput="calculateTotals()"></td>
+          <td><input type="text" inputmode="decimal" class="item-vat" value="${esc(vat)}" style="width:70px" oninput="calculateTotals()"></td>
+          <td>
+            <div style="display:flex; gap:4px; white-space:nowrap;">
+              <button type="button" class="btn btn-secondary btn-sm" title="Position duplizieren" aria-label="Position duplizieren" onclick="duplicateInvoiceItemRow(this)">📋</button>
+              <button type="button" class="btn btn-secondary btn-sm" title="Position löschen" aria-label="Position löschen" onclick="removeInvoiceItemRow(this)">✕</button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+
+    function createInvoiceItemRowElement(item = {}) {
+      const tmp = document.createElement('tbody');
+      tmp.innerHTML = buildInvoiceItemRowHtml(item).trim();
+      return tmp.firstElementChild;
+    }
+
+    function readInvoiceItemRow(tr) {
+      return {
+        description: tr.querySelector('.item-desc')?.value ?? '',
+        quantity: tr.querySelector('.item-qty')?.value ?? 1,
+        unit_of_measure: tr.querySelector('.item-unit')?.value ?? 'Stunde',
+        price: tr.querySelector('.item-price')?.value ?? 0,
+        tax_rate_percent: tr.querySelector('.item-vat')?.value ?? 0,
+        delivery_date: tr.querySelector('.item-delivery-date')?.value ?? '',
+        delivery_date_until: tr.querySelector('.item-delivery-until')?.value ?? '',
+      };
+    }
+
+    function addInvoiceItemRow(desc = '', qty = 1, unit = 'Stunde', price = 0, vat = 19, dDate = '', dUntil = '') {
+      const tbody = document.getElementById('inv-items-body');
+      if (!tbody) return;
+      const tr = createInvoiceItemRowElement({
+        description: desc,
+        quantity: qty,
+        unit_of_measure: unit,
+        price,
+        tax_rate_percent: currentStore.company.is_small_business ? 0 : vat,
+        delivery_date: dDate,
+        delivery_date_until: dUntil,
+      });
+      tbody.appendChild(tr);
+      calculateTotals();
+      updateInvoiceItemBulkBar();
+    }
+
+    function duplicateInvoiceItemRow(btn) {
+      const tr = btn?.closest('tr');
+      if (!tr) return;
+      const clone = createInvoiceItemRowElement(readInvoiceItemRow(tr));
+      tr.insertAdjacentElement('afterend', clone);
+      calculateTotals();
+      updateInvoiceItemBulkBar();
+    }
+
+    function removeInvoiceItemRow(btn) {
+      btn?.closest('tr')?.remove();
+      calculateTotals();
+      updateInvoiceItemBulkBar();
+    }
+
+    function toggleAllInvoiceItems(checked) {
+      document.querySelectorAll('#inv-items-body .item-select-cb').forEach(cb => {
+        cb.checked = checked;
+      });
+      updateInvoiceItemBulkBar();
+    }
+
+    function updateInvoiceItemBulkBar() {
+      const all = [...document.querySelectorAll('#inv-items-body .item-select-cb')];
+      const checkedCount = all.filter(cb => cb.checked).length;
+      const selectAll = document.getElementById('inv-items-select-all');
+      if (selectAll) {
+        selectAll.checked = all.length > 0 && checkedCount === all.length;
+        selectAll.indeterminate = checkedCount > 0 && checkedCount < all.length;
+      }
+      const bar = document.getElementById('inv-items-bulk-bar');
+      const label = document.getElementById('inv-items-selected-count');
+      if (bar) bar.style.display = checkedCount > 0 ? 'flex' : 'none';
+      if (label) label.textContent = `${checkedCount} ausgewählt`;
+    }
+
+    function duplicateSelectedInvoiceItems() {
+      const selectedRows = [...document.querySelectorAll('#inv-items-body tr')]
+        .filter(tr => tr.querySelector('.item-select-cb')?.checked);
+      if (!selectedRows.length) return;
+      for (const tr of selectedRows) {
+        const clone = createInvoiceItemRowElement(readInvoiceItemRow(tr));
+        tr.insertAdjacentElement('afterend', clone);
+        const cb = tr.querySelector('.item-select-cb');
+        if (cb) cb.checked = false;
+      }
+      calculateTotals();
+      updateInvoiceItemBulkBar();
+      showToast(`${selectedRows.length} ${selectedRows.length === 1 ? 'Position' : 'Positionen'} dupliziert.`);
+    }
+
+    function deleteSelectedInvoiceItems() {
+      const selectedRows = [...document.querySelectorAll('#inv-items-body tr')]
+        .filter(tr => tr.querySelector('.item-select-cb')?.checked);
+      if (!selectedRows.length) return;
+      selectedRows.forEach(tr => tr.remove());
+      calculateTotals();
+      updateInvoiceItemBulkBar();
+      showToast(`${selectedRows.length} ${selectedRows.length === 1 ? 'Position' : 'Positionen'} entfernt.`);
+    }
+
+    function addProductItem(productId) {
+      const product = (currentStore.products || []).find(pr => pr.id === productId);
+      if (!product) return;
+      // Replace the untouched example row of a new document instead of adding below it.
+      const placeholder = document.querySelector('#inv-items-body tr[data-placeholder="1"]');
+      if (placeholder && placeholder.querySelector('.item-desc').value === 'Beratung und Konzeption'
+          && placeholder.querySelector('.item-price').value === '110' && placeholder.querySelector('.item-qty').value === '1') {
+        placeholder.remove();
+      }
+      const vat = product.tax_rate_percent !== undefined ? product.tax_rate_percent : 19;
+      addInvoiceItemRow(product.name || product.description || '', 1, product.unit_of_measure || 'Stück', product.price || 0, vat);
+      const lastQty = document.querySelector('#inv-items-body tr:last-child .item-qty');
+      if (lastQty) { lastQty.focus(); lastQty.select(); }
+    }
+
+    function calculateTotals() {
+      let subtotal = 0;
+      let totalVat = 0;
+      document.querySelectorAll('#inv-items-body tr').forEach(tr => {
+        const qty = parseDecimalInput(tr.querySelector('.item-qty')?.value) || 0;
+        const price = parseDecimalInput(tr.querySelector('.item-price')?.value) || 0;
+        const vat = parseDecimalInput(tr.querySelector('.item-vat')?.value) || 0;
+        const net = Math.round((qty * price + Number.EPSILON) * 100) / 100;
+        subtotal += net;
+        totalVat += Math.round((net * vat / 100 + Number.EPSILON) * 100) / 100;
+      });
+      subtotal = Math.round(subtotal * 100) / 100;
+      totalVat = Math.round(totalVat * 100) / 100;
+      const gross = Math.round((subtotal + totalVat) * 100) / 100;
+      const el = document.getElementById('inv-totals-display');
+      if (el) {
+        el.innerHTML = `Gesamt Netto: <b>${money(subtotal)}</b> | MwSt: <b>${money(totalVat)}</b> | Brutto: <b style="color:#0f172a; font-size:16px;">${money(gross)}</b>`;
+      }
+      return { subtotal, totalVat, totalGross: gross };
+    }
+
+    async function executeAiQuickFill() {
+      const input = document.getElementById('ai-quick-text');
+      const text = input?.value?.trim();
+      if (!text) return;
+
+      const btn = document.getElementById('ai-quick-btn');
+      btn.innerText = 'Analysiere mit KI...';
+      btn.disabled = true;
+
+      try {
+        const res = await window.rechly.parseInvoiceDraft(
+          text,
+          currentStore.clients || [],
+          currentStore.company.is_small_business
+        );
+        const parsed = res.parsed;
+        if (parsed.client_id) {
+          document.getElementById('inv-client').value = parsed.client_id;
+        }
+        if (parsed.due_days && editorDocType === 'invoice') {
+          const d = new Date(Date.now() + parsed.due_days * 86400000);
+          document.getElementById('inv-due').value = d.toISOString().slice(0, 10);
+        }
+        if (parsed.payment_terms) {
+          document.getElementById('inv-terms').value = parsed.payment_terms;
+        }
+        if (parsed.items && parsed.items.length > 0) {
+          const tbody = document.getElementById('inv-items-body');
+          tbody.innerHTML = '';
+          parsed.items.forEach(it => {
+            addInvoiceItemRow(it.description, it.quantity, it.unit_of_measure, it.price, it.tax_rate_percent);
+          });
+        }
+        showToast(`Entwurf generiert via ${res.model || 'KI'}`);
+      } catch (err) {
+        alert('Fehler bei der Schnellerfassung: ' + err.message);
+      } finally {
+        btn.innerText = 'Ausfüllen';
+        btn.disabled = false;
+      }
+    }
+
+    function validateDocumentEditor() {
+      const check = (id, message, predicate) => { const element = document.getElementById(id); return predicate(element.value.trim()) ? null : {element, message}; };
+      let error = check('inv-client', 'Bitte wählen Sie einen Kunden aus.', Boolean)
+        || check('inv-num', 'Bitte geben Sie eine Dokumentnummer an.', Boolean)
+        || check('inv-date', 'Bitte geben Sie ein gültiges Rechnungsdatum an.', v => /^\d{4}-\d{2}-\d{2}$/.test(v))
+        || check('inv-due', 'Die Fälligkeit darf nicht vor dem Rechnungsdatum liegen.', v => /^\d{4}-\d{2}-\d{2}$/.test(v) && v >= document.getElementById('inv-date').value);
+      if (error) return error;
+      const isOffer = editorDocType === 'offer';
+      if (!isOffer) {
+        const dStart = document.getElementById('inv-delivery-date')?.value?.trim();
+        const dEnd = document.getElementById('inv-delivery-until')?.value?.trim();
+        if (dStart && !/^\d{4}-\d{2}-\d{2}$/.test(dStart)) {
+          return { element: document.getElementById('inv-delivery-date'), message: 'Bitte geben Sie ein gültiges Leistungsdatum ein.' };
+        }
+        if (dEnd && !/^\d{4}-\d{2}-\d{2}$/.test(dEnd)) {
+          return { element: document.getElementById('inv-delivery-until'), message: 'Bitte geben Sie ein gültiges Enddatum für den Leistungszeitraum ein.' };
+        }
+        if (dStart && dEnd && dEnd < dStart) {
+          return { element: document.getElementById('inv-delivery-until'), message: 'Das Enddatum des Leistungszeitraums darf nicht vor dem Beginn liegen.' };
+        }
+      }
+      const docs = (isOffer ? currentStore.offers : currentStore.invoices) || [];
+      const number = document.getElementById('inv-num').value.trim();
+      if (docs.some(d => d.id !== (isOffer ? editingOfferId : editingInvoiceId) && (isOffer ? d.offer_number : d.invoice_number) === number)) return {element:document.getElementById('inv-num'), message:'Diese Dokumentnummer ist bereits vergeben.'};
+      const rows = [...document.querySelectorAll('#inv-items-body tr')];
+      if (!rows.length) return {message:'Bitte fügen Sie mindestens eine Position hinzu.'};
+      for (const row of rows) {
+        for (const [selector, valid, message] of [
+          ['.item-desc', v => v.trim().length > 0, 'Bitte beschreiben Sie jede Position.'],
+          ['.item-qty', v => v !== '' && Number.isFinite(parseDecimalInput(v)) && parseDecimalInput(v)>0, 'Die Menge muss größer als null sein.'],
+          ['.item-price', v => v !== '' && Number.isFinite(parseDecimalInput(v)) && parseDecimalInput(v)>=0, 'Bitte geben Sie einen gültigen, nicht negativen Preis ein.'],
+          ['.item-vat', v => v !== '' && Number.isFinite(parseDecimalInput(v)) && parseDecimalInput(v)>=0 && parseDecimalInput(v)<=100, 'Der Steuersatz muss zwischen 0 und 100 liegen.']
+        ]) { const element=row.querySelector(selector); if (!valid(element.value)) return {element,message}; }
+      }
+      return null;
+    }
+
+    let savingDocument = false;
+    async function saveNewInvoice() {
+      if (savingDocument) return;
+      const invalid = validateDocumentEditor();
+      if (invalid) { showToast(invalid.message, 'error'); invalid.element?.focus(); return; }
+      savingDocument = true;
+      const saveButton = document.getElementById('save-document');
+      saveButton.disabled = true;
+      try {
+        const clientId = document.getElementById('inv-client').value;
+        if (!clientId) { showToast('Bitte wählen Sie einen Kunden aus.', 'error'); return; }
+
+        const items = [];
+        document.querySelectorAll('#inv-items-body tr').forEach(tr => {
+          const desc = tr.querySelector('.item-desc').value.trim();
+          const qty = parseDecimalInput(tr.querySelector('.item-qty').value) || 1;
+          const unit = tr.querySelector('.item-unit').value.trim() || 'Stück';
+          const price = parseDecimalInput(tr.querySelector('.item-price').value) || 0;
+          const vat = parseDecimalInput(tr.querySelector('.item-vat').value) || 0;
+          const itDDate = tr.querySelector('.item-delivery-date')?.value?.trim();
+          const itDUntil = tr.querySelector('.item-delivery-until')?.value?.trim();
+          if (desc) {
+            const itObj = {
+              description: desc,
+              quantity: qty,
+              unit_of_measure: unit,
+              price,
+              tax_rate_percent: vat,
+            };
+            if (itDDate) itObj.delivery_date = itDDate;
+            if (itDUntil) itObj.delivery_date_until = itDUntil;
+            items.push(itObj);
+          }
+        });
+
+        const totals = calculateTotals();
+        const deliveryDate = document.getElementById('inv-delivery-date')?.value?.trim();
+        const deliveryDateUntil = document.getElementById('inv-delivery-until')?.value?.trim();
+        const invoiceData = {
+          client_id: clientId,
+          invoice_number: document.getElementById('inv-num').value.trim(),
+          issue_date: document.getElementById('inv-date').value,
+          due_date: document.getElementById('inv-due').value,
+          payment_terms: document.getElementById('inv-terms').value,
+          items,
+          subtotal: totals.subtotal,
+          total_vat: totals.totalVat,
+          total_gross: totals.totalGross,
+          status: document.getElementById('inv-status').value,
+        };
+        if (deliveryDate) invoiceData.delivery_date = deliveryDate;
+        if (deliveryDateUntil) invoiceData.delivery_date_until = deliveryDateUntil;
+
+        if (editorDocType === 'offer') {
+          const offerData = {
+            client_id: invoiceData.client_id,
+            offer_number: invoiceData.invoice_number,
+            issue_date: invoiceData.issue_date,
+            valid_until: invoiceData.due_date,
+            payment_terms: invoiceData.payment_terms,
+            items,
+            subtotal: totals.subtotal,
+            total_vat: totals.totalVat,
+            total_gross: totals.totalGross,
+            status: invoiceData.status,
+          };
+          if (editingOfferId) {
+            await window.rechly.updateOffer(editingOfferId, offerData);
+            showToast('Angebot erfolgreich aktualisiert!');
+          } else {
+            await window.rechly.createOffer(offerData);
+            showToast('Angebot erfolgreich gespeichert!');
+          }
+          currentStore = await window.rechly.getStore();
+          updateBadges();
+          showView('offers');
+          return;
+        }
+
+        if (editingInvoiceId) {
+          await window.rechly.updateInvoice(editingInvoiceId, invoiceData);
+          showToast('Rechnung erfolgreich aktualisiert!');
+          editingInvoiceId = null;
+        } else {
+          await window.rechly.createInvoice(invoiceData);
+          showToast('Rechnung erfolgreich gespeichert!');
+        }
+
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showView('invoices');
+      } catch (error) {
+        showToast('Speichern fehlgeschlagen. Ihre Eingaben bleiben erhalten. ' + error.message, 'error');
+      } finally {
+        savingDocument = false;
+        if (saveButton.isConnected) saveButton.disabled = false;
+      }
+    }
+
+    async function deleteInvoice(id) {
+      if (confirm('Rechnung wirklich löschen?')) {
+        try {
+          await window.rechly.deleteInvoice(id);
+          currentStore = await window.rechly.getStore();
+          updateBadges();
+          showToast('Rechnung gelöscht');
+          showView('invoices');
+        } catch (error) { showToast(error.message, 'error'); }
+      }
+    }
+
+    // ─── Export Actions ───
+    async function exportXRechnung(id) {
+      const res = await window.rechly.exportXRechnung(id);
+      if (res.success) showToast('XRechnung 3.0 XML erfolgreich gespeichert!');
+    }
+
+    async function exportZugferd(id) {
+      const modal = document.getElementById('print-modal');
+      const wasOpen = modal?.style.display === 'flex' && activePreviewKind === 'invoice' && activePreviewInvoiceId === id;
+      try {
+        if (!wasOpen) {
+          await previewDocument('invoice', id);
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        }
+        const res = await window.rechly.exportZugferd(id);
+        if (res?.success) {
+          showToast('ZUGFeRD 2.3 PDF (PDF/A-3) erfolgreich gespeichert!');
+        } else if (res?.error) {
+          showToast(res.error, 'error');
+        }
+      } catch (err) {
+        showToast(err?.message || 'ZUGFeRD-Export fehlgeschlagen.', 'error');
+      } finally {
+        if (!wasOpen) closePrintModal();
+      }
+    }
+
+    let activePreviewInvoiceId = null;
+    let activePreviewKind = 'invoice';
+
+    const PRINT_LABELS = {
+      invoice: {
+        number: 'Rechnungs-Nr.', date: 'Rechnungsdatum', due: 'Zahlbar bis', dueShort: 'Fälligkeitsdatum', dueCaps: 'FÄLLIGKEIT',
+        title: 'Rechnung', titleCaps: 'RECHNUNG', recipientCaps: 'RECHNUNGSEMPFÄNGER', detailsCaps: 'RECHNUNGSDETAILS',
+        intro: 'Sehr geehrte Damen und Herren, wir bedanken uns für Ihren Auftrag und stellen folgende Positionen in Rechnung:',
+        total: 'Zahlbetrag:', paymentBox: '💳 Zahlungsanweisung & Bankverbindung', showDelivery: true,
+      },
+      offer: {
+        number: 'Angebots-Nr.', date: 'Angebotsdatum', due: 'Gültig bis', dueShort: 'Gültig bis', dueCaps: 'GÜLTIG BIS',
+        title: 'Angebot', titleCaps: 'ANGEBOT', recipientCaps: 'EMPFÄNGER', detailsCaps: 'ANGEBOTSDETAILS',
+        intro: 'Sehr geehrte Damen und Herren, vielen Dank für Ihre Anfrage. Gerne bieten wir Ihnen folgende Leistungen an:',
+        total: 'Angebotssumme:', paymentBox: '💳 Zahlungsbedingungen & Bankverbindung', showDelivery: false,
+      },
+    };
+    let printLabels = PRINT_LABELS.invoice;
+
+    function getClassicInvoiceHtml(inv, comp, client, itemsRows) {
+      const returnAddress = `${comp.name || 'Meine Firma'} • ${comp.address_line1 || ''} • ${comp.postal_code || ''} ${comp.city || ''}`;
+      return `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; font-size: 10pt; line-height: 1.45;">
+          
+          <!-- DIN 5008 Header: Left Address Window & Right Meta Block -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 35px;">
+            
+            <!-- Left: Absenderzeile + Anschriftfeld DIN 5008 (45mm) -->
+            <div style="width: 58%; min-height: 48mm; padding-top: 8px;">
+              <div style="font-size: 8pt; color: #64748b; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; margin-bottom: 10px; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ${returnAddress}
+              </div>
+              <div style="font-size: 11pt; color: #0f172a; line-height: 1.4;">
+                <b>${client.name || 'Kunde'}</b><br>
+                ${client.contact_person ? `${client.contact_person}<br>` : ''}
+                ${client.address_line1 || ''}<br>
+                ${client.postal_code || ''} ${client.city || ''}
+                ${client.leitweg_id ? `<br><span style="font-size:8.5pt; color:#64748b;">Leitweg-ID: ${client.leitweg_id}</span>` : ''}
+              </div>
+            </div>
+
+            <!-- Right: DIN Meta Information Block -->
+            <div style="width: 38%; text-align: left; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px 16px;">
+              ${comp.logo_base64 ? `<div style="margin-bottom: 12px; display: flex; align-items: center;"><img src="${comp.logo_base64}" alt="Firmenlogo" style="max-height: 52px; max-width: 100%; object-fit: contain; display: block;"></div>` : ''}
+              <div style="font-size: 15pt; font-weight: 800; color: #0f172a; margin-bottom: 2px;">${comp.name || 'Meine Firma'}</div>
+              <div style="font-size: 8.5pt; color: #64748b; margin-bottom: 12px;">${comp.legal_form || 'Unternehmen'}</div>
+              
+              <table style="width: 100%; font-size: 9pt; border-collapse: collapse;">
+                <tr>
+                  <td style="color: #64748b; padding: 2px 0;">${printLabels.number}:</td>
+                  <td style="font-weight: 700; text-align: right; padding: 2px 0;">${inv.invoice_number}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b; padding: 2px 0;">${printLabels.date}:</td>
+                  <td style="text-align: right; padding: 2px 0;">${dateLabel(inv.issue_date)}</td>
+                </tr>
+                ${printLabels.showDelivery ? `<tr>
+                  <td style="color: #64748b; padding: 2px 0;">Liefer-/Leistung:</td>
+                  <td style="text-align: right; padding: 2px 0;">${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || dateLabel(inv.issue_date)}</td>
+                </tr>` : ''}
+                <tr>
+                  <td style="color: #64748b; padding: 2px 0;">${printLabels.due}:</td>
+                  <td style="font-weight: 600; color: #dc2626; text-align: right; padding: 2px 0;">${dateLabel(inv.due_date)}</td>
+                </tr>
+                ${client.vat_id ? `
+                <tr>
+                  <td style="color: #64748b; padding: 2px 0;">USt-IdNr. Kunde:</td>
+                  <td style="text-align: right; padding: 2px 0; font-size: 8pt;">${client.vat_id}</td>
+                </tr>` : ''}
+              </table>
+            </div>
+          </div>
+
+          <!-- Document Title -->
+          <div style="margin-bottom: 20px;">
+            <h1 style="font-size: 16pt; font-weight: 800; color: #0f172a; margin: 0 0 6px 0;">
+              ${printLabels.title} ${inv.invoice_number}
+            </h1>
+            <p style="font-size: 9.5pt; color: #475569; margin: 0;">
+              ${printLabels.intro}
+            </p>
+          </div>
+
+          <!-- DIN Positions Table -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+            <thead>
+              <tr style="border-top: 1.5px solid #0f172a; border-bottom: 1.5px solid #0f172a; background: #f8fafc; font-size: 9pt;">
+                <th style="padding: 8px 6px; text-align: center; width: 35px;">Pos.</th>
+                <th style="padding: 8px 6px; text-align: left;">Bezeichnung / Beschreibung</th>
+                <th style="padding: 8px 6px; text-align: right; width: 85px;">Menge</th>
+                <th style="padding: 8px 6px; text-align: right; width: 105px;">Einzelpreis</th>
+                <th style="padding: 8px 6px; text-align: right; width: 105px;">Gesamt Netto</th>
+              </tr>
+            </thead>
+            <tbody style="font-size: 9.5pt;">
+              ${itemsRows}
+            </tbody>
+          </table>
+
+          <!-- Totals Block -->
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 30px;">
+            <div style="width: 290px; border-top: 1px solid #cbd5e1; padding-top: 10px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; color: #475569; margin-bottom: 4px;">
+                <span>Gesamtbetrag (Netto):</span>
+                <span style="font-weight: 600;">${(inv.subtotal || 0).toFixed(2)} €</span>
+              </div>
+              ${comp.is_small_business ? `
+              <div style="font-size: 8.5pt; color: #64748b; margin-bottom: 6px; font-style: italic;">
+                Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.
+              </div>` : `
+              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; color: #475569; margin-bottom: 6px;">
+                <span>Umsatzsteuer:</span>
+                <span style="font-weight: 600;">${(inv.total_vat || 0).toFixed(2)} €</span>
+              </div>`}
+              <div style="display: flex; justify-content: space-between; font-size: 13pt; font-weight: 800; color: #0f172a; border-top: 2px solid #0f172a; border-bottom: 2px solid #0f172a; padding: 6px 0; margin-top: 6px;">
+                <span>${printLabels.total}</span>
+                <span>${(inv.total_gross || 0).toFixed(2)} €</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment Terms -->
+          <div style="margin-bottom: 35px; background: #f8fafc; border-left: 3px solid #2563eb; padding: 12px 14px; font-size: 9pt; color: #334155;">
+            ${printLabels.showDelivery ? `
+            <b>Zahlungshinweis:</b> ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'}<br>
+            Bitte überweisen Sie den Gesamtbetrag unter Angabe der Rechnungsnummer <b>${inv.invoice_number}</b> auf das unten genannte Konto.` : `
+            <b>Gültigkeit:</b> Dieses Angebot ist gültig bis <b>${dateLabel(inv.due_date)}</b>.<br>
+            <b>Zahlungsbedingungen:</b> ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.'}`}
+          </div>
+
+          <!-- DIN 3-Column GoBD Footer -->
+          <div class="print-footer-section" style="border-top: 1px solid #cbd5e1; padding-top: 14px; font-size: 8pt; color: #64748b; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+            <div>
+              <b style="color: #334155;">${comp.name || 'Meine Firma'}</b><br>
+              ${comp.address_line1 || ''}<br>
+              ${comp.postal_code || ''} ${comp.city || ''}<br>
+              ${comp.email ? `E-Mail: ${comp.email}` : ''}
+            </div>
+            <div>
+              <b style="color: #334155;">Steuer- & Unternehmensangaben</b><br>
+              ${comp.vat_id ? `USt-IdNr.: ${comp.vat_id}<br>` : ''}
+              ${comp.tax_number ? `Steuernr.: ${comp.tax_number}<br>` : ''}
+              ${comp.legal_form ? `Rechtsform: ${comp.legal_form}` : ''}
+            </div>
+            <div>
+              <b style="color: #334155;">Bankverbindung</b><br>
+              Bank: ${comp.bank_name || '-'}<br>
+              IBAN: ${comp.bank_iban || '-'}<br>
+              BIC: ${comp.bank_bic || '-'}
+            </div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    function getModernInvoiceHtml(inv, comp, client, itemsRows) {
+      return `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; font-size: 10pt; line-height: 1.45;">
+          
+          <!-- Top Modern Header Banner -->
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2563eb; padding-bottom: 16px; margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; gap: 16px;">
+              ${comp.logo_base64 ? `<img src="${comp.logo_base64}" alt="Firmenlogo" style="max-height: 55px; max-width: 150px; object-fit: contain; display: block;">` : ''}
+              <div>
+                <div style="font-size: 20pt; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">${comp.name || 'Meine Firma'}</div>
+                <div style="font-size: 9pt; color: #64748b; margin-top: 2px;">${comp.legal_form || 'Business'} • ${comp.city || ''}</div>
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="display: inline-block; background: #2563eb; color: #ffffff; font-weight: 800; font-size: 11pt; padding: 4px 12px; border-radius: 6px; letter-spacing: 0.5px; margin-bottom: 4px;">
+                ${printLabels.titleCaps}
+              </div>
+              <div style="font-size: 12pt; font-weight: 700; color: #0f172a;">${inv.invoice_number}</div>
+            </div>
+          </div>
+
+          <!-- Modern Cards Grid: Recipient Card + Meta Card -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+              <div style="font-size: 8pt; text-transform: uppercase; font-weight: 700; color: #2563eb; margin-bottom: 6px; letter-spacing: 0.5px;">👤 ${printLabels.recipientCaps}</div>
+              <div style="font-size: 11pt; font-weight: 700; color: #0f172a; margin-bottom: 3px;">${client.name || 'Kunde'}</div>
+              <div style="font-size: 9.5pt; color: #475569; line-height: 1.4;">
+                ${client.contact_person ? `${client.contact_person}<br>` : ''}
+                ${client.address_line1 || ''}<br>
+                ${client.postal_code || ''} ${client.city || ''}
+                ${client.leitweg_id ? `<br><span style="font-size:8pt; color:#64748b;">Leitweg-ID: ${client.leitweg_id}</span>` : ''}
+              </div>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px;">
+              <div style="font-size: 8pt; text-transform: uppercase; font-weight: 700; color: #2563eb; margin-bottom: 6px; letter-spacing: 0.5px;">📄 ${printLabels.detailsCaps}</div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 9pt;">
+                <div>
+                  <span style="color: #64748b; font-size: 8pt; display: block;">${printLabels.date}</span>
+                  <b>${dateLabel(inv.issue_date)}</b>
+                </div>
+                <div>
+                  <span style="color: #64748b; font-size: 8pt; display: block;">${printLabels.dueShort}</span>
+                  <b style="color: #dc2626;">${dateLabel(inv.due_date)}</b>
+                </div>
+                ${printLabels.showDelivery ? `<div>
+                  <span style="color: #64748b; font-size: 8pt; display: block;">Liefer-/Leistung</span>
+                  <b>${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || dateLabel(inv.issue_date)}</b>
+                </div>` : ''}
+                <div>
+                  <span style="color: #64748b; font-size: 8pt; display: block;">Status</span>
+                  <b style="color: #10b981;">GoBD-Valide</b>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modern Positions Table -->
+          <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 24px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
+            <thead>
+              <tr style="background: #0f172a; color: #ffffff; font-size: 8.5pt;">
+                <th style="padding: 10px 12px; text-align: center; width: 35px;">#</th>
+                <th style="padding: 10px 12px; text-align: left;">Bezeichnung & Leistung</th>
+                <th style="padding: 10px 12px; text-align: right; width: 80px;">Menge</th>
+                <th style="padding: 10px 12px; text-align: right; width: 100px;">Einzelpreis</th>
+                <th style="padding: 10px 12px; text-align: right; width: 110px;">Gesamt</th>
+              </tr>
+            </thead>
+            <tbody style="font-size: 9.5pt;">
+              ${itemsRows}
+            </tbody>
+          </table>
+
+          <!-- Totals Card -->
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 28px;">
+            <div style="width: 320px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; color: #475569; margin-bottom: 6px;">
+                <span>Summe Netto:</span>
+                <span style="font-weight: 600;">${(inv.subtotal || 0).toFixed(2)} €</span>
+              </div>
+              ${comp.is_small_business ? `
+              <div style="font-size: 8pt; color: #64748b; margin-bottom: 6px; font-style: italic;">
+                § 19 UStG: Keine Ausweisung von MwSt.
+              </div>` : `
+              <div style="display: flex; justify-content: space-between; font-size: 9.5pt; color: #475569; margin-bottom: 8px;">
+                <span>MwSt.:</span>
+                <span style="font-weight: 600;">${(inv.total_vat || 0).toFixed(2)} €</span>
+              </div>`}
+              <div style="display: flex; justify-content: space-between; align-items: center; background: #2563eb; color: #ffffff; padding: 10px 12px; border-radius: 6px; margin-top: 6px;">
+                <span style="font-size: 10pt; font-weight: 700;">Gesamtbetrag (Brutto):</span>
+                <span style="font-size: 13pt; font-weight: 800;">${(inv.total_gross || 0).toFixed(2)} €</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment & Banking Box -->
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 16px; margin-bottom: 30px; font-size: 9pt; color: #1e3a8a;">
+            <div style="font-weight: 700; margin-bottom: 4px;">${printLabels.paymentBox}</div>
+            <div style="margin-bottom: 6px;">${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen.'}</div>
+            <div style="display: flex; gap: 20px; font-size: 8.5pt; font-family: monospace;">
+              <span>IBAN: <b>${comp.bank_iban || '-'}</b></span>
+              <span>BIC: <b>${comp.bank_bic || '-'}</b></span>
+              <span>Bank: <b>${comp.bank_name || '-'}</b></span>
+            </div>
+          </div>
+
+          <!-- Modern Footer -->
+          <div class="print-footer-section" style="border-top: 1px solid #e2e8f0; padding-top: 14px; font-size: 8pt; color: #64748b; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <div><b>${comp.name || 'Meine Firma'}</b> • ${comp.address_line1 || ''}, ${comp.postal_code || ''} ${comp.city || ''}</div>
+            <div>USt-IdNr.: ${comp.vat_id || comp.tax_number || '-'}</div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    function getMinimalInvoiceHtml(inv, comp, client, itemsRows) {
+      return `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; font-size: 10pt; line-height: 1.5; padding: 10px 0;">
+          
+          <!-- Minimal Header -->
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 45px;">
+            <div>
+              ${comp.logo_base64 ? `<div style="margin-bottom: 12px;"><img src="${comp.logo_base64}" alt="Firmenlogo" style="max-height: 48px; max-width: 160px; object-fit: contain; display: block;"></div>` : ''}
+              <div style="font-size: 24pt; font-weight: 300; letter-spacing: -0.5px; color: #0f172a;">${comp.name || 'Meine Firma'}</div>
+              <div style="font-size: 9pt; color: #94a3b8; font-weight: 400; margin-top: 2px;">${comp.legal_form || ''}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 9pt; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; font-weight: 600;">${printLabels.titleCaps}</div>
+              <div style="font-size: 14pt; font-weight: 600; color: #0f172a;">#${inv.invoice_number}</div>
+            </div>
+          </div>
+
+          <!-- 4-Column Minimal Metadata Strip -->
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; border-top: 1px solid #0f172a; border-bottom: 1px solid #e2e8f0; padding: 14px 0; margin-bottom: 35px; font-size: 9pt;">
+            <div>
+              <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">EMPFÄNGER</div>
+              <div style="font-weight: 600; color: #0f172a;">${client.name || 'Kunde'}</div>
+              <div style="color: #64748b; font-size: 8.5pt;">${client.city || ''}</div>
+            </div>
+            <div>
+              <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">DATUM</div>
+              <div style="font-weight: 600; color: #0f172a;">${dateLabel(inv.issue_date)}</div>
+            </div>
+            <div>
+              <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">${printLabels.dueCaps}</div>
+              <div style="font-weight: 600; color: #0f172a;">${dateLabel(inv.due_date)}</div>
+            </div>
+            ${printLabels.showDelivery ? `<div>
+              <div style="font-size: 7.5pt; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 3px;">LEISTUNGSZEITRAUM</div>
+              <div style="font-weight: 600; color: #0f172a;">${formatServicePeriod(inv.delivery_date, inv.delivery_date_until) || dateLabel(inv.issue_date)}</div>
+            </div>` : '<div></div>'}
+          </div>
+
+          <!-- Minimalist Table with no vertical borders -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+            <thead>
+              <tr style="border-bottom: 1px solid #cbd5e1; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b;">
+                <th style="padding: 10px 0; text-align: left; width: 30px;">#</th>
+                <th style="padding: 10px 0; text-align: left;">Position</th>
+                <th style="padding: 10px 0; text-align: right; width: 70px;">Menge</th>
+                <th style="padding: 10px 0; text-align: right; width: 95px;">Preis</th>
+                <th style="padding: 10px 0; text-align: right; width: 105px;">Betrag</th>
+              </tr>
+            </thead>
+            <tbody style="font-size: 9.5pt;">
+              ${itemsRows}
+            </tbody>
+          </table>
+
+          <!-- Minimal Totals -->
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 40px;">
+            <div style="width: 260px;">
+              <div style="display: flex; justify-content: space-between; font-size: 9pt; color: #64748b; padding: 4px 0;">
+                <span>Netto</span>
+                <span style="color: #0f172a;">${(inv.subtotal || 0).toFixed(2)} €</span>
+              </div>
+              ${comp.is_small_business ? '' : `
+              <div style="display: flex; justify-content: space-between; font-size: 9pt; color: #64748b; padding: 4px 0;">
+                <span>MwSt.</span>
+                <span style="color: #0f172a;">${(inv.total_vat || 0).toFixed(2)} €</span>
+              </div>`}
+              <div style="display: flex; justify-content: space-between; font-size: 14pt; font-weight: 600; color: #0f172a; border-top: 1px solid #0f172a; padding: 10px 0 0 0; margin-top: 6px;">
+                <span>Gesamt</span>
+                <span>${(inv.total_gross || 0).toFixed(2)} €</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Minimal Notes -->
+          <div style="margin-bottom: 45px; font-size: 9pt; color: #64748b; line-height: 1.6;">
+            ${inv.payment_terms || comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen.'}<br>
+            Bank: <b>${comp.bank_name || '-'}</b> • IBAN: <b>${comp.bank_iban || '-'}</b> • BIC: <b>${comp.bank_bic || '-'}</b>
+          </div>
+
+          <!-- Minimal Footer -->
+          <div class="print-footer-section" style="border-top: 1px solid #e2e8f0; padding-top: 16px; font-size: 7.5pt; color: #94a3b8; display: flex; justify-content: space-between;">
+            <span>${comp.name || ''} • ${comp.address_line1 || ''} • ${comp.postal_code || ''} ${comp.city || ''}</span>
+            <span>USt-IdNr.: ${comp.vat_id || comp.tax_number || '-'}</span>
+          </div>
+
+        </div>
+      `;
+    }
+
+    function previewInvoice(id) {
+      previewDocument('invoice', id);
+    }
+
+    function previewOffer(id) {
+      previewDocument('offer', id);
+    }
+
+    function invoicePositionAmount(item) {
+      return (item.quantity || 0) * (item.price || 0) * (1 - (item.discount_percent || 0) / 100);
+    }
+    function invoicePositionDescription(item, company) {
+      const detail = [item.discount_percent ? `${Number(item.discount_percent)}% Rabatt` : '', company.is_small_business ? '' : `${Number(item.tax_rate_percent ?? 0)}% USt.`].filter(Boolean).join(' · ');
+      const period = formatServicePeriod(item.delivery_date, item.delivery_date_until);
+      const periodHtml = period ? `<br><small style="color: #64748b;">Leistungszeitraum: ${esc(period)}</small>` : '';
+      return `${esc(item.description || '')}${detail ? `<br><small>${detail}</small>` : ''}${periodHtml}`;
+    }
+    let paymentPreviewVersion = 0;
+    async function previewDocument(kind, id) {
+      const version = ++paymentPreviewVersion;
+      activePreviewInvoiceId = id;
+      activePreviewKind = kind;
+      printLabels = PRINT_LABELS[kind];
+      let inv;
+      if (kind === 'offer') {
+        const offer = (currentStore.offers || []).find(o => o.id === id);
+        // Templates read invoice field names; map the offer onto them.
+        inv = offer && { ...offer, invoice_number: offer.offer_number || offer.id, due_date: offer.valid_until, delivery_date: undefined };
+      } else {
+        inv = (currentStore.invoices || []).find(i => i.id === id);
+      }
+      if (!inv) return;
+      const client = (currentStore.clients || []).find(c => c.id === inv.client_id) || { name: 'Kunde' };
+      const comp = currentStore.company || {};
+      const currentTpl = comp.invoice_template || 'classic';
+
+      let templateHtml = '';
+      if (currentTpl === 'modern') {
+        const modernItems = (inv.items || []).map((it, idx) => `
+          <tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 1 ? 'background: #f8fafc;' : ''}">
+            <td style="padding: 10px 12px; text-align: center; color: #64748b;">${idx + 1}</td>
+            <td style="padding: 10px 12px;"><b>${invoicePositionDescription(it, comp)}</b></td>
+            <td style="padding: 10px 12px; text-align: right;">${it.quantity} ${it.unit_of_measure || ''}</td>
+            <td style="padding: 10px 12px; text-align: right;">${(it.price || 0).toFixed(2)} €</td>
+            <td style="padding: 10px 12px; text-align: right; font-weight: 600; color: #0f172a;">${invoicePositionAmount(it).toFixed(2)} €</td>
+          </tr>
+        `).join('');
+        templateHtml = getModernInvoiceHtml(inv, comp, client, modernItems);
+      } else if (currentTpl === 'minimal') {
+        const minimalItems = (inv.items || []).map((it, idx) => `
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 12px 0; color: #94a3b8;">${idx + 1}</td>
+            <td style="padding: 12px 0; font-weight: 500;">${invoicePositionDescription(it, comp)}</td>
+            <td style="padding: 12px 0; text-align: right; color: #64748b;">${it.quantity} ${it.unit_of_measure || ''}</td>
+            <td style="padding: 12px 0; text-align: right; color: #64748b;">${(it.price || 0).toFixed(2)} €</td>
+            <td style="padding: 12px 0; text-align: right; font-weight: 500;">${invoicePositionAmount(it).toFixed(2)} €</td>
+          </tr>
+        `).join('');
+        templateHtml = getMinimalInvoiceHtml(inv, comp, client, minimalItems);
+      } else {
+        // default: classic DIN 5008
+        const classicItems = (inv.items || []).map((it, idx) => `
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 10px 6px; text-align: center; color: #64748b;">${idx + 1}</td>
+            <td style="padding: 10px 6px;"><b>${invoicePositionDescription(it, comp)}</b></td>
+            <td style="padding: 10px 6px; text-align: right;">${it.quantity} ${it.unit_of_measure || ''}</td>
+            <td style="padding: 10px 6px; text-align: right;">${(it.price || 0).toFixed(2)} €</td>
+            <td style="padding: 10px 6px; text-align: right; font-weight: 600;">${invoicePositionAmount(it).toFixed(2)} €</td>
+          </tr>
+        `).join('');
+        templateHtml = getClassicInvoiceHtml(inv, comp, client, classicItems);
+      }
+
+      let paymentNotice = '';
+      if (kind === 'invoice' && comp.show_payment_qr && inv.status !== 'paid' && inv.total_gross > 0) {
+        // Clear the previous preview while local QR generation is pending.
+        document.getElementById('print-modal').style.display = 'none';
+        try {
+          const qr = await window.rechly.getInvoicePaymentQr(id);
+          if (qr) {
+            const payment = `<section class="invoice-payment-qr" style="display:flex;align-items:center;gap:18px;break-inside:avoid;margin:20px 0"><img src="${qr}" width="132" height="132" alt="GiroCode für die Überweisung"><div style="font-size:10pt"><b>Einfach per Banking-App bezahlen</b><p>GiroCode scannen und Überweisungsdaten prüfen.</p></div></section>`;
+            templateHtml = templateHtml.replace('<div class="print-footer-section"', payment + '<div class="print-footer-section"');
+          } else paymentNotice = '<p class="no-print" role="status">Kein GiroCode: Bitte Kontoinhaber, IBAN, BIC, Betrag und Rechnungsnummer in den Einstellungen bzw. der Rechnung prüfen.</p>';
+        } catch {
+          paymentNotice = '<p class="no-print" role="alert">Der GiroCode konnte nicht erstellt werden. Schließen Sie die Vorschau und versuchen Sie es erneut.</p>';
+        }
+      }
+      if (version !== paymentPreviewVersion) return;
+      const sheet = document.getElementById('print-sheet-content');
+      sheet.innerHTML = `
+        <div class="no-print" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; border-bottom:1px solid #e2e8f0; padding-bottom:16px; flex-wrap:wrap; gap:10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="btn btn-primary" onclick="window.print()">🖨️ Jetzt Drucken (A4)</button>
+            <button class="btn btn-secondary" onclick="window.rechly.exportPdf('${inv.id}')">Als PDF speichern</button>
+            ${kind === 'invoice' ? `<button class="btn btn-secondary" onclick="exportZugferd('${inv.id}')">📎 ZUGFeRD (PDF)</button>` : ''}
+            ${kind === 'invoice' ? `<button class="btn btn-secondary" onclick="exportXRechnung('${inv.id}')">📄 XRechnung (XML)</button>` : ''}
+          </div>
+          
+          <div style="display:flex; align-items:center; gap:6px; background:#f1f5f9; padding:4px 8px; border-radius:8px;">
+            <span style="font-size:12px; font-weight:600; color:#475569;">🎨 Vorlage:</span>
+            <button class="btn btn-sm ${currentTpl === 'classic' ? 'btn-primary' : 'btn-secondary'}" onclick="setInvoiceTemplate('classic')">🏛️ DIN 5008</button>
+            <button class="btn btn-sm ${currentTpl === 'modern' ? 'btn-primary' : 'btn-secondary'}" onclick="setInvoiceTemplate('modern')">💎 Modern</button>
+            <button class="btn btn-sm ${currentTpl === 'minimal' ? 'btn-primary' : 'btn-secondary'}" onclick="setInvoiceTemplate('minimal')">✨ Minimal</button>
+          </div>
+
+          <button class="btn btn-secondary" onclick="closePrintModal()">Schließen ✕</button>
+        </div>
+
+        ${paymentNotice}${templateHtml}
+      `;
+
+      document.getElementById('print-modal').style.display = 'flex';
+    }
+
+    async function setInvoiceTemplate(tpl) {
+      if (!currentStore.company) currentStore.company = {};
+      currentStore.company.invoice_template = tpl;
+      await window.rechly.saveCompany(currentStore.company);
+      showToast(`Vorlage ausgewählt: ${tpl === 'classic' ? 'DIN 5008 Klassisch' : tpl === 'modern' ? 'Modern' : 'Minimal'}`);
+      if (activePreviewInvoiceId) {
+        previewDocument(activePreviewKind, activePreviewInvoiceId);
+      }
+    }
+
+    function closePrintModal() {
+      paymentPreviewVersion++;
+      document.getElementById('print-modal').style.display = 'none';
+    }
+
+    // ─── View 3: Clients ───
+    function renderClientsView(container) {
+      const clients = currentStore.clients || [];
+      const rows = clients.map(c => `
+        <tr>
+          <td><b>${c.name}</b></td>
+          <td>${c.contact_person || '-'}</td>
+          <td>${c.city || '-'}</td>
+          <td>${c.email || '-'}</td>
+          <td>${c.leitweg_id || '-'}</td>
+          <td style="display:flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="editClient('${c.id}')">✏️ Bearbeiten</button>
+            <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteClient('${c.id}')">Löschen</button>
+          </td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-title">Kundenstamm (Lokal)</div>
+            <div class="page-subtitle">Verwalte deine Geschäftskunden und E-Rechnungs-Empfänger.</div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-secondary" onclick="openMigrationWizard('lexoffice')">🔄 Kunden importieren</button>
+            <button class="btn btn-primary" onclick="showNewClientModal()">+ Neuer Kunde</button>
+          </div>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Name</th><th>Ansprechpartner</th><th>Ort</th><th>E-Mail</th><th>Leitweg-ID</th><th>Aktionen</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="6" style="text-align:center; padding:24px;">Keine Kunden gespeichert. Klicke auf "+ Neuer Kunde".</td></tr>'}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function showNewClientModal() {
+      editingClientId = null;
+      const title = document.getElementById('modal-client-title');
+      if (title) title.textContent = 'Neuen Kunden anlegen';
+      document.getElementById('modal-client-name').value = '';
+      document.getElementById('modal-client-contact').value = '';
+      document.getElementById('modal-client-email').value = '';
+      document.getElementById('modal-client-address').value = '';
+      document.getElementById('modal-client-plz').value = '';
+      document.getElementById('modal-client-city').value = '';
+      document.getElementById('modal-client-vat').value = '';
+      document.getElementById('modal-client-leitweg').value = '';
+      document.getElementById('modal-client').style.display = 'flex';
+    }
+
+    function editClient(id) {
+      const c = (currentStore.clients || []).find(x => x.id === id);
+      if (!c) return;
+      editingClientId = id;
+      const title = document.getElementById('modal-client-title');
+      if (title) title.textContent = 'Kunde bearbeiten';
+      document.getElementById('modal-client-name').value = c.name || '';
+      document.getElementById('modal-client-contact').value = c.contact_person || '';
+      document.getElementById('modal-client-email').value = c.email || '';
+      document.getElementById('modal-client-address').value = c.address_line1 || '';
+      document.getElementById('modal-client-plz').value = c.postal_code || '';
+      document.getElementById('modal-client-city').value = c.city || '';
+      document.getElementById('modal-client-vat').value = c.vat_id || '';
+      document.getElementById('modal-client-leitweg').value = c.leitweg_id || '';
+      document.getElementById('modal-client').style.display = 'flex';
+    }
+
+    async function submitModalClient() {
+      const name = document.getElementById('modal-client-name').value.trim();
+      if (!name) return alert('Bitte Kundenname angeben.');
+      const contact_person = document.getElementById('modal-client-contact').value.trim();
+      const email = document.getElementById('modal-client-email').value.trim();
+      const address_line1 = document.getElementById('modal-client-address').value.trim();
+      const postal_code = document.getElementById('modal-client-plz').value.trim();
+      const city = document.getElementById('modal-client-city').value.trim();
+      const vat_id = document.getElementById('modal-client-vat').value.trim();
+      const leitweg_id = document.getElementById('modal-client-leitweg').value.trim();
+
+      const clientData = { name, contact_person, email, address_line1, postal_code, city, vat_id, leitweg_id };
+      try {
+        if (editingClientId) {
+          await window.rechly.updateClient(editingClientId, clientData);
+          showToast('Kunde erfolgreich aktualisiert!');
+        } else {
+          await window.rechly.createClient(clientData);
+          showToast('Kunde angelegt!');
+        }
+      } catch (err) { showToast(err?.message || 'Kunde konnte nicht gespeichert werden.', 'error'); return; }
+      editingClientId = null;
+      currentStore = await window.rechly.getStore();
+      updateBadges();
+      closeModal('modal-client');
+      if (currentView === 'clients') renderClientsView(document.getElementById('content-container'));
+      else if (currentView === 'dashboard') renderDashboardView(document.getElementById('content-container'));
+    }
+
+    async function deleteClient(id) {
+      if ([...(currentStore.invoices || []), ...(currentStore.offers || [])].some(d => d.client_id === id)) {
+        showToast('Dieser Kunde wird in Rechnungen oder Angeboten verwendet und kann nicht gelöscht werden.', 'error');
+        return;
+      }
+      if (confirm('Kunde löschen?')) {
+        await window.rechly.deleteClient(id);
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showToast('Kunde gelöscht');
+        renderClientsView(document.getElementById('content-container'));
+      }
+    }
+
+    // ─── View 4: Products ───
+    let selectedProductIds = new Set();
+
+    function renderProductsView(container) {
+      const prods = currentStore.products || [];
+      const validIds = new Set(prods.map(p => p.id));
+      selectedProductIds = new Set([...selectedProductIds].filter(id => validIds.has(id)));
+      const allSelected = prods.length > 0 && selectedProductIds.size === prods.length;
+      const rows = prods.map(p => `
+        <tr>
+          <td style="width:36px; text-align:center;">
+            <input type="checkbox" class="prod-select-cb" data-id="${esc(p.id)}" aria-label="${esc(p.name)} auswählen" ${selectedProductIds.has(p.id) ? 'checked' : ''} onchange="toggleProductSelection('${esc(p.id)}', this.checked)">
+          </td>
+          <td><b>${esc(p.name)}</b></td>
+          <td>${esc(p.description || '-')}</td>
+          <td>${(p.price || 0).toFixed(2)} €</td>
+          <td>${p.tax_rate_percent}%</td>
+          <td>${esc(p.unit_of_measure)}</td>
+          <td>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" onclick="editProduct('${esc(p.id)}')">✏️ Bearbeiten</button>
+              <button class="btn btn-secondary btn-sm" title="Leistung duplizieren" onclick="duplicateProduct('${esc(p.id)}')">📋 Duplizieren</button>
+              <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteProduct('${esc(p.id)}')">Löschen</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-title">Produkte & Dienstleistungen</div>
+            <div class="page-subtitle">Verwalte Artikel und wiederkehrende Stundensätze.</div>
+          </div>
+          <button class="btn btn-primary" onclick="showNewProductModal()">+ Neues Produkt</button>
+        </div>
+        <div id="products-bulk-bar" class="card" style="display:${selectedProductIds.size > 0 ? 'flex' : 'none'}; justify-content:space-between; align-items:center; gap:12px; padding:12px 16px; margin-bottom:14px; background:#f8fafc;">
+          <span id="products-selected-count" style="font-size:13px; font-weight:600; color:#334155;">${selectedProductIds.size} ausgewählt</span>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="duplicateSelectedProducts()">📋 Ausgewählte duplizieren</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="deleteSelectedProducts()">Ausgewählte löschen</button>
+            <button class="btn btn-secondary btn-sm" onclick="clearProductSelection()">Auswahl aufheben</button>
+          </div>
+        </div>
+        <div class="card">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:36px; text-align:center;"><input type="checkbox" id="prod-select-all" aria-label="Alle Leistungen auswählen" ${allSelected ? 'checked' : ''} onchange="toggleAllProducts(this.checked)"></th>
+                <th>Bezeichnung</th>
+                <th>Beschreibung</th>
+                <th>Preis</th>
+                <th>MwSt</th>
+                <th>Einheit</th>
+                <th>Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="7" style="text-align:center; padding:24px;">Keine Produkte hinterlegt.</td></tr>'}</tbody>
+          </table>
+        </div>
+      `;
+      updateProductBulkBar();
+    }
+
+    function updateProductBulkBar() {
+      const prods = currentStore.products || [];
+      const selectAll = document.getElementById('prod-select-all');
+      if (selectAll) {
+        selectAll.checked = prods.length > 0 && selectedProductIds.size === prods.length;
+        selectAll.indeterminate = selectedProductIds.size > 0 && selectedProductIds.size < prods.length;
+      }
+      const bar = document.getElementById('products-bulk-bar');
+      const count = document.getElementById('products-selected-count');
+      if (bar) bar.style.display = selectedProductIds.size > 0 ? 'flex' : 'none';
+      if (count) count.textContent = `${selectedProductIds.size} ausgewählt`;
+    }
+
+    function toggleProductSelection(id, checked) {
+      if (checked) selectedProductIds.add(id);
+      else selectedProductIds.delete(id);
+      updateProductBulkBar();
+    }
+
+    function toggleAllProducts(checked) {
+      selectedProductIds = checked ? new Set((currentStore.products || []).map(p => p.id)) : new Set();
+      document.querySelectorAll('.prod-select-cb').forEach(cb => { cb.checked = checked; });
+      updateProductBulkBar();
+    }
+
+    function clearProductSelection() {
+      toggleAllProducts(false);
+    }
+
+    function productCopyPayload(p) {
+      return {
+        name: `${p.name || 'Leistung'} (Kopie)`,
+        description: p.description || '',
+        price: Number(p.price) || 0,
+        unit_of_measure: p.unit_of_measure || 'Stunde',
+        tax_rate_percent: p.tax_rate_percent !== undefined ? Number(p.tax_rate_percent) : 19,
+      };
+    }
+
+    async function duplicateProduct(id) {
+      const source = (currentStore.products || []).find(p => p.id === id);
+      if (!source) {
+        showToast('Leistung nicht gefunden.', 'error');
+        return;
+      }
+      try {
+        await window.rechly.createProduct(productCopyPayload(source));
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showToast(`„${source.name}“ dupliziert.`);
+        renderProductsView(document.getElementById('content-container'));
+      } catch (err) {
+        showToast(err?.message || 'Leistung konnte nicht dupliziert werden.', 'error');
+      }
+    }
+
+    async function duplicateSelectedProducts() {
+      const selected = (currentStore.products || []).filter(p => selectedProductIds.has(p.id));
+      if (!selected.length) return;
+      try {
+        for (const p of selected) {
+          await window.rechly.createProduct(productCopyPayload(p));
+        }
+        selectedProductIds.clear();
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showToast(`${selected.length} ${selected.length === 1 ? 'Leistung' : 'Leistungen'} dupliziert.`);
+        renderProductsView(document.getElementById('content-container'));
+      } catch (err) {
+        showToast(err?.message || 'Leistungen konnten nicht dupliziert werden.', 'error');
+      }
+    }
+
+    async function deleteSelectedProducts() {
+      const ids = [...selectedProductIds];
+      if (!ids.length) return;
+      if (!confirm(`${ids.length} ausgewählte ${ids.length === 1 ? 'Leistung' : 'Leistungen'} wirklich löschen?`)) return;
+      try {
+        for (const id of ids) {
+          await window.rechly.deleteProduct(id);
+        }
+        selectedProductIds.clear();
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showToast(`${ids.length} ${ids.length === 1 ? 'Leistung' : 'Leistungen'} gelöscht.`);
+        renderProductsView(document.getElementById('content-container'));
+      } catch (err) {
+        showToast(err?.message || 'Leistungen konnten nicht gelöscht werden.', 'error');
+      }
+    }
+
+    function showNewProductModal() {
+      editingProductId = null;
+      const title = document.getElementById('modal-product-title');
+      if (title) title.textContent = 'Neues Produkt / Dienstleistung';
+      document.getElementById('modal-product-name').value = '';
+      document.getElementById('modal-product-desc').value = '';
+      document.getElementById('modal-product-price').value = '100.00';
+      document.getElementById('modal-product-unit').value = 'Stunde';
+      document.getElementById('modal-product-vat').value = '19';
+      document.getElementById('modal-product').style.display = 'flex';
+    }
+
+    function editProduct(id) {
+      const p = (currentStore.products || []).find(x => x.id === id);
+      if (!p) return;
+      editingProductId = id;
+      const title = document.getElementById('modal-product-title');
+      if (title) title.textContent = 'Produkt bearbeiten';
+      document.getElementById('modal-product-name').value = p.name || '';
+      document.getElementById('modal-product-desc').value = p.description || '';
+      document.getElementById('modal-product-price').value = p.price !== undefined ? p.price : 0;
+      document.getElementById('modal-product-unit').value = p.unit_of_measure || 'Stunde';
+      document.getElementById('modal-product-vat').value = p.tax_rate_percent !== undefined ? p.tax_rate_percent : 19;
+      document.getElementById('modal-product').style.display = 'flex';
+    }
+
+    async function submitModalProduct() {
+      const name = document.getElementById('modal-product-name').value.trim();
+      if (!name) return alert('Bitte Bezeichnung angeben.');
+      const description = document.getElementById('modal-product-desc').value.trim();
+      const price = parseDecimalInput(document.getElementById('modal-product-price').value);
+      if (!Number.isFinite(price) || price < 0) return showToast('Bitte geben Sie einen gültigen, nicht negativen Preis ein.', 'error');
+      const unit_of_measure = document.getElementById('modal-product-unit').value;
+      const tax_rate_percent = parseDecimalInput(document.getElementById('modal-product-vat').value) || 0;
+
+      const productData = { name, description, price, unit_of_measure, tax_rate_percent };
+      try {
+        if (editingProductId) {
+          await window.rechly.updateProduct(editingProductId, productData);
+          showToast('Produkt erfolgreich aktualisiert!');
+        } else {
+          await window.rechly.createProduct(productData);
+          showToast('Produkt gespeichert!');
+        }
+      } catch (err) { showToast(err?.message || 'Produkt konnte nicht gespeichert werden.', 'error'); return; }
+      editingProductId = null;
+      currentStore = await window.rechly.getStore();
+      updateBadges();
+      closeModal('modal-product');
+      renderProductsView(document.getElementById('content-container'));
+    }
+
+    async function deleteProduct(id) {
+      if (confirm('Produkt löschen?')) {
+        await window.rechly.deleteProduct(id);
+        selectedProductIds.delete(id);
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        showToast('Produkt gelöscht');
+        renderProductsView(document.getElementById('content-container'));
+      }
+    }
+
+    // ─── View 5: Offers ───
+    const OFFER_STATUSES = [
+      { value: 'draft', label: 'Entwurf' },
+      { value: 'sent', label: 'Versendet' },
+      { value: 'accepted', label: 'Angenommen' },
+      { value: 'declined', label: 'Abgelehnt' },
+    ];
+
+    function offerStatusOptions(status) {
+      const current = OFFER_STATUSES.some(s => s.value === status) ? status : 'draft';
+      return OFFER_STATUSES.map(s => `<option value="${s.value}" ${s.value === current ? 'selected' : ''}>${s.label}</option>`).join('');
+    }
+
+    function offerStatusSelect(offer) {
+      if (offer.status === 'converted') return '<span class="status-pill status-converted">In Rechnung umgewandelt</span>';
+      const current = OFFER_STATUSES.some(s => s.value === offer.status) ? offer.status : 'draft';
+      return `<select class="status-pill status-select status-${current}" title="Status ändern" onchange="setOfferStatus('${offer.id}', this.value)">${offerStatusOptions(current)}</select>`;
+    }
+
+    async function setOfferStatus(id, status) {
+      try {
+        await window.rechly.updateOffer(id, { status });
+        currentStore = await window.rechly.getStore();
+        showToast(`Status geändert: ${OFFER_STATUSES.find(s => s.value === status)?.label || status}`);
+        showView(currentView);
+      } catch (err) { showToast(err?.message || 'Status konnte nicht geändert werden.', 'error'); }
+    }
+
+    function createNewOffer() {
+      editingOfferId = null;
+      showView('create-offer');
+    }
+
+    function editOffer(id) {
+      editingOfferId = id;
+      showView('create-offer');
+    }
+
+    function renderOffersView(container) {
+      const offers = currentStore.offers || [];
+      const clients = currentStore.clients || [];
+      const rows = offers.map(o => {
+        const client = clients.find(c => c.id === o.client_id) || { name: 'Unbekannter Kunde' };
+        const converted = o.status === 'converted';
+        const expired = !converted && o.valid_until && o.valid_until < new Date().toISOString().slice(0, 10);
+        return `
+          <tr>
+            <td><b>${esc(o.offer_number || o.id)}</b></td>
+            <td>${esc(client.name)}</td>
+            <td>${dateLabel(o.issue_date)}</td>
+            <td style="${expired ? 'color:#dc2626; font-weight:600;' : ''}" title="${expired ? 'Gültigkeit abgelaufen' : ''}">${dateLabel(o.valid_until)}</td>
+            <td><b>${(o.total_gross || 0).toFixed(2)} €</b></td>
+            <td>${offerStatusSelect(o)}</td>
+            <td>
+              ${converted ? '' : `<button class="btn btn-secondary btn-sm" onclick="editOffer('${o.id}')">✏️ Bearbeiten</button>`}
+              <button class="btn btn-secondary btn-sm" onclick="previewOffer('${o.id}')">Drucken / PDF</button>
+              ${converted ? '' : `<button class="btn btn-primary btn-sm" onclick="convertOffer('${o.id}')">In Rechnung umwandeln</button>`}
+              <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteOffer('${o.id}')">Löschen</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-title">Angebote & Kostenvoranschläge</div>
+            <div class="page-subtitle">Angebote erstellen, als PDF versenden und nach Annahme in 1 Klick in eine GoBD-Rechnung umwandeln.</div>
+          </div>
+          <button class="btn btn-primary" onclick="createNewOffer()">➕ Neues Angebot</button>
+        </div>
+        <div class="card">
+          ${offers.length === 0 ? `
+            <div style="text-align:center; padding: 36px 20px;">
+              <div style="font-size:32px; margin-bottom:8px;">📝</div>
+              <div style="font-weight:700; font-size:15px; margin-bottom:4px;">Noch keine Angebote</div>
+              <p style="color:#64748b; font-size:13px; margin-bottom:16px;">Erstellen Sie Ihr erstes Angebot mit Positionen aus Ihren Leistungen & Artikeln.</p>
+              <button class="btn btn-primary" onclick="createNewOffer()">➕ Neues Angebot erstellen</button>
+            </div>` : `
+            <table>
+              <thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th>Gültig bis</th><th>Betrag</th><th>Status</th><th>Aktionen</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>`}
+        </div>
+      `;
+    }
+
+    async function convertOffer(id) {
+      const offer = (currentStore.offers || []).find(o => o.id === id);
+      if (!confirm(`Angebot ${offer?.offer_number || ''} in eine Rechnung umwandeln?`)) return;
+      const invoice = await window.rechly.convertOffer(id);
+      currentStore = await window.rechly.getStore();
+      updateBadges();
+      showToast('Angebot in Rechnung umgewandelt!');
+      if (invoice?.id) editInvoice(invoice.id);
+      else showView('invoices');
+    }
+
+    async function deleteOffer(id) {
+      if (!confirm('Angebot wirklich löschen?')) return;
+      await window.rechly.deleteOffer(id);
+      currentStore = await window.rechly.getStore();
+      updateBadges();
+      showToast('Angebot gelöscht');
+      showView('offers');
+    }
+
+    // ─── View 6: Expenses ───
+    function renderExpensesView(container) {
+      const exps = currentStore.expenses || [];
+      const rows = exps.map(e => `
+        <tr>
+          <td><b>${esc(e.vendor_name || '-')}</b>${e.project_id ? `<span class="cell-sub">${esc(currentStore.business?.projects.find(p=>p.id===e.project_id)?.name || 'Projekt')}</span>` : ''}</td>
+          <td>${esc(e.category || '-')}</td>
+          <td>${esc(e.date || '-')}</td>
+          <td><b>${(e.amount_gross || 0).toFixed(2)} €</b></td>
+          <td style="display:flex; gap:6px;">
+            <button class="btn btn-secondary btn-sm" onclick="editExpense('${e.id}')">✏️ Bearbeiten</button>
+            <button class="btn btn-secondary btn-sm" style="color:#ef4444" onclick="deleteExpense('${e.id}')">✕</button>
+          </td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-title">Ausgaben & Belege (Lokal)</div>
+            <div class="page-subtitle">Erfasse Belege und Betriebsausgaben für die Steuererklärung.</div>
+          </div>
+          <button class="btn btn-primary" onclick="showNewExpenseModal()">+ Beleg erfassen</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>Lieferant</th><th>Kategorie</th><th>Datum</th><th>Betrag</th><th>Aktionen</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5" style="text-align:center; padding:24px;">Keine Ausgaben erfasst.</td></tr>'}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function setExpenseProject(projectId = '') {
+      const select = document.getElementById('modal-exp-project');
+      select.innerHTML = '<option value="">Keinem Projekt zugeordnet</option>' + (currentStore.business?.projects || []).map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+      select.value = projectId;
+    }
+
+    function showNewExpenseModal() {
+      editingExpenseId = null;
+      const title = document.getElementById('modal-expense-title');
+      if (title) title.textContent = 'Ausgabe / Beleg erfassen';
+      document.getElementById('modal-exp-vendor').value = '';
+      document.getElementById('modal-exp-amount').value = '';
+      document.getElementById('modal-exp-vat').value = '19';
+      document.getElementById('modal-exp-date').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('modal-exp-cat').value = 'Software & Hosting';
+      setExpenseProject();
+      document.getElementById('modal-exp-description').value = '';
+      document.getElementById('modal-expense').style.display = 'flex';
+    }
+
+    function editExpense(id) {
+      const e = (currentStore.expenses || []).find(x => x.id === id);
+      if (!e) return;
+      editingExpenseId = id;
+      const title = document.getElementById('modal-expense-title');
+      if (title) title.textContent = 'Beleg bearbeiten';
+      document.getElementById('modal-exp-vendor').value = e.vendor_name || '';
+      document.getElementById('modal-exp-amount').value = e.amount_gross !== undefined ? e.amount_gross : '';
+      document.getElementById('modal-exp-vat').value = e.vat_rate !== undefined ? e.vat_rate : 19;
+      document.getElementById('modal-exp-date').value = e.date || '';
+      document.getElementById('modal-exp-cat').value = e.category || 'Sonstiges';
+      setExpenseProject(e.project_id || '');
+      document.getElementById('modal-exp-description').value = e.description || '';
+      document.getElementById('modal-expense').style.display = 'flex';
+    }
+
+    async function submitModalExpense() {
+      if (savingExpense) return;
+      const vendor_name = document.getElementById('modal-exp-vendor').value.trim();
+      if (!vendor_name) return alert('Bitte Lieferant angeben.');
+      const amount_gross = parseDecimalInput(document.getElementById('modal-exp-amount').value);
+      if (!Number.isFinite(amount_gross) || amount_gross < 0) return showToast('Bitte einen gültigen Bruttobetrag angeben.', 'error');
+      const vat_rate = Number(document.getElementById('modal-exp-vat').value);
+      const date = document.getElementById('modal-exp-date').value || new Date().toISOString().slice(0, 10);
+      const category = document.getElementById('modal-exp-cat').value;
+
+      const project_id = document.getElementById('modal-exp-project').value;
+      const description = document.getElementById('modal-exp-description').value.trim();
+      const expenseData = { vendor_name, amount_gross, vat_rate, date, category, project_id, description };
+      savingExpense = true;
+      document.getElementById('modal-exp-save').disabled = true;
+      try {
+        if (editingExpenseId) {
+          await window.rechly.updateExpense(editingExpenseId, expenseData);
+          showToast('Ausgabe erfolgreich aktualisiert!');
+        } else {
+          await window.rechly.createExpense(expenseData);
+          showToast('Ausgabe erfasst!');
+        }
+        editingExpenseId = null;
+        currentStore = await window.rechly.getStore();
+        updateBadges();
+        closeModal('modal-expense');
+        if (currentView === 'expenses') renderExpensesView(document.getElementById('content-container'));
+        else if (currentView === 'dashboard') renderDashboardView(document.getElementById('content-container'));
+      } catch (error) { showToast(error.message, 'error'); }
+      finally { savingExpense = false; document.getElementById('modal-exp-save').disabled = false; }
+    }
+
+    async function deleteExpense(id) {
+      await window.rechly.deleteExpense(id);
+      currentStore = await window.rechly.getStore();
+      updateBadges();
+      showToast('Ausgabe gelöscht');
+      renderExpensesView(document.getElementById('content-container'));
+    }
+
+    // ─── View 7: DATEV Export ───
+    function renderDatevView(container) {
+      container.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-title">DATEV Export (Format 700)</div>
+            <div class="page-subtitle">1-Klick Steuerberater-Export nach offiziellem DATEV-Standard.</div>
+          </div>
+        </div>
+        <div class="card">
+          <p style="margin-bottom:16px; color:#475569; font-size:13px; line-height:1.6;">
+            Exportiert alle gespeicherten Rechnungen im offiziellen <b>DATEV EXTF Format 700 (Buchungsstapel CSV)</b>.
+            Die Datei kann von Steuerkanzleien direkt in <i>DATEV Rechnungswesen / Kanzlei-Rechnungswesen</i> eingelesen werden.
+          </p>
+          <button class="btn btn-primary" onclick="window.rechly.exportDatev()">📁 DATEV Buchungsstapel exportieren…</button>
+        </div>
+      `;
+    }
+
+    // ─── View 7b: Move to Rechly — Daten-Umzug & Komplett-Import / Backup ───
+    let migConfig = null;
+    let migState = {
+      selectedSource: 'lexoffice',
+      csvFiles: [],
+      eInvoices: [],
+      eInvoiceMode: 'outgoing',
+      backupBundle: null,
+      skipDuplicates: true,
+      parsingFiles: false,
+      importing: false,
+      activePreviewTab: 'clients',
+      openMappings: {},
+      preview: {
+        clients: [],
+        products: [],
+        invoices: [],
+        expenses: [],
+        offersCount: 0,
+        hasCompany: false,
+        totalItems: 0,
+      },
+      importResult: null,
+    };
+
+    function openMigrationWizard(sourceId = 'lexoffice') {
+      migState.selectedSource = sourceId;
+      showView('migration');
+    }
+
+    async function ensureMigrationConfig() {
+      if (!migConfig && window.rechly?.getMigrationConfig) {
+        migConfig = await window.rechly.getMigrationConfig();
+      }
+      return migConfig;
+    }
+
+    async function refreshMigrationPreview() {
+      if (!window.rechly?.computeMigrationPreview) return;
+      migState.preview = await window.rechly.computeMigrationPreview({
+        csvFiles: migState.csvFiles.map(c => ({
+          entityType: c.entityType,
+          rows: c.rows,
+          mapping: c.mapping,
+        })),
+        eInvoices: migState.eInvoices,
+        eInvoiceMode: migState.eInvoiceMode,
+        backupBundle: migState.backupBundle,
+      });
+      if (migState.preview.clients.length > 0) migState.activePreviewTab = 'clients';
+      else if (migState.preview.products.length > 0) migState.activePreviewTab = 'products';
+      else if (migState.preview.invoices.length > 0) migState.activePreviewTab = 'invoices';
+      else if (migState.preview.expenses.length > 0) migState.activePreviewTab = 'expenses';
+    }
+
+    async function exportFullRechlyBackupJson() {
+      if (!window.rechly?.exportRechlyBackupJson) return;
+      try {
+        const res = await window.rechly.exportRechlyBackupJson();
+        if (res.success) {
+          showToast('Komplett-Backup (.json) wurde gespeichert!');
+        }
+      } catch (err) {
+        showToast('Backup konnte nicht erstellt werden: ' + err.message, 'error');
+      }
+    }
+
+    async function downloadMigrationSampleCsv(entityType) {
+      if (!window.rechly?.downloadSampleCsv) return;
+      const res = await window.rechly.downloadSampleCsv(entityType);
+      if (res?.success) {
+        showToast(`Muster-CSV (${entityType}) gespeichert!`);
+      }
+    }
+
+    async function handleMigrationFilesSelected(fileList) {
+      const files = Array.from(fileList || []);
+      if (files.length === 0) return;
+      migState.parsingFiles = true;
+      migState.importResult = null;
+      renderMigrationView(document.getElementById('content-container'));
+
+      const eInvoicePayloads = [];
+      try {
+        for (const file of files) {
+          const lower = (file.name || '').toLowerCase();
+          const buffer = new Uint8Array(await file.arrayBuffer());
+
+          if (lower.endsWith('.json')) {
+            const parsed = await window.rechly.parseMigrationJsonBackup({
+              fileName: file.name,
+              buffer,
+            });
+            if (parsed?.valid && parsed.bundle) {
+              migState.backupBundle = parsed.bundle;
+              migState.selectedSource = 'rechly_backup';
+              showToast(`Rechly Backup-Datei „${file.name}“ geladen.`);
+            } else {
+              showToast(`JSON-Datei „${file.name}“ hat kein bekanntes Rechly-Backup-Format.`, 'error');
+            }
+            continue;
+          }
+
+          if (lower.endsWith('.xml') || lower.endsWith('.pdf')) {
+            eInvoicePayloads.push({ fileName: file.name, buffer });
+            continue;
+          }
+
+          const parsedCsv = await window.rechly.parseMigrationCsv({
+            fileName: file.name,
+            buffer,
+          });
+          if (!parsedCsv || !parsedCsv.rows || parsedCsv.rows.length === 0) {
+            showToast(`Datei „${file.name}“ enthält keine lesbaren Datenzeilen.`, 'error');
+            continue;
+          }
+          migState.csvFiles.push({
+            id: `${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            fileName: file.name,
+            headers: parsedCsv.headers,
+            rows: parsedCsv.rows,
+            detectedSource: parsedCsv.detectedSource,
+            entityType: parsedCsv.entityType,
+            mapping: parsedCsv.mapping,
+          });
+        }
+
+        if (eInvoicePayloads.length > 0) {
+          const data = await window.rechly.parseMigrationEInvoices(eInvoicePayloads);
+          if (Array.isArray(data?.invoices) && data.invoices.length > 0) {
+            migState.eInvoices.push(...data.invoices);
+            migState.selectedSource = 'einvoice';
+            showToast(`${data.invoices.length} E-Rechnung(en) erfolgreich analysiert.`);
+          }
+          if (Array.isArray(data?.failedFiles) && data.failedFiles.length > 0) {
+            for (const fail of data.failedFiles) {
+              showToast(`${fail.fileName}: ${fail.reason}`, 'error');
+            }
+          }
+        }
+
+        await refreshMigrationPreview();
+      } catch (err) {
+        showToast('Datei konnte nicht verarbeitet werden: ' + err.message, 'error');
+      } finally {
+        migState.parsingFiles = false;
+        renderMigrationView(document.getElementById('content-container'));
+      }
+    }
+
+    async function changeMigCsvEntityType(entryId, newType) {
+      const entry = migState.csvFiles.find(e => e.id === entryId);
+      if (!entry) return;
+      entry.entityType = newType;
+      entry.mapping = await window.rechly.autoMapMigrationColumns(entry.headers, newType);
+      await refreshMigrationPreview();
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    async function changeMigColumnMapping(entryId, fieldKey, csvHeader) {
+      const entry = migState.csvFiles.find(e => e.id === entryId);
+      if (!entry) return;
+      if (!csvHeader) delete entry.mapping[fieldKey];
+      else entry.mapping[fieldKey] = csvHeader;
+      await refreshMigrationPreview();
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    async function removeMigCsvFile(entryId) {
+      migState.csvFiles = migState.csvFiles.filter(e => e.id !== entryId);
+      await refreshMigrationPreview();
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    async function setMigEInvoiceMode(mode) {
+      migState.eInvoiceMode = mode;
+      await refreshMigrationPreview();
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    function toggleMigMappingOpen(entryId) {
+      migState.openMappings[entryId] = !migState.openMappings[entryId];
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    function resetMigrationWizard() {
+      migState.csvFiles = [];
+      migState.eInvoices = [];
+      migState.backupBundle = null;
+      migState.importResult = null;
+      migState.preview = {
+        clients: [],
+        products: [],
+        invoices: [],
+        expenses: [],
+        offersCount: 0,
+        hasCompany: false,
+        totalItems: 0,
+      };
+      renderMigrationView(document.getElementById('content-container'));
+    }
+
+    async function executeMigrationNow() {
+      const p = migState.preview;
+      if (p.totalItems === 0 && !p.hasCompany) {
+        showToast('Keine Datensätze zum Importieren vorhanden.', 'error');
+        return;
+      }
+      migState.importing = true;
+      renderMigrationView(document.getElementById('content-container'));
+      try {
+        const result = await window.rechly.executeMigrationImport({
+          skipDuplicates: migState.skipDuplicates,
+          company: migState.backupBundle?.company || null,
+          clients: p.clients,
+          products: p.products,
+          invoices: p.invoices,
+          expenses: p.expenses,
+          offers: migState.backupBundle?.offers || [],
+        });
+        migState.importResult = result;
+        currentStore = await window.rechly.getStore();
+        updateSidebarCompany();
+        updateBadges();
+        const totalInserted =
+          result.clients.inserted +
+          result.products.inserted +
+          result.invoices.inserted +
+          result.expenses.inserted +
+          result.offers.inserted;
+        showToast(`Umzug abgeschlossen! ${totalInserted} Datensätze wurden importiert.`);
+      } catch (err) {
+        showToast('Import fehlgeschlagen: ' + err.message, 'error');
+      } finally {
+        migState.importing = false;
+        renderMigrationView(document.getElementById('content-container'));
+      }
+    }
+
+    async function renderMigrationView(container) {
+      const cfg = await ensureMigrationConfig();
+      const sources = cfg?.sources || [];
+      const fieldDefsMap = cfg?.fieldDefinitions || {};
+      const activeGuide = sources.find(s => s.id === migState.selectedSource) || sources[0] || {
+        id: 'lexoffice',
+        name: 'Lexware Office (lexoffice)',
+        stepsDe: [],
+        tipsDe: '',
+      };
+      const p = migState.preview;
+
+      let previewTableHtml = '';
+      if (migState.activePreviewTab === 'clients') {
+        if (p.clients.length === 0) {
+          previewTableHtml = '<div style="padding:24px; text-align:center; color:#64748b;">Noch keine Kunden geladen</div>';
+        } else {
+          previewTableHtml = `
+            <table>
+              <thead><tr><th>Name / Firma</th><th>Ansprechpartner</th><th>Adresse</th><th>E-Mail</th><th>USt-IdNr. / Leitweg-ID</th></tr></thead>
+              <tbody>
+                ${p.clients.slice(0, 25).map(r => `
+                  <tr>
+                    <td><b>${esc(r.name)}</b></td>
+                    <td>${esc(r.contact_person || '—')}</td>
+                    <td>${esc(r.address_line1)}, ${esc(r.postal_code)} ${esc(r.city)}</td>
+                    <td>${esc(r.email || '—')}</td>
+                    <td>${esc(r.vat_id || r.leitweg_id || '—')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+      } else if (migState.activePreviewTab === 'products') {
+        if (p.products.length === 0) {
+          previewTableHtml = '<div style="padding:24px; text-align:center; color:#64748b;">Noch keine Produkte geladen</div>';
+        } else {
+          previewTableHtml = `
+            <table>
+              <thead><tr><th>Bezeichnung</th><th>Beschreibung</th><th>Nettopreis</th><th>MwSt.</th><th>Einheit</th></tr></thead>
+              <tbody>
+                ${p.products.slice(0, 25).map(r => `
+                  <tr>
+                    <td><b>${esc(r.name)}</b></td>
+                    <td>${esc(r.description || '—')}</td>
+                    <td>${Number(r.price || 0).toFixed(2)} €</td>
+                    <td>${esc(r.tax_rate_percent)} %</td>
+                    <td>${esc(r.unit_of_measure)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+      } else if (migState.activePreviewTab === 'invoices') {
+        if (p.invoices.length === 0) {
+          previewTableHtml = '<div style="padding:24px; text-align:center; color:#64748b;">Noch keine Rechnungen geladen</div>';
+        } else {
+          previewTableHtml = `
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:12px; color:#1e40af; margin-bottom:10px;">
+              ℹ️ <b>Kunden-Automatik aktiv:</b> Falls ein Rechnungsempfänger noch nicht in deiner Kundenliste existiert, legt Rechly ihn beim Import automatisch an.
+            </div>
+            <table>
+              <thead><tr><th>Rechnungs-Nr.</th><th>Datum</th><th>Kunde</th><th>Netto</th><th>MwSt.</th><th>Brutto</th><th>Status</th></tr></thead>
+              <tbody>
+                ${p.invoices.slice(0, 25).map(r => `
+                  <tr>
+                    <td><b>${esc(r.invoice_number)}</b></td>
+                    <td>${esc(r.issue_date)}</td>
+                    <td>${esc(r.client_name)}</td>
+                    <td>${Number(r.subtotal || 0).toFixed(2)} €</td>
+                    <td>${Number(r.total_vat || 0).toFixed(2)} €</td>
+                    <td><b>${Number(r.total_gross || 0).toFixed(2)} €</b></td>
+                    <td><span class="badge" style="background:#e0f2fe; color:#0369a1;">${esc(r.status)}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+      } else if (migState.activePreviewTab === 'expenses') {
+        if (p.expenses.length === 0) {
+          previewTableHtml = '<div style="padding:24px; text-align:center; color:#64748b;">Noch keine Ausgaben geladen</div>';
+        } else {
+          previewTableHtml = `
+            <table>
+              <thead><tr><th>Datum</th><th>Lieferant</th><th>Beschreibung</th><th>Kategorie</th><th>Netto</th><th>Brutto</th></tr></thead>
+              <tbody>
+                ${p.expenses.slice(0, 25).map(r => `
+                  <tr>
+                    <td>${esc(r.date)}</td>
+                    <td><b>${esc(r.vendor_name)}</b></td>
+                    <td>${esc(r.description)}</td>
+                    <td><span class="badge" style="background:#f1f5f9; color:#334155;">${esc(r.category)}</span></td>
+                    <td>${Number(r.amount_net || 0).toFixed(2)} €</td>
+                    <td><b>${Number(r.amount_gross || 0).toFixed(2)} €</b></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+      }
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-title">Daten-Umzug & Komplett-Import</div>
+            <div class="page-subtitle">Wechsle in wenigen Minuten von Lexware Office, sevdesk, FastBill, DATEV oder Rechly Web Cloud zu Rechly Desktop.</div>
+          </div>
+        </div>
+
+        <!-- Top Banner: Full Account Backup & Web <-> Desktop Portability -->
+        <div class="card" style="background: linear-gradient(135deg, #eef2ff 0%, #ffffff 55%, #f0f9ff 100%); border: 1px solid #c7d2fe;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                <span class="badge" style="background:#dbeafe; color:#1d4ed8; font-weight:700;">Web ⇄ Desktop</span>
+                <span style="font-weight:700; font-size:15px; color:#0f172a;">100% Datenhoheit & Komplett-Backup</span>
+              </div>
+              <p style="font-size:13px; color:#475569; margin:0; max-width:720px; line-height:1.45;">
+                Sichere deinen gesamten Datenbestand (Firmendaten, Kunden, Produkte, Rechnungen, Angebote & Ausgaben) mit einem Klick oder ziehe nahtlos zwischen Rechly Cloud und der lokalen Rechly Desktop-App um.
+              </p>
+            </div>
+            <button class="btn btn-primary" onclick="exportFullRechlyBackupJson()">
+              ☁️ Komplett-Backup herunterladen (.json)
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 1: Source System Selector -->
+        <div class="card">
+          <div class="card-title">🔄 1. Quelle wählen: Von welchem Programm möchtest du wechseln?</div>
+          <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-bottom:16px;">
+            ${sources.map(source => {
+              const active = migState.selectedSource === source.id;
+              return `
+                <div onclick="migState.selectedSource = '${source.id}'; renderMigrationView(document.getElementById('content-container'));"
+                     style="border: 2px solid ${active ? '#2563eb' : '#e2e8f0'}; background: ${active ? '#eff6ff' : '#ffffff'}; border-radius: 10px; padding: 12px 14px; cursor: pointer; transition: all 0.15s ease;">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px; margin-bottom:6px;">
+                    <span style="font-weight:700; font-size:13px; color:#0f172a;">${esc(source.name)}</span>
+                    <span class="badge" style="background:${active ? '#dbeafe' : '#f1f5f9'}; color:${active ? '#1d4ed8' : '#475569'}; font-size:10px;">${esc(source.badge)}</span>
+                  </div>
+                  <div style="font-size:11.5px; color:#64748b; line-height:1.35;">${esc(source.subtitle)}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+              <b style="font-size:13px; color:#0f172a;">So exportierst du deine Daten aus ${esc(activeGuide.name)}:</b>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="downloadMigrationSampleCsv('clients')">⬇️ Muster Kunden.csv</button>
+                <button class="btn btn-secondary btn-sm" onclick="downloadMigrationSampleCsv('products')">⬇️ Muster Produkte.csv</button>
+                <button class="btn btn-secondary btn-sm" onclick="downloadMigrationSampleCsv('invoices')">⬇️ Muster Rechnungen.csv</button>
+                <button class="btn btn-secondary btn-sm" onclick="downloadMigrationSampleCsv('expenses')">⬇️ Muster Ausgaben.csv</button>
+              </div>
+            </div>
+            <ol style="padding-left:20px; margin:0; font-size:13px; color:#334155; line-height:1.65;">
+              ${(activeGuide.stepsDe || []).map(step => `<li>${esc(step)}</li>`).join('')}
+            </ol>
+            <div style="margin-top:10px; font-size:12px; color:#2563eb; font-weight:600;">
+              💡 ${esc(activeGuide.tipsDe || '')}
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Upload & Preview -->
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div class="card-title" style="margin-bottom:0;">📂 2. Dateien hochladen & Vorschau prüfen</div>
+            ${(migState.csvFiles.length > 0 || migState.eInvoices.length > 0 || migState.backupBundle) ? `
+              <button class="btn btn-secondary btn-sm" onclick="resetMigrationWizard()">🔄 Auswahl zurücksetzen</button>
+            ` : ''}
+          </div>
+
+          <input type="file" id="mig-file-input" multiple accept=".csv,.txt,.xml,.pdf,.json" style="display:none;"
+                 onchange="handleMigrationFilesSelected(this.files)">
+
+          <div id="mig-dropzone"
+               onclick="document.getElementById('mig-file-input').click()"
+               ondragover="event.preventDefault(); this.style.borderColor='#2563eb'; this.style.background='#eff6ff';"
+               ondragleave="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc';"
+               ondrop="event.preventDefault(); this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc'; handleMigrationFilesSelected(event.dataTransfer.files);"
+               style="border: 2px dashed #cbd5e1; border-radius: 12px; padding: 28px 20px; text-align: center; background: #f8fafc; cursor: pointer; transition: all 0.15s ease;">
+            <div style="font-size:32px; margin-bottom:6px;">📥</div>
+            <div style="font-size:15px; font-weight:700; color:#0f172a; margin-bottom:4px;">
+              ${migState.parsingFiles
+                ? 'Dateien werden analysiert…'
+                : 'CSV-, XRechnung- (.xml), ZUGFeRD- (.pdf) oder Backup-Dateien (.json) hierher ziehen'}
+            </div>
+            <div style="font-size:12px; color:#64748b; margin-bottom:12px;">
+              Du kannst mehrere Dateien gleichzeitig auswählen (z. B. Kunden.csv + Artikel.csv + Rechnungen.csv oder mehrere E-Rechnungen).
+            </div>
+            <button class="btn btn-primary btn-sm" type="button">Dateien auswählen</button>
+          </div>
+
+          <!-- Loaded CSV Files & Column Mapping Inspector -->
+          ${migState.csvFiles.length > 0 ? `
+            <div style="margin-top:20px;">
+              <div style="font-weight:700; font-size:14px; margin-bottom:10px;">Geladene CSV-Dateien & Spalten-Zuordnung</div>
+              ${migState.csvFiles.map(entry => {
+                const defs = fieldDefsMap[entry.entityType] || [];
+                const isOpen = Boolean(migState.openMappings[entry.id]);
+                return `
+                  <div style="border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px; margin-bottom:10px; background:#ffffff;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <span>📊 <b>${esc(entry.fileName)}</b></span>
+                        <span class="badge" style="background:#e0e7ff; color:#3730a3;">${entry.rows.length} Zeilen</span>
+                        ${entry.detectedSource !== 'generic' ? `<span class="badge" style="background:#f3e8ff; color:#6b21a8;">${esc(entry.detectedSource.toUpperCase())} erkannt</span>` : ''}
+                      </div>
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:12px; color:#64748b;">Datentyp:</span>
+                        <select onchange="changeMigCsvEntityType('${entry.id}', this.value)" style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px;">
+                          <option value="clients" ${entry.entityType === 'clients' ? 'selected' : ''}>Kunden / Kontakte</option>
+                          <option value="products" ${entry.entityType === 'products' ? 'selected' : ''}>Produkte / Leistungen</option>
+                          <option value="invoices" ${entry.entityType === 'invoices' ? 'selected' : ''}>Ausgangsrechnungen</option>
+                          <option value="expenses" ${entry.entityType === 'expenses' ? 'selected' : ''}>Ausgaben / Belege</option>
+                        </select>
+                        <button class="btn btn-secondary btn-sm" style="color:#ef4444;" onclick="removeMigCsvFile('${entry.id}')">✕</button>
+                      </div>
+                    </div>
+                    <div style="margin-top:8px;">
+                      <button class="btn btn-secondary btn-sm" onclick="toggleMigMappingOpen('${entry.id}')">
+                        ⚙️ Spalten-Zuordnung ${isOpen ? 'ausblenden' : 'prüfen / anpassen'} (${Object.keys(entry.mapping).length} Spalten automatisch erkannt)
+                      </button>
+                      ${isOpen ? `
+                        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid #f1f5f9;">
+                          ${defs.map(field => `
+                            <div class="form-group" style="gap:4px;">
+                              <label style="font-size:11px;">${esc(field.labelDe)}</label>
+                              <select onchange="changeMigColumnMapping('${entry.id}', '${field.key}', this.value)" style="padding:5px 8px; font-size:12px;">
+                                <option value="">— Nicht zugeordnet —</option>
+                                ${entry.headers.map(h => `<option value="${esc(h)}" ${entry.mapping[field.key] === h ? 'selected' : ''}>${esc(h)}</option>`).join('')}
+                              </select>
+                            </div>
+                          `).join('')}
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+
+          <!-- Loaded E-Invoices Mode Switcher -->
+          ${migState.eInvoices.length > 0 ? `
+            <div style="margin-top:16px; border:1px solid #c7d2fe; background:#eef2ff; border-radius:10px; padding:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <div>
+                <b>📄 ${migState.eInvoices.length} E-Rechnungen (XRechnung / ZUGFeRD) geladen</b>
+                <div style="font-size:12px; color:#475569;">Wie sollen diese E-Rechnungen importiert werden?</div>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-sm ${migState.eInvoiceMode === 'outgoing' ? 'btn-primary' : 'btn-secondary'}" onclick="setMigEInvoiceMode('outgoing')">Als eigene Ausgangsrechnungen (+ Kunden)</button>
+                <button class="btn btn-sm ${migState.eInvoiceMode === 'incoming' ? 'btn-primary' : 'btn-secondary'}" onclick="setMigEInvoiceMode('incoming')">Als Eingangsrechnungen (Ausgaben)</button>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Loaded Full Backup Banner -->
+          ${migState.backupBundle ? `
+            <div style="margin-top:16px; border:1px solid #bae6fd; background:#f0f9ff; border-radius:10px; padding:14px;">
+              <b style="color:#0369a1;">✅ Rechly Komplett-Backup vom ${new Date(migState.backupBundle.exportedAt || Date.now()).toLocaleDateString('de-DE')} bereit zur Wiederherstellung</b>
+              <div style="font-size:12px; color:#0c4a6e; margin-top:4px;">
+                Enthält ${migState.backupBundle.clients?.length || 0} Kunden, ${migState.backupBundle.products?.length || 0} Produkte, ${migState.backupBundle.invoices?.length || 0} Rechnungen, ${migState.backupBundle.offers?.length || 0} Angebote und ${migState.backupBundle.expenses?.length || 0} Ausgaben.
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Live Data Preview -->
+          ${(p.totalItems > 0 || p.hasCompany) ? `
+            <div style="margin-top:20px; padding-top:16px; border-top:1px solid #e2e8f0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:14px;">
+                <div>
+                  <div style="font-weight:700; font-size:15px;">Live-Vorschau der erkannten Daten</div>
+                  <div style="font-size:12px; color:#64748b;">Prüfe vor dem Import deine erkannten Kunden, Produkte, Rechnungen und Ausgaben.</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                  <label style="font-size:12px; font-weight:600; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="checkbox" ${migState.skipDuplicates ? 'checked' : ''} onchange="migState.skipDuplicates = this.checked">
+                    Duplikate automatisch überspringen (Empfohlen)
+                  </label>
+                  <button class="btn btn-primary" ${migState.importing ? 'disabled' : ''} onclick="executeMigrationNow()">
+                    🚀 ${migState.importing ? 'Importiere…' : `Jetzt ${p.totalItems} Datensätze importieren`}
+                  </button>
+                </div>
+              </div>
+
+              <div class="ai-tabs" style="margin-bottom:12px;">
+                <button class="ai-tab-btn ${migState.activePreviewTab === 'clients' ? 'active' : ''}" onclick="migState.activePreviewTab='clients'; renderMigrationView(document.getElementById('content-container'))">
+                  👥 Kunden (${p.clients.length})
+                </button>
+                <button class="ai-tab-btn ${migState.activePreviewTab === 'products' ? 'active' : ''}" onclick="migState.activePreviewTab='products'; renderMigrationView(document.getElementById('content-container'))">
+                  📦 Produkte (${p.products.length})
+                </button>
+                <button class="ai-tab-btn ${migState.activePreviewTab === 'invoices' ? 'active' : ''}" onclick="migState.activePreviewTab='invoices'; renderMigrationView(document.getElementById('content-container'))">
+                  📄 Rechnungen (${p.invoices.length})
+                </button>
+                <button class="ai-tab-btn ${migState.activePreviewTab === 'expenses' ? 'active' : ''}" onclick="migState.activePreviewTab='expenses'; renderMigrationView(document.getElementById('content-container'))">
+                  🧾 Ausgaben (${p.expenses.length})
+                </button>
+              </div>
+
+              ${previewTableHtml}
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- Step 3: Import Result Breakdown -->
+        ${migState.importResult ? `
+          <div class="card" style="border: 2px solid #86efac; background: #f0fdf4;">
+            <div style="font-weight:800; font-size:16px; color:#14532d; margin-bottom:4px;">✅ Daten-Umzug erfolgreich abgeschlossen!</div>
+            <p style="font-size:13px; color:#166534; margin-bottom:14px;">Deine Daten wurden in deinen lokalen Rechly-Arbeitsbereich übernommen:</p>
+            <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-bottom:14px;">
+              <div style="background:#ffffff; border:1px solid #bbf7d0; border-radius:8px; padding:12px;">
+                <div style="font-size:11px; color:#64748b;">Kunden</div>
+                <div style="font-size:18px; font-weight:800; color:#15803d;">+${migState.importResult.clients.inserted}</div>
+                <div style="font-size:11px; color:#94a3b8;">${migState.importResult.clients.skipped} Duplikate übersprungen</div>
+              </div>
+              <div style="background:#ffffff; border:1px solid #bbf7d0; border-radius:8px; padding:12px;">
+                <div style="font-size:11px; color:#64748b;">Produkte</div>
+                <div style="font-size:18px; font-weight:800; color:#15803d;">+${migState.importResult.products.inserted}</div>
+                <div style="font-size:11px; color:#94a3b8;">${migState.importResult.products.skipped} Duplikate übersprungen</div>
+              </div>
+              <div style="background:#ffffff; border:1px solid #bbf7d0; border-radius:8px; padding:12px;">
+                <div style="font-size:11px; color:#64748b;">Rechnungen</div>
+                <div style="font-size:18px; font-weight:800; color:#15803d;">+${migState.importResult.invoices.inserted}</div>
+                <div style="font-size:11px; color:#94a3b8;">${migState.importResult.invoices.skipped} Duplikate übersprungen</div>
+              </div>
+              <div style="background:#ffffff; border:1px solid #bbf7d0; border-radius:8px; padding:12px;">
+                <div style="font-size:11px; color:#64748b;">Ausgaben</div>
+                <div style="font-size:18px; font-weight:800; color:#15803d;">+${migState.importResult.expenses.inserted}</div>
+                <div style="font-size:11px; color:#94a3b8;">${migState.importResult.expenses.skipped} Duplikate übersprungen</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-primary btn-sm" onclick="showView('clients')">Zu den Kunden</button>
+              <button class="btn btn-secondary btn-sm" onclick="showView('invoices')">Zu den Rechnungen</button>
+              <button class="btn btn-secondary btn-sm" onclick="showView('expenses')">Zu den Ausgaben</button>
+            </div>
+          </div>
+        ` : ''}
+      `;
+    }
+
+    // ─── View 8: Offline Tools & Rechner ───
+    function renderToolsView(container) {
+      container.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-title">Lokale Offline Rechner</div>
+            <div class="page-subtitle">Nützliche Rechentools für Selbstständige ohne Internetverbindung.</div>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="card">
+            <h3 style="font-size:15px; margin-bottom:12px;">MwSt-Rechner (19% / 7%)</h3>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label>Nettobetrag (€)</label>
+              <input type="text" inputmode="decimal" id="calc-net" value="100" oninput="calcVat()">
+            </div>
+            <div id="calc-vat-res" style="font-size:13px; color:#475569;">
+              19% MwSt: <b>19.00 €</b> | Brutto: <b>119.00 €</b>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="font-size:15px; margin-bottom:12px;">Skonto-Rechner</h3>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label>Rechnungsbetrag (€)</label>
+              <input type="text" inputmode="decimal" id="calc-skonto-gross" value="1000" oninput="calcSkonto()">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label>Skontosatz (%)</label>
+              <input type="text" inputmode="decimal" id="calc-skonto-pct" value="2" oninput="calcSkonto()">
+            </div>
+            <div id="calc-skonto-res" style="font-size:13px; color:#475569;">
+              Abzug: <b>20.00 €</b> | Zahlbetrag: <b>980.00 €</b>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function calcVat() {
+      const net = parseDecimalInput(document.getElementById('calc-net').value) || 0;
+      const vat = net * 0.19;
+      document.getElementById('calc-vat-res').innerHTML = `19% MwSt: <b>${vat.toFixed(2)} €</b> | Brutto: <b>${(net + vat).toFixed(2)} €</b>`;
+    }
+
+    function calcSkonto() {
+      const gross = parseDecimalInput(document.getElementById('calc-skonto-gross').value) || 0;
+      const pct = parseDecimalInput(document.getElementById('calc-skonto-pct').value) || 0;
+      const discount = gross * (pct / 100);
+      document.getElementById('calc-skonto-res').innerHTML = `Abzug: <b>${discount.toFixed(2)} €</b> | Zahlbetrag: <b>${(gross - discount).toFixed(2)} €</b>`;
+    }
+
+    let currentSettingsLogo = null;
+
+    async function normalizeLogoFile(file) {
+      if (!file) throw new Error('Keine Datei ausgewählt.');
+      if (file.size > 5 * 1024 * 1024) throw new Error('Die Bilddatei ist zu groß (maximal 5 MB erlaubt).');
+      if (!file.type.startsWith('image/')) throw new Error('Bitte wählen Sie eine gültige Bilddatei (PNG, JPG, WebP) aus.');
+
+      // SVG als Vektor direkt übernehmen (kein Canvas-Raster nötig, bleibt scharf im Druck).
+      if (file.type === 'image/svg+xml') {
+        const text = await file.text();
+        if (!text.includes('<svg')) throw new Error('Die SVG-Datei konnte nicht verarbeitet werden.');
+        if (text.length > 1024 * 1024) throw new Error('Die SVG-Datei ist zu groß (maximal 1 MB erlaubt).');
+        return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(text)))}`;
+      }
+
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Die Bilddatei konnte nicht verarbeitet werden.'));
+        };
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const maxWidth = 600;
+          const width = img.naturalWidth || img.width;
+          const height = img.naturalHeight || img.height;
+          if (!width || !height) {
+            return reject(new Error('Ungültige Bildabmessungen.'));
+          }
+          const scale = Math.min(1, maxWidth / width);
+          const targetWidth = Math.max(1, Math.round(width * scale));
+          const targetHeight = Math.max(1, Math.round(height * scale));
+
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject(new Error('Canvas konnte nicht initialisiert werden.'));
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.src = url;
+      });
+    }
+
+    async function handleLogoFileSelect(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        const normalized = await normalizeLogoFile(file);
+        currentSettingsLogo = normalized;
+        const box = document.getElementById('settings-logo-preview-box');
+        if (box) {
+          box.innerHTML = `<img id="settings-logo-img" src="${normalized}" alt="Firmenlogo" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+        }
+        const removeBtn = document.getElementById('settings-logo-remove-btn');
+        if (removeBtn) removeBtn.style.display = 'inline-block';
+        showToast('Firmenlogo geladen. Klicken Sie auf "Speichern", um die Änderung zu sichern.');
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        event.target.value = '';
+      }
+    }
+
+    function handleRemoveLogo() {
+      currentSettingsLogo = null;
+      const box = document.getElementById('settings-logo-preview-box');
+      if (box) {
+        box.innerHTML = `<span id="settings-logo-placeholder" style="color:#94a3b8; font-size:12px; text-align:center;">Kein Logo hinterlegt</span>`;
+      }
+      const removeBtn = document.getElementById('settings-logo-remove-btn');
+      if (removeBtn) removeBtn.style.display = 'none';
+      showToast('Firmenlogo entfernt. Klicken Sie auf "Speichern", um die Änderung zu sichern.');
+    }
+
+    // ─── View 9: Settings & AI Configuration ───
+    function renderSettingsView(container) {
+      const comp = currentStore.company || {};
+      currentSettingsLogo = comp.logo_base64 || null;
+      const ai = currentStore.aiSettings || {};
+      const activeProvider = ai.active_provider || 'ollama';
+
+      container.innerHTML = `
+        <div class="page-header">
+          <div>
+            <div class="page-title">Einstellungen & KI-Schnittstellen</div>
+            <div class="page-subtitle">Firmendaten pflegen und KI-Anbieter (Lokal vs. Cloud) konfigurieren.</div>
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button class="btn btn-secondary" onclick="manualCheckForUpdates()">🔄 Nach Updates suchen</button>
+            <button class="btn btn-secondary" onclick="showOnboarding()">🚀 Einrichtungsassistent</button>
+            <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
+          </div>
+        </div>
+
+        <!-- AI Engine Configuration Card -->
+        <div class="card" style="border: 1px solid #bfdbfe;">
+          <div class="card-title">🤖 KI-Modell & Anbieter wählen</div>
+          <p style="font-size:13px; color:#475569; margin-bottom:16px;">
+            Wähle, welche künstliche Intelligenz für <b>Text-zu-Rechnung</b> und Beleg-Assistenten genutzt wird.
+          </p>
+
+          <div class="ai-tabs">
+            <button class="ai-tab-btn ${activeProvider === 'ollama' ? 'active' : ''}" onclick="selectAiTab('ollama')">
+              🖥️ Ollama (Lokal & Kostenlos)
+            </button>
+            <button class="ai-tab-btn ${activeProvider === 'openai' ? 'active' : ''}" onclick="selectAiTab('openai')">
+              ⚡ OpenAI Cloud
+            </button>
+            <button class="ai-tab-btn ${activeProvider === 'anthropic' ? 'active' : ''}" onclick="selectAiTab('anthropic')">
+              🧠 Anthropic Claude Cloud
+            </button>
+          </div>
+
+          <!-- Tab Content: Ollama (Local Multi-Tier Model Family) -->
+          <div id="ai-tab-content-ollama" style="display: ${activeProvider === 'ollama' ? 'block' : 'none'};">
+            <!-- Hardware Detection Banner -->
+            <div id="settings-hw-banner" class="hw-banner">
+              💻 <span>Lade Systemhardware & Empfehlung…</span>
+            </div>
+
+            <!-- Model Tiers Comparison Section -->
+            <div id="ai-model-selector" style="margin-bottom: 20px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h4 style="font-size:14px; font-weight:700; color:var(--text);">Verfügbare Rechly-Modellstufen (3B / 1.5B / 0.5B)</h4>
+                <button class="btn btn-secondary btn-sm" onclick="loadSettingsOllamaInfo()">🔄 Status aktualisieren</button>
+              </div>
+              <div id="settings-tiers-container">
+                <p style="font-size:12px; color:var(--text-muted);">Prüfe installierte Ollama-Modelle…</p>
+              </div>
+            </div>
+
+            <!-- Host & Connection Settings -->
+            <div class="card" style="background:#f8fafc; border:1px solid var(--border); padding:14px; margin-bottom:14px;">
+              <div style="font-weight:600; font-size:13px; margin-bottom:8px;">Ollama Verbindungseinstellungen</div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Ollama Host URL</label>
+                  <input type="text" id="ai-ollama-host" value="${esc(ai.ollama_host || 'http://localhost:11434')}">
+                </div>
+                <div class="form-group">
+                  <label>Aktiver Modell-Identifier (Ollama)</label>
+                  <input type="text" id="ai-ollama-model" value="${esc(ai.ollama_model || 'jonprompter/rechly-de-3b')}">
+                </div>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                <button class="btn btn-secondary btn-sm" onclick="testOllama()">🔄 Verbindung prüfen</button>
+                <div id="ollama-test-result" style="font-size:12px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab Content: OpenAI -->
+          <div id="ai-tab-content-openai" style="display: ${activeProvider === 'openai' ? 'block' : 'none'};">
+            <div class="form-grid">
+              <div class="form-group" style="grid-column: span 2;">
+                <label>OpenAI API Key (sk-...)</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="password" id="ai-openai-key" value="${ai.openai_key || ''}" placeholder="sk-proj-..." style="flex:1;">
+                  <button class="btn btn-secondary btn-sm" onclick="togglePasswordVisibility('ai-openai-key')">👁️</button>
+                  <button class="btn btn-secondary btn-sm" onclick="testOpenAi()">Verbindung testen</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Modell</label>
+                <select id="ai-openai-model">
+                  <option value="gpt-4o-mini" ${ai.openai_model === 'gpt-4o-mini' ? 'selected' : ''}>gpt-4o-mini (Empfohlen - Schnell & Günstig)</option>
+                  <option value="gpt-4o" ${ai.openai_model === 'gpt-4o' ? 'selected' : ''}>gpt-4o (Maximale Intelligenz)</option>
+                  <option value="o3-mini" ${ai.openai_model === 'o3-mini' ? 'selected' : ''}>o3-mini (Reasoning)</option>
+                </select>
+              </div>
+            </div>
+            <div id="openai-test-result" style="font-size:12px; margin-top:6px;"></div>
+            <p style="font-size:11px; color:#64748b; margin-top:8px;">
+              Ihr API-Schlüssel wird mit dem sicheren Betriebssystemspeicher geschützt und nur für Anfragen an OpenAI verwendet.
+            </p>
+          </div>
+
+          <!-- Tab Content: Anthropic Claude -->
+          <div id="ai-tab-content-anthropic" style="display: ${activeProvider === 'anthropic' ? 'block' : 'none'};">
+            <div class="form-grid">
+              <div class="form-group" style="grid-column: span 2;">
+                <label>Anthropic API Key (sk-ant-...)</label>
+                <div style="display:flex; gap:8px;">
+                  <input type="password" id="ai-anthropic-key" value="${ai.anthropic_key || ''}" placeholder="sk-ant-api03-..." style="flex:1;">
+                  <button class="btn btn-secondary btn-sm" onclick="togglePasswordVisibility('ai-anthropic-key')">👁️</button>
+                  <button class="btn btn-secondary btn-sm" onclick="testAnthropic()">Verbindung testen</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Modell</label>
+                <select id="ai-anthropic-model">
+                  <option value="claude-3-5-sonnet-20241022" ${ai.anthropic_model === 'claude-3-5-sonnet-20241022' ? 'selected' : ''}>Claude 3.5 Sonnet (Höchste Text-Präzision)</option>
+                  <option value="claude-3-5-haiku-20241022" ${ai.anthropic_model === 'claude-3-5-haiku-20241022' ? 'selected' : ''}>Claude 3.5 Haiku (Ultraschnell)</option>
+                </select>
+              </div>
+            </div>
+            <div id="anthropic-test-result" style="font-size:12px; margin-top:6px;"></div>
+            <p style="font-size:11px; color:#64748b; margin-top:8px;">
+              Ihr API-Schlüssel wird mit dem sicheren Betriebssystemspeicher geschützt und nur für Anfragen an Anthropic verwendet.
+            </p>
+          </div>
+        </div>
+
+        <!-- Company Logo Card -->
+        <div class="card">
+          <div class="card-title">🖼️ Firmenlogo (Rechnungskopf)</div>
+          <p style="font-size:13px; color:#64748b; margin-bottom:14px;">
+            Laden Sie Ihr Firmenlogo hoch. Es wird automatisch in der Rechnungsvorschau und auf gedruckten PDFs (DIN 5008, Modern & Minimal) im Briefkopf dargestellt.
+          </p>
+          <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+            <div id="settings-logo-preview-box" style="width:200px; height:80px; border:2px dashed #cbd5e1; border-radius:8px; display:flex; align-items:center; justify-content:center; background:#f8fafc; overflow:hidden; padding:6px;">
+              ${comp.logo_base64 ? `<img id="settings-logo-img" src="${comp.logo_base64}" alt="Firmenlogo" style="max-width:100%; max-height:100%; object-fit:contain;">` : `<span id="settings-logo-placeholder" style="color:#94a3b8; font-size:12px; text-align:center;">Kein Logo hinterlegt</span>`}
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <input type="file" id="settings-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;" onchange="handleLogoFileSelect(event)">
+              <div style="display:flex; gap:8px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('settings-logo-input').click()">📁 Logo auswählen</button>
+                <button type="button" id="settings-logo-remove-btn" class="btn btn-secondary btn-sm" style="color:#ef4444; ${comp.logo_base64 ? '' : 'display:none;'}" onclick="handleRemoveLogo()">✕ Logo entfernen</button>
+              </div>
+              <span style="font-size:11px; color:#94a3b8;">Format: PNG, JPG oder WebP (max. 5 MB). Wird automatisch für den Druck optimiert.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Company Profile -->
+        <div class="card">
+          <div class="card-title">🏢 Unternehmensdaten & Bankverbindung</div>
+          <div class="form-grid">
+            <div class="form-group"><label>Firmenname</label><input type="text" id="set-name" value="${comp.name || ''}"></div>
+            <div class="form-group"><label>Rechtsform</label><input type="text" id="set-legal" value="${comp.legal_form || ''}"></div>
+            <div class="form-group"><label>Straße & Hausnummer</label><input type="text" id="set-addr" value="${comp.address_line1 || ''}"></div>
+            <div class="form-group"><label>PLZ</label><input type="text" id="set-plz" value="${comp.postal_code || ''}"></div>
+            <div class="form-group"><label>Stadt</label><input type="text" id="set-city" value="${comp.city || ''}"></div>
+            <div class="form-group"><label>Land (ISO-Code)</label><input type="text" id="set-country" value="${comp.country || 'DE'}" placeholder="DE"></div>
+            <div class="form-group"><label>E-Mail-Adresse (BT-34)</label><input type="email" id="set-email" value="${comp.email || ''}" placeholder="rechnung@meine-firma.de"></div>
+            <div class="form-group"><label>Telefon</label><input type="tel" id="set-phone" value="${comp.phone || ''}"></div>
+            <div class="form-group"><label>USt-IdNr.</label><input type="text" id="set-vat" value="${comp.vat_id || ''}"></div>
+            <div class="form-group"><label>Steuernummer</label><input type="text" id="set-tax" value="${comp.tax_number || ''}" placeholder="z. B. 21/123/45678 oder 35123/45678 (BW)"></div>
+            <div class="form-group"><label>IBAN</label><input type="text" id="set-iban" value="${comp.bank_iban || ''}"></div>
+            <div class="form-group"><label>BIC</label><input type="text" id="set-bic" value="${comp.bank_bic || ''}"></div>
+            <div class="form-group"><label>Bankname</label><input type="text" id="set-bank" value="${comp.bank_name || ''}"></div>
+          </div>
+          <div class="form-group" style="margin-top:12px;">
+            <label>
+              <input type="checkbox" id="set-smallbiz" ${comp.is_small_business ? 'checked' : ''}>
+              <b>Kleinunternehmerregelung (§ 19 UStG) aktivieren</b> (Rechnungen ohne Ausweis der Umsatzsteuer)
+            </label>
+          </div>
+        </div>
+
+        <!-- Invoice Numbering Sequence & Format -->
+        <div class="card" style="border: 1px solid #bfdbfe;">
+          <div class="card-title">🔢 Rechnungsnummernkreis & Format (GoBD-konform)</div>
+          <p style="font-size:13px; color:#475569; margin-bottom:14px;">
+            Lückenlose und einmalige Nummernvergabe gemäß GoBD und § 14 UStG. Passen Sie das Präfix, Datums-Platzhalter und den Zähler an.
+          </p>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nummern-Muster (Format-Muster)</label>
+              <input type="text" id="set-invoice-pattern" value="${esc(comp.invoice_number_pattern || comp.invoice_number_prefix || 'RE-{YYYY}-{###}')}" placeholder="RE-{YYYY}-{###}" oninput="updateSettingsPatternPreview()">
+              <small style="font-size:11px; color:#64748b; margin-top:4px; display:block;">
+                Mögliche Platzhalter: <code>{YYYY}</code> (Jahr 4-stellig), <code>{YY}</code> (Jahr 2-stellig), <code>{MM}</code> (Monat), <code>{DD}</code> (Tag), <code>{###}</code> (3-stelliger Zähler), <code>{####}</code> (4-stelliger Zähler).
+              </small>
+            </div>
+            <div class="form-group">
+              <label>Nächste Zählernummer</label>
+              <input type="number" id="set-next-invoice-num" min="1" step="1" value="${comp.next_invoice_number || comp.nextInvoiceNumber || 1}" oninput="updateSettingsPatternPreview()">
+              <small style="font-size:11px; color:#64748b; margin-top:4px; display:block;">
+                Zählerwert für die nächste neu erstellte Rechnung.
+              </small>
+            </div>
+          </div>
+          <div style="background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; padding:10px 14px; margin-top:10px; display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-size:13px; color:#1e40af; font-weight:600;">Vorschau der nächsten Rechnungsnummer:</span>
+            <code id="settings-pattern-preview" style="font-size:14px; font-weight:700; color:#1e3a8a;">RE-${new Date().getFullYear()}-001</code>
+          </div>
+        </div>
+
+        <!-- Invoice Design Template -->
+        <div class="card">
+          <div class="card-title">🎨 Rechnungs-Design & Druckvorlage</div>
+          <p style="font-size:13px; color:#64748b; margin-bottom:14px;">
+            Wähle das Standard-Layout für Rechnungen, Druck und PDF-Exporte:
+          </p>
+          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:14px;">
+            <label style="cursor:pointer; border:2px solid ${comp.invoice_template === 'classic' || !comp.invoice_template ? '#2563eb' : '#e2e8f0'}; border-radius:8px; padding:14px; background:${comp.invoice_template === 'classic' || !comp.invoice_template ? '#eff6ff' : '#ffffff'};">
+              <input type="radio" name="set-tpl" value="classic" ${comp.invoice_template === 'classic' || !comp.invoice_template ? 'checked' : ''} style="margin-right:6px;">
+              <b>🏛️ DIN 5008 Klassisch</b>
+              <div style="font-size:12px; color:#64748b; margin-top:4px;">Deutscher Geschäftsstandard, Absenderzeile, 45mm Adressfenster, 3-Spalten GoBD-Fußzeile.</div>
+            </label>
+            <label style="cursor:pointer; border:2px solid ${comp.invoice_template === 'modern' ? '#2563eb' : '#e2e8f0'}; border-radius:8px; padding:14px; background:${comp.invoice_template === 'modern' ? '#eff6ff' : '#ffffff'};">
+              <input type="radio" name="set-tpl" value="modern" ${comp.invoice_template === 'modern' ? 'checked' : ''} style="margin-right:6px;">
+              <b>💎 Modern</b>
+              <div style="font-size:12px; color:#64748b; margin-top:4px;">Stilvolle Akzentleiste, Adress- und Datenkarten, hervorgehobener Brutto-Block.</div>
+            </label>
+            <label style="cursor:pointer; border:2px solid ${comp.invoice_template === 'minimal' ? '#2563eb' : '#e2e8f0'}; border-radius:8px; padding:14px; background:${comp.invoice_template === 'minimal' ? '#eff6ff' : '#ffffff'};">
+              <input type="radio" name="set-tpl" value="minimal" ${comp.invoice_template === 'minimal' ? 'checked' : ''} style="margin-right:6px;">
+              <b>✨ Minimal</b>
+              <div style="font-size:12px; color:#64748b; margin-top:4px;">Viel Weißraum, dezente Haarlinien-Trenner, puristische Eleganz.</div>
+            </label>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Zahlungs-QR-Code (optional)</div>
+          <label><input type="checkbox" id="set-payment-qr" ${comp.show_payment_qr ? 'checked' : ''}> GiroCode auf unbezahlten Rechnungen anzeigen</label>
+          <p style="font-size:13px;color:#64748b;margin-top:10px">Kunden können die Überweisung in ihrer Banking-App vorausfüllen. Benötigt eine gültige IBAN und den Kontoinhaber als Firmenname. Die Erstellung erfolgt vollständig lokal; Angebote und bezahlte Rechnungen erhalten keinen Code.</p>
+        </div>
+        <!-- Move to Rechly: Web <-> Desktop Backup & Competitor Migration -->
+        <div class="card" style="border: 1px solid #c7d2fe; background: linear-gradient(135deg, #eef2ff 0%, #ffffff 100%);">
+          <div class="card-title">🔄 Daten-Umzug & Komplett-Backup (Web ⇄ Desktop)</div>
+          <p style="font-size:13px; color:#475569; margin-bottom:14px;">
+            Importiere Kunden, Produkte, Rechnungen und Ausgaben aus <b>Lexware Office, sevdesk, FastBill, DATEV, XRechnung/ZUGFeRD</b> oder ziehe mit 1 Klick zwischen <b>Rechly Cloud (Web)</b> und <b>Rechly Desktop</b> um.
+          </p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="showView('migration')">🔄 Daten-Umzug & Import-Assistent öffnen</button>
+            <button class="btn btn-secondary" onclick="exportFullRechlyBackupJson()">☁️ Komplett-Backup herunterladen (.json)</button>
+          </div>
+        </div>
+
+        <!-- Database Backup & Restore -->
+        <div class="card">
+          <div class="card-title">💾 Lokale Daten & Sicherungen</div>
+          <p style="font-size:13px; color:#64748b; margin-bottom:16px;">
+            Ihre Geschäftsdaten liegen in einer lokalen SQLite-Datenbank. Exportieren Sie regelmäßig eine passwortverschlüsselte Sicherung auf ein separates Laufwerk.
+          </p>
+          <div id="storage-status" role="status"></div>
+          <div style="display:flex; gap:12px;">
+            <button class="btn btn-secondary" onclick="StorageUI.exportBackup()">💾 Tresor-Backup exportieren…</button>
+            <button class="btn btn-secondary" onclick="importBackup()">📂 Tresor aus Datei wiederherstellen…</button>
+          </div>
+        </div>
+      `;
+      setTimeout(loadSettingsOllamaInfo, 0);
+      setTimeout(updateSettingsPatternPreview, 0);
+    }
+
+    function updateSettingsPatternPreview() {
+      const pattern = document.getElementById('set-invoice-pattern')?.value || 'RE-{YYYY}-{###}';
+      const counter = parseInt(document.getElementById('set-next-invoice-num')?.value, 10) || 1;
+      const preview = formatInvoiceNumberString(pattern, counter, new Date());
+      const el = document.getElementById('settings-pattern-preview');
+      if (el) el.innerText = preview;
+    }
+
+    let selectedAiProvider = 'ollama';
+
+    function selectAiTab(provider) {
+      selectedAiProvider = provider;
+      document.querySelectorAll('.ai-tab-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = Array.from(document.querySelectorAll('.ai-tab-btn')).find(b => b.getAttribute('onclick')?.includes(`'${provider}'`));
+      if (activeBtn) activeBtn.classList.add('active');
+      document.getElementById('ai-tab-content-ollama').style.display = provider === 'ollama' ? 'block' : 'none';
+      document.getElementById('ai-tab-content-openai').style.display = provider === 'openai' ? 'block' : 'none';
+      document.getElementById('ai-tab-content-anthropic').style.display = provider === 'anthropic' ? 'block' : 'none';
+      if (provider === 'ollama') loadSettingsOllamaInfo();
+    }
+
+    async function loadSettingsOllamaInfo() {
+      if (!window.rechly) return;
+      const host = document.getElementById('ai-ollama-host')?.value || currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
+      const [profile, status] = await Promise.all([
+        window.rechly.getSystemProfile(),
+        window.rechly.checkOllama(host),
+      ]);
+
+      const hwBanner = document.getElementById('settings-hw-banner');
+      if (hwBanner && profile) {
+        hwBanner.innerHTML = `💻 Erkanntes System: <b>${esc(profile.cpuModel)}</b> • <b>${profile.totalRamGb} GB RAM</b> • Empfohlen: <span class="hw-badge-rec">⭐ ${esc(RECHLY_MODEL_FAMILY[profile.recommendedTier]?.name || 'Rechly-DE-3B (Flagship)')}</span>`;
+      }
+
+      const tiersContainer = document.getElementById('settings-tiers-container');
+      if (tiersContainer) {
+        const activeTierId = currentStore.aiSettings?.selected_tier || (
+          currentStore.aiSettings?.ollama_model?.includes('0.5b') ? '0.5b' :
+          currentStore.aiSettings?.ollama_model?.includes('1.5b') ? '1.5b' : '3b'
+        );
+
+        tiersContainer.innerHTML = Object.values(RECHLY_MODEL_FAMILY).map(tier => {
+          const isInstalled = Boolean(status.connected && status.installedTiers?.[tier.id]);
+          const isActive = tier.id === activeTierId;
+          const isRecommended = profile?.recommendedTier === tier.id;
+
+          let statusBadge = '';
+          let actionButtons = '';
+
+          if (isActive) {
+            statusBadge = '<span class="badge" style="background:#dcfce7; color:#15803d; font-weight:700; border:1px solid #86efac;">Aktiv 🟢</span>';
+            actionButtons = `
+              <button class="btn btn-sm" disabled style="background:#dcfce7; color:#15803d; font-weight:700; border:1px solid #86efac;">Aktives Modell</button>
+              ${isInstalled ? `<button class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:#fecaca;" onclick="deleteModelTier('${tier.id}')" title="Modell löschen, um Speicherplatz freizugeben">🗑️ Entfernen</button>` : ''}
+            `;
+          } else if (isInstalled) {
+            statusBadge = '<span class="badge" style="background:#f1f5f9; color:#475569; font-weight:600; border:1px solid #cbd5e1;">Installiert (Bereit) ⚪</span>';
+            actionButtons = `
+              <button class="btn btn-primary btn-sm" onclick="activateModelTier('${tier.id}')">⚡ 1-Klick Aktivieren</button>
+              <button class="btn btn-secondary btn-sm" style="color:var(--danger); border-color:#fecaca;" onclick="deleteModelTier('${tier.id}')" title="Modell löschen, um Speicherplatz freizugeben">🗑️ Entfernen</button>
+            `;
+          } else {
+            statusBadge = '<span class="badge" style="background:#fef2f2; color:#b91c1c; font-weight:600; border:1px solid #fecaca;">Nicht geladen 📥</span>';
+            actionButtons = `
+              <button class="btn btn-primary btn-sm" ${!status.connected ? 'disabled title="Ollama muss laufen"' : ''} onclick="downloadModelTier('${tier.id}')">📥 Herunterladen</button>
+            `;
+          }
+
+          return `
+            <div class="tier-card ${isActive ? 'selected active-model' : ''}" style="margin-bottom:12px;">
+              <div class="tier-card-header">
+                <div>
+                  <div class="tier-card-title">
+                    ${esc(tier.name)}
+                    <span class="tier-badge-tag tag-${tier.id.replace('.', '')}">${tier.tag}</span>
+                    ${isRecommended ? '<span class="hw-badge-rec">⭐ Empfohlen</span>' : ''}
+                  </div>
+                  <div class="tier-badge-highlight">${esc(tier.badge)}</div>
+                </div>
+                <div>${statusBadge}</div>
+              </div>
+              <div class="tier-meta">
+                <div class="tier-meta-item"><span>📐 <b>${esc(tier.paramSize)}</b></span> • <span>💾 Download: <b>${esc(tier.downloadSize)}</b></span> • <span>🧠 RAM: <b>${esc(tier.ramRequired)}</b></span></div>
+              </div>
+              <div class="tier-desc">${esc(tier.description)}</div>
+              <div class="tier-rec-hw"><b>Empfohlen für:</b> ${esc(tier.recommendedFor)}</div>
+              <div class="tier-actions">
+                <div>
+                  <a href="${tier.hfUrl}" target="_blank" style="font-size:11px; color:#2563eb; text-decoration:none;">Hugging Face ↗</a>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  ${actionButtons}
+                </div>
+              </div>
+              <div id="settings-pull-wrap-${tier.id}" style="display:none; margin-top:8px;" class="tier-pull-progress">
+                <div class="tier-pull-label">
+                  <span id="settings-pull-status-${tier.id}">Download läuft…</span>
+                  <span id="settings-pull-pct-${tier.id}">0%</span>
+                </div>
+                <div class="tier-pull-bar-wrap"><div id="settings-pull-bar-${tier.id}" class="tier-pull-bar"></div></div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    async function activateModelTier(tierId) {
+      const tier = RECHLY_MODEL_FAMILY[tierId];
+      if (!tier) return;
+      await window.rechly.setActiveTier(tierId);
+      currentStore = await window.rechly.getStore();
+      const modelInput = document.getElementById('ai-ollama-model');
+      if (modelInput) modelInput.value = tier.modelIdentifier;
+      updateAiStatusPill();
+      showToast(`${tier.name} ist jetzt aktiv!`);
+      await loadSettingsOllamaInfo();
+    }
+
+    async function deleteModelTier(tierId) {
+      const tier = RECHLY_MODEL_FAMILY[tierId];
+      if (!tier) return;
+      if (!confirm(`Möchten Sie ${tier.name} wirklich vom Gerät löschen? Der Speicherplatz (${tier.downloadSize}) wird freigegeben.`)) {
+        return;
+      }
+      const host = document.getElementById('ai-ollama-host')?.value || currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
+      const res = await window.rechly.deleteModel(tier.modelIdentifier);
+      if (res.success) {
+        showToast(`${tier.name} wurde erfolgreich gelöscht.`);
+        if (currentStore.aiSettings?.selected_tier === tierId) {
+          const tiers = await window.rechly.getInstalledTiers();
+          const fallback = tiers['3b'] ? '3b' : tiers['1.5b'] ? '1.5b' : tiers['0.5b'] ? '0.5b' : '3b';
+          await window.rechly.setActiveTier(fallback);
+          currentStore = await window.rechly.getStore();
+          const modelInput = document.getElementById('ai-ollama-model');
+          if (modelInput) modelInput.value = RECHLY_MODEL_FAMILY[fallback].modelIdentifier;
+          updateAiStatusPill();
+        }
+        await loadSettingsOllamaInfo();
+      } else {
+        showToast(`Fehler beim Löschen: ${res.error}`, 'error');
+      }
+    }
+
+    async function downloadModelTier(tierId) {
+      const tier = RECHLY_MODEL_FAMILY[tierId];
+      if (!tier) return;
+      const wrap = document.getElementById(`settings-pull-wrap-${tierId}`);
+      const bar = document.getElementById(`settings-pull-bar-${tierId}`);
+      const statusLabel = document.getElementById(`settings-pull-status-${tierId}`);
+      const pctLabel = document.getElementById(`settings-pull-pct-${tierId}`);
+      if (wrap) wrap.style.display = 'block';
+
+      const unsubscribe = window.rechly.onPullProgress(p => {
+        const pct = p.percent ?? (p.total ? Math.round((p.completed || 0) / p.total * 100) : 0);
+        if (bar) bar.style.width = `${pct}%`;
+        if (pctLabel) pctLabel.innerText = `${pct}%`;
+        if (statusLabel) {
+          statusLabel.innerText = p.total
+            ? `${p.status} – ${formatBytes(p.completed)} / ${formatBytes(p.total)}`
+            : p.status;
+        }
+      });
+
+      const host = document.getElementById('ai-ollama-host')?.value || currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
+      const res = await window.rechly.pullModel(host, tier.modelIdentifier);
+      unsubscribe();
+
+      if (res.success) {
+        await window.rechly.setActiveTier(tierId);
+        currentStore = await window.rechly.getStore();
+        const modelInput = document.getElementById('ai-ollama-model');
+        if (modelInput) modelInput.value = tier.modelIdentifier;
+        updateAiStatusPill();
+        showToast(`${tier.name} erfolgreich geladen und aktiviert!`);
+      } else {
+        showToast(`Download fehlgeschlagen: ${res.error}`, 'error');
+      }
+      await loadSettingsOllamaInfo();
+    }
+
+    function togglePasswordVisibility(inputId) {
+      const el = document.getElementById(inputId);
+      if (el) el.type = el.type === 'password' ? 'text' : 'password';
+    }
+
+    async function testOllama() {
+      const host = document.getElementById('ai-ollama-host')?.value || 'http://localhost:11434';
+      const out = document.getElementById('ollama-test-result');
+      out.innerHTML = '⏳ Prüfe lokale Ollama-Verbindung...';
+      try {
+        const res = await window.rechly.checkOllama(host);
+        if (res.connected) {
+          out.innerHTML = `<span style="color:#15803d; font-weight:600;">✅ Ollama aktiv! Verfügbare Modelle: ${(res.models || []).join(', ') || 'keine'}</span>`;
+        } else {
+          out.innerHTML = `<span style="color:#ef4444; font-weight:600;">❌ Keine Verbindung: ${res.error || 'Server offline'}. Führe 'ollama serve' aus.</span>`;
+        }
+      } catch (err) {
+        out.innerHTML = `<span style="color:#ef4444;">❌ Fehler: ${err.message}</span>`;
+      }
+    }
+
+    async function testOpenAi() {
+      const key = document.getElementById('ai-openai-key')?.value;
+      const model = document.getElementById('ai-openai-model')?.value || 'gpt-4o-mini';
+      const out = document.getElementById('openai-test-result');
+      out.innerHTML = '⏳ Prüfe OpenAI API-Key...';
+      try {
+        const res = await window.rechly.testOpenAi(key, model);
+        if (res.success) {
+          out.innerHTML = '<span style="color:#15803d; font-weight:600;">✅ OpenAI Verbindung erfolgreich!</span>';
+        } else {
+          out.innerHTML = `<span style="color:#ef4444; font-weight:600;">❌ Fehler: ${res.error}</span>`;
+        }
+      } catch (err) {
+        out.innerHTML = `<span style="color:#ef4444;">❌ Fehler: ${err.message}</span>`;
+      }
+    }
+
+    async function testAnthropic() {
+      const key = document.getElementById('ai-anthropic-key')?.value;
+      const model = document.getElementById('ai-anthropic-model')?.value || 'claude-3-5-sonnet-20241022';
+      const out = document.getElementById('anthropic-test-result');
+      out.innerHTML = '⏳ Prüfe Anthropic Claude API-Key...';
+      try {
+        const res = await window.rechly.testAnthropic(key, model);
+        if (res.success) {
+          out.innerHTML = '<span style="color:#15803d; font-weight:600;">✅ Anthropic Claude Verbindung erfolgreich!</span>';
+        } else {
+          out.innerHTML = `<span style="color:#ef4444; font-weight:600;">❌ Fehler: ${res.error}</span>`;
+        }
+      } catch (err) {
+        out.innerHTML = `<span style="color:#ef4444;">❌ Fehler: ${err.message}</span>`;
+      }
+    }
+
+    async function saveSettings() {
+      try {
+        const updatedComp = {
+          ...currentStore.company,
+          name: document.getElementById('set-name').value,
+          legal_form: document.getElementById('set-legal').value,
+          address_line1: document.getElementById('set-addr').value,
+          postal_code: document.getElementById('set-plz').value,
+          city: document.getElementById('set-city').value,
+          country: document.getElementById('set-country')?.value.trim() || currentStore.company?.country || 'DE',
+          email: document.getElementById('set-email')?.value.trim() || currentStore.company?.email || '',
+          phone: document.getElementById('set-phone')?.value.trim() || currentStore.company?.phone || '',
+          vat_id: document.getElementById('set-vat').value,
+          tax_number: document.getElementById('set-tax').value,
+          bank_iban: document.getElementById('set-iban').value,
+          bank_bic: document.getElementById('set-bic').value,
+          bank_name: document.getElementById('set-bank').value,
+          is_small_business: document.getElementById('set-smallbiz').checked,
+          show_payment_qr: document.getElementById('set-payment-qr').checked,
+          invoice_number_pattern: document.getElementById('set-invoice-pattern')?.value.trim() || 'RE-{YYYY}-{###}',
+          next_invoice_number: parseInt(document.getElementById('set-next-invoice-num')?.value, 10) || 1,
+          nextInvoiceNumber: parseInt(document.getElementById('set-next-invoice-num')?.value, 10) || 1,
+          invoice_template: document.querySelector('input[name="set-tpl"]:checked')?.value || currentStore.company?.invoice_template || 'classic',
+          logo_base64: currentSettingsLogo || undefined,
+        };
+        if (!currentSettingsLogo) {
+          delete updatedComp.logo_base64;
+        }
+
+        const customModel = document.getElementById('ai-ollama-model')?.value || '';
+        let detectedTier = currentStore.aiSettings?.selected_tier || '3b';
+        if (customModel.includes('0.5b')) detectedTier = '0.5b';
+        else if (customModel.includes('1.5b')) detectedTier = '1.5b';
+        else if (customModel.includes('3b')) detectedTier = '3b';
+
+        const updatedAi = {
+          active_provider: selectedAiProvider,
+          ollama_host: document.getElementById('ai-ollama-host')?.value || 'http://localhost:11434',
+          ollama_model: customModel || RECHLY_MODEL_FAMILY[detectedTier]?.modelIdentifier || 'jonprompter/rechly-de-3b',
+          selected_tier: detectedTier,
+          openai_key: document.getElementById('ai-openai-key')?.value || '',
+          openai_model: document.getElementById('ai-openai-model')?.value || 'gpt-4o-mini',
+          anthropic_key: document.getElementById('ai-anthropic-key')?.value || '',
+          anthropic_model: document.getElementById('ai-anthropic-model')?.value || 'claude-3-5-sonnet-20241022',
+          featured_model: customModel || 'jonprompter/rechly-de-3b',
+          ollama_url: `https://ollama.com/${customModel || 'jonprompter/rechly-de-3b'}`,
+          hf_url: RECHLY_MODEL_FAMILY[detectedTier]?.hfUrl || 'https://huggingface.co/jonprompter/rechly-de-3b',
+        };
+
+        const isCloud = selectedAiProvider === 'openai' || selectedAiProvider === 'anthropic';
+        if (isCloud && currentStore.onboarding && currentStore.onboarding.cloud_ai_opt_in === false) {
+          const allow = confirm('Cloud-KI erlauben?\n\nBei der KI-Schnellerfassung werden Ihr eingegebener Text und Ihre Kundennamen an den gewählten Anbieter übertragen. Bisher haben Sie nur lokale KI erlaubt.');
+          if (!allow) return;
+          await window.rechly.setCloudAiOptIn(true);
+        }
+
+        await window.rechly.saveCompany(updatedComp);
+        await window.rechly.saveAiSettings(updatedAi);
+        currentStore = await window.rechly.getStore();
+        updateSidebarCompany();
+        updateAiStatusPill();
+        showToast('Einstellungen & KI erfolgreich gespeichert!');
+      } catch (err) { showToast(err?.message || 'Einstellungen konnten nicht gespeichert werden.', 'error'); }
+    }
+
+    async function importBackup() {
+      const res = await StorageUI.importBackup();
+      if (res) {
+        currentStore = await window.rechly.getStore();
+        updateSidebarCompany();
+        updateBadges();
+        window.Worklog?.sync(currentStore);
+        showToast('Tresor erfolgreich wiederhergestellt!');
+        showView('dashboard');
+      }
+    }
+
+    function showAiSettingsModal() {
+      showView('settings');
+      selectAiTab('ollama');
+      setTimeout(() => {
+        const el = document.getElementById('ai-model-selector') || document.getElementById('ai-tab-content-ollama');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+
+    // Modal Helpers
+    function openModal(id) {
+      if (id === 'modal-client' && !editingClientId) {
+        showNewClientModal();
+        return;
+      }
+      if (id === 'modal-product' && !editingProductId) {
+        showNewProductModal();
+        return;
+      }
+      if (id === 'modal-expense' && !editingExpenseId) {
+        showNewExpenseModal();
+        return;
+      }
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'flex';
+    }
+
+    function closeModal(id) {
+      if (id === 'modal-client') editingClientId = null;
+      if (id === 'modal-product') editingProductId = null;
+      if (id === 'modal-expense') editingExpenseId = null;
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    }
+
+    function handleGlobalSearch(term) {
+      if (currentView !== 'invoices') invoiceFilter = 'all';
+      showView('invoices');
+    }
+
+    // ─── First-Run Setup Assistant ───
+    const ONB_STEPS = [
+      { id: 'welcome', label: 'Willkommen' },
+      { id: 'privacy', label: 'Datenschutz & Berechtigungen' },
+      { id: 'components', label: 'KI-Modell & Hardware' },
+      { id: 'company', label: 'Firmendaten' },
+      { id: 'done', label: 'Fertig' },
+    ];
+    const SAMPLE_COMPANY_VAT_ID = 'DE123456789';
+    const LEGAL_FORMS = ['Einzelunternehmen', 'Freiberufler', 'GbR', 'UG (haftungsbeschränkt)', 'GmbH', 'OHG', 'KG', 'e.K.', 'AG'];
+
+    let onb = null;
+
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    function formatBytes(n) {
+      if (!n) return '0 MB';
+      return n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : `${(n / 1e6).toFixed(0)} MB`;
+    }
+
+    function isValidIban(value) {
+      const iban = value.replace(/\s+/g, '').toUpperCase();
+      if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(iban)) return false;
+      const rearranged = iban.slice(4) + iban.slice(0, 4);
+      let remainder = 0;
+      for (const ch of rearranged) {
+        const digits = /[A-Z]/.test(ch) ? String(ch.charCodeAt(0) - 55) : ch;
+        for (const d of digits) remainder = (remainder * 10 + Number(d)) % 97;
+      }
+      return remainder === 1;
+    }
+
+    function companyForOnboarding(comp) {
+      // The default vault ships with a sample company; don't pre-fill the form with its fake data.
+      const isSample = comp.vat_id === SAMPLE_COMPANY_VAT_ID;
+      if (!isSample) return { country: 'DE', ...comp };
+      return {
+        name: '', legal_form: '', address_line1: '', postal_code: '', city: '', country: 'DE',
+        email: '', phone: '', vat_id: '', tax_number: '', bank_name: '', bank_iban: '', bank_bic: '',
+        is_small_business: false,
+        payment_terms_default: comp.payment_terms_default || 'Zahlbar innerhalb von 14 Tagen ohne Abzug.',
+        invoice_template: comp.invoice_template || 'classic',
+        ...(comp.logo_base64 ? { logo_base64: comp.logo_base64 } : {}),
+      };
+    }
+
+    async function showOnboarding() {
+      const ai = currentStore.aiSettings || {};
+      const prev = currentStore.onboarding;
+      const [info, profile] = await Promise.all([
+        window.rechly.getAppInfo(),
+        window.rechly.getSystemProfile(),
+      ]);
+      const cloudProvider = ai.active_provider === 'openai' || ai.active_provider === 'anthropic';
+      const initialTier = ai.selected_tier || profile?.recommendedTier || '3b';
+      onb = {
+        step: 0,
+        info,
+        systemProfile: profile,
+        selectedTier: initialTier,
+        storageConsent: Boolean(prev),
+        cloudOptIn: prev ? Boolean(prev.cloud_ai_opt_in) : false,
+        aiChoice: prev && cloudProvider && prev.cloud_ai_opt_in ? ai.active_provider : 'ollama',
+        cloudKey: { openai: ai.openai_key || '', anthropic: ai.anthropic_key || '' },
+        cloudTest: '',
+        ollama: null,
+        launching: false,
+        pull: null,
+        pullTier: null,
+        removeSamples: !prev,
+        company: companyForOnboarding(currentStore.company || {}),
+      };
+      document.getElementById('onboarding').style.display = 'flex';
+      renderOnboarding();
+    }
+
+    function onbStepId() { return ONB_STEPS[onb.step].id; }
+
+    function renderOnboarding() {
+      document.getElementById('onb-steps').innerHTML = ONB_STEPS.map((s, i) =>
+        `<div class="onb-step ${i < onb.step ? 'done' : i === onb.step ? 'active' : ''}">${i + 1}. ${s.label}</div>`
+      ).join('');
+      document.getElementById('onb-error').innerText = '';
+      document.getElementById('onb-back').style.visibility = onb.step === 0 ? 'hidden' : 'visible';
+      const next = document.getElementById('onb-next');
+      next.innerText = onbStepId() === 'welcome' ? 'Einrichtung starten' : onbStepId() === 'done' ? 'Rechly starten 🚀' : 'Weiter';
+      next.disabled = false;
+
+      const body = document.getElementById('onb-body');
+      const renderers = {
+        welcome: renderOnbWelcome,
+        privacy: renderOnbPrivacy,
+        components: renderOnbComponents,
+        company: renderOnbCompany,
+        done: renderOnbDone,
+      };
+      body.innerHTML = renderers[onbStepId()]();
+      document.querySelector('#onboarding').scrollTop = 0;
+    }
+
+    function onbError(message) {
+      document.getElementById('onb-error').innerText = message;
+    }
+
+    function renderOnbWelcome() {
+      const features = [
+        ['📄', 'Rechnungen & Angebote', 'GoBD-konforme Rechnungen erstellen, Angebote mit einem Klick umwandeln, Status verfolgen.'],
+        ['🏛️', 'E-Rechnung & DATEV', 'XRechnung 3.0, ZUGFeRD 2.3 (PDF/A-3) und DATEV-Buchungsstapel für Ihre Steuerberatung.'],
+        ['🤖', 'KI-Schnellerfassung', 'Rechnung als Satz eintippen, die KI füllt den Entwurf aus. Lokal mit Rechly-DE-3B oder per Cloud.'],
+        ['🔒', '100% Offline', 'Keine Anmeldung, kein Cloud-Server. Alle Daten bleiben in einer Datei auf diesem Gerät.'],
+      ];
+      return `
+        <div class="onb-title">Willkommen bei Rechly 👋</div>
+        <div class="onb-lead">
+          Rechly ist Ihre Rechnungssoftware für Freelancer und kleine Unternehmen, die vollständig auf Ihrem Rechner läuft.
+          In wenigen Schritten richten wir Datenschutz, die lokale KI und Ihre Firmendaten ein. Das dauert etwa 3 Minuten.
+        </div>
+        <div class="onb-features">
+          ${features.map(([ico, title, text]) => `<div class="onb-feature"><div class="ico">${ico}</div><div><b>${title}</b><span>${text}</span></div></div>`).join('')}
+        </div>
+        <div class="onb-section" style="margin-top:20px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+          <p>Sie nutzen Rechly bereits auf einem anderen Gerät? Stellen Sie Ihr Backup wieder her, dann sind Ihre Firmendaten schon ausgefüllt.</p>
+          <button class="btn btn-secondary btn-sm" style="flex-shrink:0;" onclick="onbRestoreBackup()">📂 Backup wiederherstellen…</button>
+        </div>
+      `;
+    }
+
+    async function onbRestoreBackup() {
+      const res = await StorageUI.importBackup();
+      if (!res) return;
+      currentStore = await window.rechly.getStore();
+      onb.company = companyForOnboarding(currentStore.company || {});
+      onb.removeSamples = false;
+      showToast('Backup wiederhergestellt');
+      onb.step = 1;
+      renderOnboarding();
+    }
+
+    function renderOnbPrivacy() {
+      return `
+        <div class="onb-title">Datenschutz & Berechtigungen</div>
+        <div class="onb-lead">Rechly braucht keine Systemberechtigungen wie Kamera, Mikrofon, Kontakte oder Standort. Bitte bestätigen Sie, wie Ihre Daten behandelt werden.</div>
+
+        <div class="onb-section">
+          <h4>💾 Lokale Speicherung <span style="color:var(--danger)">*</span></h4>
+          <p>Rechnungen, Kunden und Einstellungen werden in dieser lokalen SQLite-Datenbank gespeichert. Die Geschäftsdatenbank ist nicht verschlüsselt; nutzen Sie FileVault oder BitLocker zum Schutz Ihres Geräts:</p>
+          <span class="onb-path">${esc(onb.info?.vaultPath || 'rechly.sqlite')}</span>
+          <label class="onb-check">
+            <input type="checkbox" id="onb-consent" ${onb.storageConsent ? 'checked' : ''} onchange="onb.storageConsent = this.checked">
+            <span>Ich habe verstanden, dass meine Daten nur auf diesem Gerät liegen und ich selbst für regelmäßige Backups verantwortlich bin (beachten Sie die für Ihre Unterlagen geltenden Aufbewahrungsfristen).</span>
+          </label>
+        </div>
+
+        <div class="onb-section">
+          <h4>🌐 Internetzugriff</h4>
+          <p>Rechly funktioniert ohne Internet. Eine Verbindung wird nur für Folgendes genutzt: die lokale KI über <code>localhost</code>, den einmaligen Download des KI-Modells und – falls Sie es unten erlauben – Cloud-KI-Anbieter.</p>
+          <label class="onb-check">
+            <input type="checkbox" id="onb-cloud" ${onb.cloudOptIn ? 'checked' : ''} onchange="onb.cloudOptIn = this.checked; if (!this.checked && onb.aiChoice !== 'ollama') onb.aiChoice = 'ollama';">
+            <span><b>Cloud-KI erlauben (optional).</b> Bei der KI-Schnellerfassung werden Ihr eingegebener Text und Ihre Kundennamen an OpenAI bzw. Anthropic übertragen. Ohne diese Erlaubnis nutzt Rechly nur lokale KI.</span>
+          </label>
+        </div>
+
+        <div class="onb-section">
+          <h4>📁 Dateizugriff</h4>
+          <p>PDFs, XRechnungen, DATEV-Exporte und Backups werden nur dort gespeichert, wo Sie es im Speichern-Dialog auswählen. Rechly liest oder schreibt keine anderen Dateien.</p>
+        </div>
+      `;
+    }
+
+    async function onbRefreshOllama() {
+      const host = currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
+      const [install, status, profile] = await Promise.all([
+        window.rechly.detectOllama(),
+        window.rechly.checkOllama(host),
+        onb?.systemProfile ? Promise.resolve(onb.systemProfile) : window.rechly.getSystemProfile(),
+      ]);
+      if (onb) {
+        onb.systemProfile = profile;
+        if (!onb.selectedTier) {
+          onb.selectedTier = currentStore.aiSettings?.selected_tier || profile?.recommendedTier || '3b';
+        }
+        onb.ollama = {
+          // A reachable server counts as installed even if we didn't find the app (e.g. custom install path).
+          installed: install.installed || status.connected,
+          connected: Boolean(status.connected),
+          installedTiers: status.installedTiers || { '3b': false, '1.5b': false, '0.5b': false },
+          activeTier: status.activeTier || onb.selectedTier,
+          hasModel: Boolean(status.hasFeaturedModel),
+          error: status.error,
+        };
+      }
+      if (onbStepId() === 'components') renderOnboarding();
+    }
+
+    async function onbLaunchOllama() {
+      onb.launching = true;
+      renderOnboarding();
+      const res = await window.rechly.launchOllama();
+      if (!res.success) {
+        onb.launching = false;
+        renderOnboarding();
+        return onbError(`Ollama konnte nicht gestartet werden: ${res.error}`);
+      }
+      const host = currentStore.aiSettings?.ollama_host || 'http://localhost:11434';
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        const status = await window.rechly.checkOllama(host);
+        if (status.connected) break;
+      }
+      onb.launching = false;
+      await onbRefreshOllama();
+    }
+
+    async function onbActivateTier(tierId) {
+      if (!onb) return;
+      onb.selectedTier = tierId;
+      await window.rechly.setActiveTier(tierId);
+      currentStore = await window.rechly.getStore();
+      updateAiStatusPill();
+      showToast(`${RECHLY_MODEL_FAMILY[tierId].name} aktiviert!`);
+      await onbRefreshOllama();
+    }
+
+    async function onbPullTierModel(tierId) {
+      const tier = RECHLY_MODEL_FAMILY[tierId];
+      if (!tier || !onb) return;
+      onb.selectedTier = tierId;
+      onb.pullTier = tierId;
+      onb.pull = { status: 'Starte Download…', completed: 0, total: 0, percent: 0 };
+      renderOnboarding();
+
+      const unsubscribe = window.rechly.onPullProgress(p => {
+        onb.pull = { ...onb.pull, ...p };
+        const pct = p.percent ?? (p.total ? Math.round((p.completed || 0) / p.total * 100) : 0);
+        const bar = document.getElementById(`onb-pull-bar-${tierId}`);
+        const label = document.getElementById(`onb-pull-label-${tierId}`);
+        const pctLabel = document.getElementById(`onb-pull-pct-${tierId}`);
+        if (bar) bar.style.width = `${pct}%`;
+        if (pctLabel) pctLabel.innerText = `${pct}%`;
+        if (label) {
+          label.innerText = p.total
+            ? `${formatBytes(p.completed)} / ${formatBytes(p.total)} • ${pct}%`
+            : p.status;
+        }
+      });
+
+      const res = await window.rechly.pullModel(currentStore.aiSettings?.ollama_host || 'http://localhost:11434', tier.modelIdentifier);
+      unsubscribe();
+      onb.pull = null;
+      onb.pullTier = null;
+
+      if (res.success) {
+        await window.rechly.setActiveTier(tierId);
+        currentStore = await window.rechly.getStore();
+        showToast(`${tier.name} installiert & aktiviert!`);
+        updateAiStatusPill();
+      } else {
+        onbError(`Download fehlgeschlagen: ${res.error}`);
+      }
+      await onbRefreshOllama();
+    }
+
+    function onbSelectAi(choice) {
+      if ((choice === 'openai' || choice === 'anthropic') && !onb.cloudOptIn) {
+        return onbError('Cloud-KI ist nicht erlaubt. Aktivieren Sie sie im Schritt „Datenschutz & Berechtigungen“.');
+      }
+      onb.aiChoice = choice;
+      onb.cloudTest = '';
+      renderOnboarding();
+    }
+
+    async function onbTestCloud() {
+      const key = onb.cloudKey[onb.aiChoice];
+      onb.cloudTest = '⏳ Prüfe Verbindung…';
+      renderOnboarding();
+      const res = onb.aiChoice === 'openai' ? await window.rechly.testOpenAi(key) : await window.rechly.testAnthropic(key);
+      onb.cloudTest = res.success ? '✅ Verbindung erfolgreich' : `❌ ${res.error}`;
+      renderOnboarding();
+    }
+
+    function renderOnbComponents() {
+      if (!onb.ollama) {
+        onbRefreshOllama();
+      }
+      const o = onb.ollama;
+      const profile = onb.systemProfile;
+      const cloudDisabled = !onb.cloudOptIn;
+      const choices = [
+        ['ollama', '🖥️ Lokale KI (Ollama)', 'Empfohlen. Läuft direkt auf deinem Rechner. 100% DSGVO-konform, kein Datenabfluss.'],
+        ['openai', '⚡ OpenAI', 'Cloud. Benötigt einen API-Key.'],
+        ['anthropic', '🧠 Anthropic Claude', 'Cloud. Benötigt einen API-Key.'],
+      ];
+
+      let detail = '';
+      if (onb.aiChoice === 'ollama') {
+        let runtimeRow = '';
+        if (!o) {
+          runtimeRow = `<p class="onb-hint" style="margin-bottom:12px;">⏳ Prüfe installierte Komponenten…</p>`;
+        } else if (!o.installed) {
+          runtimeRow = `
+            <div style="background:#fffbeb; border:1px solid #fef3c7; border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <b>Ollama installieren</b>
+                <div style="font-size:12px; color:#92400e; margin-top:2px;">Ollama ist erforderlich, um lokale KI-Modelle auszuführen.</div>
+              </div>
+              <a class="btn btn-primary btn-sm" href="https://ollama.com/download" target="_blank">Herunterladen ↗</a>
+            </div>
+          `;
+        } else if (!o.connected) {
+          runtimeRow = `
+            <div style="background:#fffbeb; border:1px solid #fef3c7; border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <b>Ollama starten</b>
+                <div style="font-size:12px; color:#92400e; margin-top:2px;">Der lokale KI-Dienst ist installiert, aber aktuell offline.</div>
+              </div>
+              <button class="btn btn-primary btn-sm" ${onb.launching ? 'disabled' : ''} onclick="onbLaunchOllama()">${onb.launching ? '⏳ Starte…' : 'Dienst starten'}</button>
+            </div>
+          `;
+        }
+
+        const recommendedTierObj = RECHLY_MODEL_FAMILY[profile?.recommendedTier || '3b'];
+        const hwBanner = `
+          <div class="hw-banner">
+            <div>
+              💻 Erkanntes System: <b>${esc(profile?.cpuModel || 'Prozessor')}</b> • <b>${profile?.totalRamGb ?? '?'} GB RAM</b> • Empfohlen: <span class="hw-badge-rec">⭐ ${esc(recommendedTierObj.name)}</span>
+              <div style="font-size:11.5px; margin-top:3px; color:#15803d;">${esc(profile?.recommendationReason || '')}</div>
+            </div>
+          </div>
+        `;
+
+        const selectedTier = onb.selectedTier || profile?.recommendedTier || '3b';
+        const tierCards = `
+          <div class="tier-grid">
+            ${Object.values(RECHLY_MODEL_FAMILY).map(tier => {
+              const isSelected = tier.id === selectedTier;
+              const isRecommended = profile?.recommendedTier === tier.id;
+              const isInstalled = Boolean(o?.connected && o.installedTiers?.[tier.id]);
+              const isPulling = Boolean(onb.pull && onb.pullTier === tier.id);
+              const isActive = (currentStore.aiSettings?.selected_tier === tier.id || currentStore.aiSettings?.ollama_model === tier.modelIdentifier);
+
+              let actionHtml = '';
+              if (isPulling) {
+                const pct = onb.pull.percent ?? (onb.pull.total ? Math.round((onb.pull.completed || 0) / onb.pull.total * 100) : 0);
+                actionHtml = `
+                  <div class="tier-pull-progress">
+                    <div class="tier-pull-label">
+                      <span id="onb-pull-label-${tier.id}" style="font-size:10.5px;">${onb.pull.total ? `${formatBytes(onb.pull.completed)} / ${formatBytes(onb.pull.total)} • ${pct}%` : onb.pull.status}</span>
+                      <span id="onb-pull-pct-${tier.id}">${pct}%</span>
+                    </div>
+                    <div class="tier-pull-bar-wrap"><div id="onb-pull-bar-${tier.id}" class="tier-pull-bar" style="width:${pct}%"></div></div>
+                  </div>
+                `;
+              } else if (isInstalled) {
+                actionHtml = `
+                  <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                    <span style="color:#15803d; font-weight:700; font-size:12px;">✅ Installiert</span>
+                    ${isActive
+                      ? '<span class="badge" style="background:#dcfce7; color:#15803d; font-weight:700;">🟢 Aktiv</span>'
+                      : `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); onbActivateTier('${tier.id}')">Aktivieren</button>`}
+                  </div>
+                `;
+              } else {
+                actionHtml = `
+                  <button class="btn btn-primary btn-sm" style="width:100%;" ${!o?.connected ? 'disabled title="Ollama starten"' : ''} onclick="event.stopPropagation(); onbPullTierModel('${tier.id}')">
+                    📥 Herunterladen (${tier.downloadSize})
+                  </button>
+                `;
+              }
+
+              return `
+                <div class="tier-card ${isSelected ? 'selected' : ''} ${isInstalled && isActive ? 'active-model' : ''}" onclick="onb.selectedTier = '${tier.id}'; renderOnboarding();">
+                  <div class="tier-card-header">
+                    <div>
+                      <div class="tier-card-title">
+                        <input type="radio" name="onb-tier-sel" ${isSelected ? 'checked' : ''} style="cursor:pointer;" onchange="onb.selectedTier = '${tier.id}'; renderOnboarding();">
+                        <span>${esc(tier.name)}</span>
+                      </div>
+                      ${isRecommended ? '<span class="hw-badge-rec" style="margin-top:4px;">⭐ Empfohlen für dein Gerät</span>' : ''}
+                    </div>
+                    <span class="tier-badge-tag tag-${tier.id.replace('.', '')}">${tier.tag}</span>
+                  </div>
+                  <div class="tier-badge-highlight">${esc(tier.badge)}</div>
+                  <div class="tier-meta">
+                    <div class="tier-meta-item">📐 <b>${esc(tier.paramSize)}</b></div>
+                    <div class="tier-meta-item">💾 Download: <b>${esc(tier.downloadSize)}</b></div>
+                    <div class="tier-meta-item">🧠 RAM: <b>${esc(tier.ramRequired)}</b></div>
+                  </div>
+                  <div class="tier-desc">${esc(tier.description)}</div>
+                  <div class="tier-rec-hw"><b>Geeignet für:</b> ${esc(tier.recommendedFor)}</div>
+                  <div class="tier-actions">
+                    ${actionHtml}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        detail = `
+          ${runtimeRow}
+          ${hwBanner}
+          ${tierCards}
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+            <span class="onb-hint">Tipp: Du kannst das Modell auch später jederzeit unter „Einstellungen & KI“ mit 1 Klick wechseln oder nachladen.</span>
+            <button class="btn btn-secondary btn-sm" style="flex-shrink:0;" onclick="onb.ollama = null; onbRefreshOllama();">🔄 Erneut prüfen</button>
+          </div>
+        `;
+      } else {
+        const label = onb.aiChoice === 'openai' ? 'OpenAI API-Key (sk-…)' : 'Anthropic API-Key (sk-ant-…)';
+        detail = `
+          <div class="form-group">
+            <label>${label}</label>
+            <div style="display:flex; gap:8px;">
+              <input type="password" id="onb-cloud-key" style="flex:1;" value="${esc(onb.cloudKey[onb.aiChoice])}" oninput="onb.cloudKey[onb.aiChoice] = this.value.trim()">
+              <button class="btn btn-secondary btn-sm" onclick="onbTestCloud()">Verbindung testen</button>
+            </div>
+            <div class="onb-hint">${esc(onb.cloudTest) || 'Der Schlüssel wird durch den sicheren Betriebssystemspeicher geschützt.'}</div>
+          </div>`;
+      }
+
+      return `
+        <div class="onb-title">KI-Modell & Hardware</div>
+        <div class="onb-lead">Wähle das passende KI-Modell für dein System. Dank der optimierten Rechly-Modellfamilie läuft die Rechnungs-KI direkt auf deinem Computer.</div>
+        <div class="onb-choices">
+          ${choices.map(([id, title, text]) => {
+            const disabled = id !== 'ollama' && cloudDisabled;
+            return `<div class="onb-choice ${onb.aiChoice === id ? 'active' : ''} ${disabled ? 'disabled' : ''}" onclick="onbSelectAi('${id}')"><b>${title}</b>${disabled ? 'Erfordert Cloud-Erlaubnis (Schritt 2).' : text}</div>`;
+          }).join('')}
+        </div>
+        ${detail}
+      `;
+    }
+
+    function renderOnbCompany() {
+      const c = onb.company;
+      const field = (id, key, label, opts = {}) => `
+        <div class="form-group" ${opts.span ? 'style="grid-column: span 2;"' : ''}>
+          <label>${label}${opts.required ? ' <span class="req">*</span>' : ''}</label>
+          <input type="${opts.type || 'text'}" id="onb-${id}" data-key="${key}" value="${esc(c[key])}" placeholder="${esc(opts.placeholder || '')}" ${opts.list ? `list="${opts.list}"` : ''}>
+        </div>`;
+      return `
+        <div class="onb-title">Ihre Firmendaten</div>
+        <div class="onb-lead">Diese Angaben erscheinen auf jeder Rechnung. Pflichtfelder nach § 14 UStG sind mit <span style="color:var(--danger)">*</span> markiert. Sie können alles später in den Einstellungen ändern.</div>
+        <datalist id="onb-legal-forms">${LEGAL_FORMS.map(f => `<option value="${f}">`).join('')}</datalist>
+        <div class="form-grid">
+          ${field('name', 'name', 'Firmenname / Ihr Name', { required: true, placeholder: 'z. B. Müller Design' })}
+          ${field('legal', 'legal_form', 'Rechtsform', { list: 'onb-legal-forms', placeholder: 'z. B. Einzelunternehmen' })}
+          ${field('addr', 'address_line1', 'Straße & Hausnummer', { required: true })}
+          ${field('plz', 'postal_code', 'PLZ', { required: true })}
+          ${field('city', 'city', 'Stadt', { required: true })}
+          ${field('country', 'country', 'Land (ISO-Code)', { placeholder: 'DE' })}
+          ${field('email', 'email', 'E-Mail', { type: 'email' })}
+          ${field('phone', 'phone', 'Telefon', { type: 'tel' })}
+          ${field('tax', 'tax_number', 'Steuernummer', { placeholder: 'z. B. 21/123/45678 oder 35123/45678 (BW)' })}
+          ${field('vat', 'vat_id', 'USt-IdNr.', { placeholder: 'z. B. DE123456789' })}
+        </div>
+        <div class="onb-hint" style="margin:-4px 0 14px;">Steuernummer <b>oder</b> USt-IdNr. ist Pflicht.</div>
+        <div class="form-grid">
+          ${field('iban', 'bank_iban', 'IBAN', { placeholder: 'DE00 0000 0000 0000 0000 00' })}
+          ${field('bic', 'bank_bic', 'BIC')}
+          ${field('bank', 'bank_name', 'Bankname', { span: true })}
+        </div>
+        <label class="onb-check" style="margin-top:4px;">
+          <input type="checkbox" id="onb-smallbiz" ${c.is_small_business ? 'checked' : ''}>
+          <span><b>Kleinunternehmerregelung (§ 19 UStG)</b> – Rechnungen ohne Umsatzsteuer ausstellen.</span>
+        </label>
+        <div class="form-group" style="margin-top:14px;">
+          <label>Firmenlogo (optional)</label>
+          <div style="display:flex; align-items:center; gap:16px; margin-top:4px;">
+            <div id="onb-logo-preview" style="width:140px; height:50px; border:1px dashed #cbd5e1; border-radius:6px; display:flex; align-items:center; justify-content:center; background:#f8fafc; padding:4px; overflow:hidden;">
+              ${c.logo_base64 ? `<img src="${c.logo_base64}" alt="Logo" style="max-width:100%; max-height:100%; object-fit:contain;">` : `<span style="font-size:11px; color:#94a3b8;">Kein Logo</span>`}
+            </div>
+            <div>
+              <input type="file" id="onb-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="display:none;" onchange="onbHandleLogoSelect(event)">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('onb-logo-input').click()">📁 Logo auswählen</button>
+              ${c.logo_base64 ? `<button type="button" class="btn btn-secondary btn-sm" style="color:#ef4444; margin-left:6px;" onclick="onbRemoveLogo()">✕</button>` : ''}
+            </div>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:14px;">
+          <label>Standard-Zahlungsbedingungen</label>
+          <textarea id="onb-terms" rows="2">${esc(c.payment_terms_default)}</textarea>
+        </div>
+      `;
+    }
+
+    async function onbHandleLogoSelect(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        const normalized = await normalizeLogoFile(file);
+        onb.company.logo_base64 = normalized;
+        renderOnboarding();
+      } catch (err) {
+        document.getElementById('onb-error').innerText = err.message;
+      }
+    }
+
+    function onbRemoveLogo() {
+      delete onb.company.logo_base64;
+      renderOnboarding();
+    }
+
+    function onbCollectCompany() {
+      document.querySelectorAll('#onb-body input[data-key]').forEach(el => { onb.company[el.dataset.key] = el.value.trim(); });
+      onb.company.country = (onb.company.country || 'DE').toUpperCase();
+      onb.company.is_small_business = document.getElementById('onb-smallbiz').checked;
+      onb.company.payment_terms_default = document.getElementById('onb-terms').value.trim();
+    }
+
+    function onbValidateCompany() {
+      const c = onb.company;
+      const missing = [['name', 'Firmenname'], ['address_line1', 'Straße'], ['postal_code', 'PLZ'], ['city', 'Stadt']]
+        .filter(([k]) => !c[k]).map(([, label]) => label);
+      if (missing.length) return `Bitte ausfüllen: ${missing.join(', ')}`;
+      if (!c.tax_number && !c.vat_id) return 'Bitte Steuernummer oder USt-IdNr. angeben.';
+      if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) return 'Die E-Mail-Adresse ist ungültig.';
+      if (c.bank_iban && !isValidIban(c.bank_iban)) return 'Die IBAN ist ungültig (Prüfsumme stimmt nicht).';
+      if (c.country && !/^[A-Z]{2}$/.test(c.country)) return 'Land bitte als 2-stelligen ISO-Code angeben (z. B. DE).';
+      return '';
+    }
+
+    function renderOnbDone() {
+      const o = onb.ollama;
+      const activeTierId = currentStore.aiSettings?.selected_tier || onb.selectedTier || '3b';
+      const activeTierObj = RECHLY_MODEL_FAMILY[activeTierId] || RECHLY_MODEL_FAMILY['3b'];
+      const isInstalled = Boolean(o?.installedTiers?.[activeTierId] || o?.hasModel);
+      const aiText = onb.aiChoice === 'ollama'
+        ? (isInstalled ? `Lokale KI ${activeTierObj.name} ist einsatzbereit.` : `Lokale KI (${activeTierObj.name}) noch nicht geladen – der Regel-Parser springt ein.`)
+        : `${onb.aiChoice === 'openai' ? 'OpenAI' : 'Anthropic Claude'} (Cloud) ist ausgewählt.`;
+      const hasSamples = (currentStore.invoices || []).some(i => i.id === 'inv-sample-1') || (currentStore.clients || []).some(c => c.id === 'client-sample-1');
+      return `
+        <div class="onb-title">Alles bereit! 🎉</div>
+        <div class="onb-lead">Rechly ist eingerichtet. Hier ist eine Zusammenfassung:</div>
+        <ul class="onb-checklist">
+          <li><span class="state">✅</span><div class="text"><b>Lokaler Tresor</b><small>${esc(onb.info?.vaultPath || '')}</small></div></li>
+          <li><span class="state">${onb.cloudOptIn ? '🌐' : '🔒'}</span><div class="text"><b>Cloud-KI ${onb.cloudOptIn ? 'erlaubt' : 'nicht erlaubt'}</b><small>${onb.cloudOptIn ? 'Änderbar unter „Einstellungen & KI“.' : 'Es verlassen keine Rechnungsdaten Ihr Gerät.'}</small></div></li>
+          <li><span class="state">${onb.aiChoice !== 'ollama' || isInstalled ? '✅' : '⚠️'}</span><div class="text"><b>KI-Schnellerfassung</b><small>${aiText}</small></div></li>
+          <li><span class="state">✅</span><div class="text"><b>${esc(onb.company.name)}</b><small>${esc(onb.company.address_line1)}, ${esc(onb.company.postal_code)} ${esc(onb.company.city)}</small></div></li>
+        </ul>
+        ${hasSamples ? `
+        <label class="onb-check" style="margin-top:18px;">
+          <input type="checkbox" ${onb.removeSamples ? 'checked' : ''} onchange="onb.removeSamples = this.checked">
+          <span><b>Beispieldaten entfernen</b> – Musterrechnung, Musterkunde und Beispielausgabe löschen. Die Vorlagen unter „Leistungen & Artikel“ bleiben erhalten.</span>
+        </label>` : ''}
+        <div class="onb-hint" style="margin-top:16px;">Den Assistenten können Sie jederzeit unter „Einstellungen & KI“ erneut starten.</div>
+      `;
+    }
+
+    async function onbSaveAiChoice() {
+      const update = { active_provider: onb.aiChoice };
+      if (onb.aiChoice === 'ollama' && onb.selectedTier) {
+        await window.rechly.setActiveTier(onb.selectedTier);
+      } else if (onb.aiChoice === 'openai') {
+        update.openai_key = onb.cloudKey.openai;
+      } else if (onb.aiChoice === 'anthropic') {
+        update.anthropic_key = onb.cloudKey.anthropic;
+      }
+      currentStore.aiSettings = await window.rechly.saveAiSettings(update);
+    }
+
+    async function onbNext() {
+      const step = onbStepId();
+      const next = document.getElementById('onb-next');
+
+      try {
+        if (step === 'privacy') {
+          if (!onb.storageConsent) return onbError('Bitte bestätigen Sie die lokale Speicherung, um fortzufahren.');
+          if (!onb.cloudOptIn && onb.aiChoice !== 'ollama') onb.aiChoice = 'ollama';
+        }
+        if (step === 'components') {
+          if (onb.aiChoice !== 'ollama' && !onb.cloudKey[onb.aiChoice]) return onbError('Bitte API-Key eingeben oder „Lokale KI“ wählen.');
+          await onbSaveAiChoice();
+        }
+        if (step === 'company') {
+          onbCollectCompany();
+          const error = onbValidateCompany();
+          if (error) return onbError(error);
+          await window.rechly.saveCompany({ ...currentStore.company, ...onb.company });
+        }
+        if (step === 'done') {
+          next.disabled = true;
+          await window.rechly.completeOnboarding({ cloud_ai_opt_in: onb.cloudOptIn, remove_sample_data: onb.removeSamples });
+          currentStore = await window.rechly.getStore();
+          document.getElementById('onboarding').style.display = 'none';
+          onb = null;
+          updateSidebarCompany();
+          updateBadges();
+          updateAiStatusPill();
+          showView('dashboard');
+          showToast('Willkommen bei Rechly!');
+          return;
+        }
+      } catch (err) { onbError(err?.message || 'Speichern fehlgeschlagen. Bitte prüfen Sie Ihre Eingaben.'); return; }
+      onb.step += 1;
+      renderOnboarding();
+    }
+
+    function onbBack() {
+      if (onbStepId() === 'company') onbCollectCompany();
+      if (onb.step > 0) onb.step -= 1;
+      renderOnboarding();
+    }
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (onb || document.querySelector('dialog[open]')) return;
+      if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
+        e.preventDefault();
+        createNewInvoice();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        document.getElementById('global-search')?.focus();
+      }
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop').forEach(m => m.style.display = 'none');
+        const printModal = document.getElementById('print-modal');
+        if (printModal) printModal.style.display = 'none';
+      }
+    });
+
+    document.getElementById('print-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'print-modal') {
+        closePrintModal();
+      }
+    });
+
+    if (window.rechly?.platform === 'darwin') document.body.classList.add('platform-mac');
+    document.querySelectorAll('.nav-item, .sidebar-header, #ai-model-indicator').forEach(el => {
+      el.tabIndex = 0;
+      el.setAttribute('role', 'button');
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); } });
+    });
+    window.addEventListener('unhandledrejection', (event) => showToast(event?.reason?.message ? `Fehler: ${event.reason.message}` : 'Der Vorgang konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.', 'error'));
+    init();
