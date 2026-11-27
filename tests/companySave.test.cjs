@@ -1,9 +1,8 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
 const { getDefaultStore } = require("../out/storeDefaults.js");
 const { validateStore } = require("../out/storageValidation.js");
+const { readLoadedUiSource } = require("./readUiSource.cjs");
 
 describe("company:save with Karlsruhe (BW) tax number", () => {
     it("accepts the BW format 35NNN/NNNNN, with and without slash", () => {
@@ -46,8 +45,11 @@ describe("company:save with Karlsruhe (BW) tax number", () => {
     });
 
     it("onboarding no longer emits logo_base64 as undefined", () => {
-        const uiHtml = fs.readFileSync(path.join(__dirname, "../ui/index.html"), "utf8");
+        const uiHtml = readLoadedUiSource();
         assert.equal(uiHtml.includes("logo_base64: comp.logo_base64 || undefined"), false);
-        assert.ok(uiHtml.includes("...(comp.logo_base64 ? { logo_base64: comp.logo_base64 } : {})"));
+        assert.ok(
+            uiHtml.includes("...(comp.logo_base64 ? { logo_base64: comp.logo_base64 } : {})"),
+            "loaded UI must omit undefined logo_base64 when saving the onboarding company",
+        );
     });
 });

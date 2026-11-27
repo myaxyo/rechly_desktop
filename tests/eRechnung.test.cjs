@@ -6,6 +6,7 @@ const { PDFDocument, PDFName } = require('pdf-lib');
 const { generateXRechnungXML, generateZugferdXML, generateDatevExport } = require('../out/eRechnung');
 const { createZugferdPdf } = require('../out/zugferdPdf');
 const { extractXmlFromPdf, parseEInvoiceXmlForMigration } = require('../out/migration');
+const { readLoadedUiSource } = require('./readUiSource.cjs');
 
 const mockCompany = {
     name: "Musterberater GmbH",
@@ -211,12 +212,12 @@ test('createZugferdPdf embeds factur-x.xml with PDF/A-3b OutputIntent & XMP meta
     assert.equal(parsed.items[0].description, 'Softwareberatung');
 });
 
-test('ZUGFeRD export hooks exist in ui/index.html, src/preload.ts, and src/main.ts', () => {
-    const uiHtml = fs.readFileSync(path.join(__dirname, '../ui/index.html'), 'utf8');
+test('ZUGFeRD export hooks exist in the loaded UI, src/preload.ts, and src/main.ts', () => {
+    const uiHtml = readLoadedUiSource();
     const preloadTs = fs.readFileSync(path.join(__dirname, '../src/preload.ts'), 'utf8');
     const mainTs = fs.readFileSync(path.join(__dirname, '../src/main.ts'), 'utf8');
-    assert.ok(uiHtml.includes('exportZugferd('), 'ui/index.html must expose exportZugferd');
-    assert.ok(uiHtml.includes('ZUGFeRD (PDF)'), 'ui/index.html must show ZUGFeRD (PDF) buttons');
+    assert.ok(uiHtml.includes('exportZugferd('), 'loaded UI must expose exportZugferd');
+    assert.ok(uiHtml.includes('ZUGFeRD (PDF)'), 'loaded UI must show ZUGFeRD (PDF) buttons');
     assert.ok(preloadTs.includes('exportZugferd:'), 'preload.ts must expose exportZugferd');
     assert.ok(mainTs.includes('ipcMain.handle("export:zugferd"'), 'main.ts must register export:zugferd handler');
 });

@@ -12,6 +12,7 @@ const {
   getNextInvoiceNumber,
   advanceInvoiceNumberCounter,
 } = require('../out/invoiceNumbering');
+const { readLoadedUiSource } = require('./readUiSource.cjs');
 
 const baseCompany = {
   name: "Agentur Muster e.K.",
@@ -81,14 +82,14 @@ describe("Feature 1: Duplicate Invoices & Invoice Templates", () => {
     assert.throws(() => validateStore(store2), /Rechnungsvorlagen sind keine Liste/);
   });
 
-  it("verifies template and duplicate UI hooks in ui/index.html", () => {
-    const uiHtml = fs.readFileSync(path.join(__dirname, "../ui/index.html"), "utf8");
-    assert.ok(uiHtml.includes('duplicateInvoice'), 'ui/index.html must include duplicateInvoice');
-    assert.ok(uiHtml.includes('showTemplateModal'), 'ui/index.html must include showTemplateModal');
-    assert.ok(uiHtml.includes('applyInvoiceTemplate'), 'ui/index.html must include applyInvoiceTemplate');
-    assert.ok(uiHtml.includes('saveCurrentAsTemplate'), 'ui/index.html must include saveCurrentAsTemplate');
-    assert.ok(uiHtml.includes('createInvoiceFromTemplate'), 'ui/index.html must include createInvoiceFromTemplate');
-    assert.ok(uiHtml.includes('inv-template-picker'), 'ui/index.html must have template picker in editor');
+  it("verifies template and duplicate UI hooks in the loaded UI", () => {
+    const uiHtml = readLoadedUiSource();
+    assert.ok(uiHtml.includes('duplicateInvoice'), 'loaded UI must include duplicateInvoice');
+    assert.ok(uiHtml.includes('showTemplateModal'), 'loaded UI must include showTemplateModal');
+    assert.ok(uiHtml.includes('applyInvoiceTemplate'), 'loaded UI must include applyInvoiceTemplate');
+    assert.ok(uiHtml.includes('saveCurrentAsTemplate'), 'loaded UI must include saveCurrentAsTemplate');
+    assert.ok(uiHtml.includes('createInvoiceFromTemplate'), 'loaded UI must include createInvoiceFromTemplate');
+    assert.ok(uiHtml.includes('inv-template-picker'), 'loaded UI must have template picker in editor');
   });
 });
 
@@ -164,13 +165,13 @@ describe("Feature 2: Editable Service Period (Leistungszeitraum)", () => {
     assert.ok(xml.includes('<udt:DateTimeString format="102">20261110</udt:DateTimeString>'));
   });
 
-  it("verifies service period UI inputs and template formatting in ui/index.html", () => {
-    const uiHtml = fs.readFileSync(path.join(__dirname, "../ui/index.html"), "utf8");
-    assert.ok(uiHtml.includes('id="inv-delivery-date"'), 'ui/index.html must have inv-delivery-date input');
-    assert.ok(uiHtml.includes('id="inv-delivery-until"'), 'ui/index.html must have inv-delivery-until input');
-    assert.ok(uiHtml.includes('class="item-delivery-date"'), 'ui/index.html must have item-delivery-date in line rows');
-    assert.ok(uiHtml.includes('class="item-delivery-until"'), 'ui/index.html must have item-delivery-until in line rows');
-    assert.ok(uiHtml.includes('formatServicePeriod'), 'ui/index.html must have formatServicePeriod helper');
+  it("verifies service period UI inputs and template formatting in the loaded UI", () => {
+    const uiHtml = readLoadedUiSource();
+    assert.ok(uiHtml.includes('id="inv-delivery-date"'), 'loaded UI must have inv-delivery-date input');
+    assert.ok(uiHtml.includes('id="inv-delivery-until"'), 'loaded UI must have inv-delivery-until input');
+    assert.ok(uiHtml.includes('class="item-delivery-date"'), 'loaded UI must have item-delivery-date in line rows');
+    assert.ok(uiHtml.includes('class="item-delivery-until"'), 'loaded UI must have item-delivery-until in line rows');
+    assert.ok(uiHtml.includes('formatServicePeriod'), 'loaded UI must have formatServicePeriod helper');
   });
 });
 
@@ -211,18 +212,18 @@ describe("Feature 3: Configurable Sequential Numbering & GoBD Compliance", () =>
     assert.equal(company.nextInvoiceNumber, 11);
   });
 
-  it("verifies settings UI for invoice pattern and counter in ui/index.html", () => {
-    const uiHtml = fs.readFileSync(path.join(__dirname, "../ui/index.html"), "utf8");
-    assert.ok(uiHtml.includes('id="set-invoice-pattern"'), 'ui/index.html must have set-invoice-pattern input in Settings');
-    assert.ok(uiHtml.includes('id="set-next-invoice-num"'), 'ui/index.html must have set-next-invoice-num input in Settings');
-    assert.ok(uiHtml.includes('settings-pattern-preview'), 'ui/index.html must have live preview in Settings');
-    assert.ok(uiHtml.includes('updateSettingsPatternPreview'), 'ui/index.html must handle live preview updates');
+  it("verifies settings UI for invoice pattern and counter in the loaded UI", () => {
+    const uiHtml = readLoadedUiSource();
+    assert.ok(uiHtml.includes('id="set-invoice-pattern"'), 'loaded UI must have set-invoice-pattern input in Settings');
+    assert.ok(uiHtml.includes('id="set-next-invoice-num"'), 'loaded UI must have set-next-invoice-num input in Settings');
+    assert.ok(uiHtml.includes('settings-pattern-preview'), 'loaded UI must have live preview in Settings');
+    assert.ok(uiHtml.includes('updateSettingsPatternPreview'), 'loaded UI must handle live preview updates');
   });
 });
 
 describe("Feedback Regression Fixes: Date Consistency, Duplicate/Multi-Select & PDF Margin", () => {
   it("formats issue_date, due_date, and delivery_date consistently via dateLabel in all invoice templates", () => {
-    const uiHtml = fs.readFileSync(path.join(__dirname, "../ui/index.html"), "utf8");
+    const uiHtml = readLoadedUiSource();
     for (const fnName of ["getClassicInvoiceHtml", "getModernInvoiceHtml", "getMinimalInvoiceHtml"]) {
       const start = uiHtml.indexOf(`function ${fnName}(`);
       assert.ok(start !== -1, `${fnName} must exist`);
@@ -236,7 +237,7 @@ describe("Feedback Regression Fixes: Date Consistency, Duplicate/Multi-Select & 
   });
 
   it("includes single duplicate and multi-select duplicate/delete for products and invoice items", () => {
-    const uiHtml = fs.readFileSync(path.join(__dirname, "../ui/index.html"), "utf8");
+    const uiHtml = readLoadedUiSource();
     for (const hook of [
       "duplicateProduct",
       "duplicateSelectedProducts",
@@ -249,7 +250,7 @@ describe("Feedback Regression Fixes: Date Consistency, Duplicate/Multi-Select & 
       "inv-items-bulk-bar",
       "inv-items-select-all",
     ]) {
-      assert.ok(uiHtml.includes(hook), `ui/index.html must include ${hook}`);
+      assert.ok(uiHtml.includes(hook), `loaded UI must include ${hook}`);
     }
   });
 

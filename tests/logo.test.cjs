@@ -1,10 +1,9 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
 const { getDefaultStore } = require("../out/storeDefaults.js");
 const { validateStore } = require("../out/storageValidation.js");
 const { createRechlyBackupBundle, executeMigrationImport } = require("../out/migration.js");
+const { readLoadedUiSource } = require("./readUiSource.cjs");
 
 const SAMPLE_LOGO_DATA_URL =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -69,8 +68,8 @@ describe("Company Logo Integration & Parity", () => {
         assert.equal(updatedStore.company.logo_base64, SAMPLE_LOGO_DATA_URL);
     });
 
-    it("verifies template and UI integration in ui/index.html", () => {
-        const uiHtml = fs.readFileSync(path.join(__dirname, "../ui/index.html"), "utf8");
+    it("verifies template and UI integration in the loaded UI", () => {
+        const uiHtml = readLoadedUiSource();
 
         // Classic template embeds logo when present
         assert.ok(

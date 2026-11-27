@@ -2,6 +2,7 @@ name: Desktop validation and installers
 on:
   push:
     branches: [main, 'release/**']
+  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
@@ -34,6 +35,10 @@ jobs:
         shell: bash
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # electron-builder skips macOS signing on pull_request unless this is true.
+      # Identity stays the ad-hoc "-" from electron-builder.yml; discovery stays off,
+      # so this does not use or require an Apple certificate.
+      CSC_FOR_PULL_REQUEST: 'true'
       TZ: Europe/Berlin
     steps:
       - uses: actions/checkout@v4
@@ -41,7 +46,41 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci
+      # npm still runs node-gyp for better-sqlite3 (lockfile hasInstallScript) even
+      # though the package ships a prebuild. Point gyp at the toolchain headers so
+      # configure does not download them from nodejs.org, and retry transient failures.
+      - name: Install dependencies
+        run: |
+          node_prefix="$(node -e '
+            const fs = require("fs");
+            const path = require("path");
+            let dir = path.dirname(fs.realpathSync(process.execPath));
+            for (let i = 0; i < 6; i++) {
+              if (fs.existsSync(path.join(dir, "include", "node", "node.h"))) {
+                process.stdout.write(dir);
+                process.exit(0);
+              }
+              const parent = path.dirname(dir);
+              if (parent === dir) break;
+              dir = parent;
+            }
+          ')"
+          case "$node_prefix" in
+            /*)
+              export npm_config_nodedir="$node_prefix"
+              echo "Using Node headers at $npm_config_nodedir"
+              ;;
+          esac
+          for attempt in 1 2 3; do
+            if npm ci; then
+              exit 0
+            fi
+            echo "npm ci failed on attempt ${attempt}"
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            sleep $((attempt * 10))
+          done
       - name: Ensure Electron binary is installed
         run: |
           for i in 1 2 3; do
