@@ -35,6 +35,10 @@ jobs:
         shell: bash
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      # electron-builder skips macOS signing on pull_request unless this is true.
+      # Identity stays the ad-hoc "-" from electron-builder.yml; discovery stays off,
+      # so this does not use or require an Apple certificate.
+      CSC_FOR_PULL_REQUEST: 'true'
       TZ: Europe/Berlin
     steps:
       - uses: actions/checkout@v4
